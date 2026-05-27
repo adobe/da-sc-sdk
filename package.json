@@ -1,0 +1,67 @@
+{
+  "name": "da-sc-sdk",
+  "version": "0.0.0",
+  "description": "Headless SDK for DA Structured Content: schema-driven JSON document editing, validation, and HTML serialization.",
+  "type": "module",
+  "private": true,
+  "sideEffects": false,
+  "license": "Apache-2.0",
+  "author": "Adobe Inc.",
+  "homepage": "https://github.com/adobe-rnd/da-sc-sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adobe-rnd/da-sc-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/adobe-rnd/da-sc-sdk/issues"
+  },
+  "keywords": [
+    "adobe",
+    "da",
+    "structured-content",
+    "json-schema",
+    "headless",
+    "editor",
+    "sdk",
+    "esm"
+  ],
+  "//runtime": "The SDK is ES2022 + ESM with no Node-specific code — runs in any modern runtime (browsers, Node ≥18, Deno, Bun, Web/Cloudflare Workers). `engines.node` is set to >=18 only to gate local dev (npm install, build, test); it does not describe the SDK's actual runtime support.",
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "./src/index.js",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "files": [
+    "src",
+    "dist",
+    "index.d.ts",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "wtr",
+    "test:watch": "wtr --watch",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "hast-util-from-html": "^2.0.0"
+  },
+  "devDependencies": {
+    "@adobe/eslint-config-helix": "^3.0.17",
+    "@esm-bundle/chai": "^4.3.4",
+    "@web/test-runner": "^0.18.0",
+    "@web/test-runner-commands": "^0.9.0",
+    "esbuild": "^0.24.0",
+    "eslint": "^9.39.2",
+    "globals": "^15.14.0"
+  }
+}

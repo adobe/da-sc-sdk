@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+
+# Built bundle — regenerated via `npm run build` (and on `prepublishOnly`).
+# Published to npm via the "files" allowlist in package.json; not committed.
+dist/
+
+# Test coverage output — regenerated on every `npm test` run.
+coverage/
+
+# Lock file — intentionally untracked for this package. Consumers and CI
+# install fresh; the SDK has only one runtime dep (hast-util-from-html).
+package-lock.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Editor / IDE
+.idea/
+.vscode/
+*~
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Backups
+*.bak
+
+# Claude Code local settings (per-user, not shared)
+.claude/settings.local.json
