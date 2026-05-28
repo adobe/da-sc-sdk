@@ -120,7 +120,7 @@ export function coerceData(value, definition) {
 
 function emptyState({ document = null, schemaIssues = [] } = {}) {
   return {
-    document: { values: document },
+    document,
     model: null,
     validation: { errors: {} },
     schemaIssues,
@@ -187,7 +187,7 @@ export function createEngine({ schema, document, onChange } = {}) {
     model = built;
     const { errors } = validateDocument({ document: built.document, model });
     commitState({
-      document: { values: built.document },
+      document: built.document,
       model: built,
       validation: { errors },
       schemaIssues,
@@ -239,7 +239,7 @@ export function createEngine({ schema, document, onChange } = {}) {
     const node = nodeAt({ model, pointer });
     if (node?.readonly) { return state; }
     return commit(applySet({
-      document: state.document?.values, pointer, value, node,
+      document: state.document, pointer, value, node,
     }));
   }
 
@@ -248,7 +248,7 @@ export function createEngine({ schema, document, onChange } = {}) {
     const { def, node } = arrayContext(pointer);
     if (!canAdd(def, node)) { return state; }
     return commit(applyAdd({
-      document: state.document?.values, pointer, itemDefinition: def.item,
+      document: state.document, pointer, itemDefinition: def.item,
     }));
   }
 
@@ -258,7 +258,7 @@ export function createEngine({ schema, document, onChange } = {}) {
     const { def, node } = arrayContext(parentPointer);
     if (!canAdd(def, node)) { return state; }
     return commit(applyInsert({
-      document: state.document?.values, pointer, itemDefinition: def.item,
+      document: state.document, pointer, itemDefinition: def.item,
     }));
   }
 
@@ -267,7 +267,7 @@ export function createEngine({ schema, document, onChange } = {}) {
     const parentPointer = getParentPointer(pointer);
     const { def, node } = arrayContext(parentPointer);
     if (!canRemove(def, node)) { return state; }
-    return commit(applyRemove({ document: state.document?.values, pointer }));
+    return commit(applyRemove({ document: state.document, pointer }));
   }
 
   function moveItem(pointer, fromIndex, toIndex) {
@@ -281,7 +281,7 @@ export function createEngine({ schema, document, onChange } = {}) {
     if (from >= (node.items?.length ?? 0)) { return state; }
 
     return commit(applyMove({
-      document: state.document?.values, pointer, fromIndex: from, toIndex: to,
+      document: state.document, pointer, fromIndex: from, toIndex: to,
     }));
   }
 
