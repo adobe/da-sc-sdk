@@ -3,7 +3,6 @@
   "version": "0.0.0",
   "description": "Headless SDK for DA Structured Content: schema-driven JSON document editing, validation, and HTML serialization.",
   "type": "module",
-  "private": true,
   "sideEffects": false,
   "license": "Apache-2.0",
   "author": "Adobe Inc.",
@@ -25,9 +24,9 @@
     "sdk",
     "esm"
   ],
-  "//runtime": "The SDK is ES2022 + ESM with no Node-specific code — runs in any modern runtime (browsers, Node ≥18, Deno, Bun, Web/Cloudflare Workers). `engines.node` is set to >=18 only to gate local dev (npm install, build, test); it does not describe the SDK's actual runtime support.",
+  "//runtime": "The SDK is ES2022 + ESM with no Node-specific code — runs in any modern runtime (browsers, modern Node, Deno, Bun, Web/Cloudflare Workers). `engines.node` is set to >=22 to match the Node version verified in CI; it does not describe the SDK's actual runtime support.",
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "main": "./src/index.js",
   "types": "./index.d.ts",
@@ -50,7 +49,10 @@
     "test:watch": "wtr --watch",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "prepare": "husky",
+    "semantic-release": "semantic-release",
+    "semantic-release-dry": "semantic-release --dry-run --no-ci --branches $CI_BRANCH"
   },
   "dependencies": {
     "hast-util-from-html": "^2.0.0"
@@ -58,10 +60,18 @@
   "devDependencies": {
     "@adobe/eslint-config-helix": "^3.0.17",
     "@esm-bundle/chai": "^4.3.4",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
     "@web/test-runner": "^0.18.0",
     "@web/test-runner-commands": "^0.9.0",
     "esbuild": "^0.24.0",
     "eslint": "^9.39.2",
-    "globals": "^15.14.0"
+    "globals": "^15.14.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.1",
+    "semantic-release": "^24.2.7"
+  },
+  "lint-staged": {
+    "*.{js,mjs}": "eslint --fix"
   }
 }
