@@ -29,13 +29,13 @@ function makeRoundtripHarness() {
 
   const onChange = () => {
     if (!editor) { return; }
-    const result = convertJsonToHtml({ json: editor.getState().document?.values });
+    const result = convertJsonToHtml({ json: editor.getState().document });
     if (!result.error) { savedHtml = result.html; }
   };
 
   const captureNow = () => {
     if (!editor) { return; }
-    const result = convertJsonToHtml({ json: editor.getState().document?.values });
+    const result = convertJsonToHtml({ json: editor.getState().document });
     if (!result.error) { savedHtml = result.html; }
   };
 

@@ -104,7 +104,7 @@ engine.setField(pointer, value)
 - **One `deepClone` per mutation.** The clone is the price of immutable-ish state semantics; no in-place edits.
 - **Mutation no-ops preserve state identity.** Setting a field to its current value returns the same `state` reference — Lit / other reference-comparison consumers can skip work.
 - **One `onChange` per mutation.** Even if the mutation triggers internal cascades (model rebuild, validation pass), the consumer sees exactly one notification.
-- **Reference comparison detects mutations.** Every real mutation produces a new `document.values` reference; non-mutation calls keep the same one. Consumers (e.g. the form block's persistence layer) use this to skip non-mutation `onChange` events.
+- **Reference comparison detects mutations.** Every real mutation produces a new `document` reference; non-mutation calls keep the same one. Consumers (e.g. the form block's persistence layer) use this to skip non-mutation `onChange` events.
 
 Reference: [architecture.md §4 + §8 + §10](./architecture.md), [model-builder.md](./model-builder.md).
 

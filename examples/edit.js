@@ -1,14 +1,19 @@
-// Stateful editing — the engine is a pure state machine.
+// Stateful editing — create an engine bound to a (schema, document) pair
+// and apply pointer-addressed mutations. The engine validates, deep-clones,
+// and notifies via `onChange`; persistence is the consumer's job.
 //
-// Pattern: create an engine bound to a (schema, document) pair, apply
-// pointer-addressed mutations. The SDK doesn't persist anything — that's
-// the consumer's job. Observe state transitions via the onChange callback.
+// Use this pattern when:
+//   - building an interactive editor (browser UI, TUI) that needs to react
+//     to each change incrementally rather than re-validating from scratch
+//   - an agent holds edit state across multiple turns and needs a stable
+//     document reference between mutations
+//   - you want validation, defaulting, and structural mutations behind one
+//     API instead of reassembling them yourself
 //
-// In production, consumers layer persistence on top of `onChange`. This
-// example shows the engine naked, plus a minimal save-on-change handler
-// using `convertJsonToHtml`.
+// This example shows the engine naked, plus a minimal save-on-change
+// handler using `convertJsonToHtml`.
 //
-// Run: node examples/quick-start.js
+// Run: node examples/edit.js
 
 import { createEngine, convertJsonToHtml } from '../src/index.js';
 
@@ -40,7 +45,7 @@ const onChange = () => {
   const errors = Object.keys(state.validation.errors).length;
   console.log(`[change] errors=${errors}`);
 
-  const next = state.document?.values;
+  const next = state.document;
   if (next === lastValues) { return; }
   lastValues = next;
   persist(next);
@@ -58,7 +63,7 @@ engine = createEngine({
   document: { metadata: { schemaName: 'project' }, data: {} },
   onChange,
 });
-lastValues = engine.getState().document?.values;
+lastValues = engine.getState().document;
 
 console.log('initial errors:', Object.keys(engine.getState().validation.errors).length);
 // → 1 ('name' is required, doc is empty)
@@ -69,5 +74,5 @@ engine.addItem('/data/tags');
 engine.setField('/data/tags/0', 'demo');
 
 console.log('---');
-console.log('final  :', JSON.stringify(engine.getState().document.values, null, 2));
+console.log('final  :', JSON.stringify(engine.getState().document, null, 2));
 // → { "metadata": { "schemaName": "project" }, "data": { "name": "Alice", ... } }

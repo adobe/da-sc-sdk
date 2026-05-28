@@ -1,26 +1,94 @@
 # da-sc-sdk
 
-A headless SDK for **DA Structured Content** — a strict JSON Schema subset for forms-style documents. The SDK validates schemas, validates data against them, serializes documents to DA's wire-format HTML, and runs a stateful editor for interactive editing.
+A headless SDK for working with **DA Structured Content** — schema-constrained JSON documents serialized as a defined HTML wire format. It exposes a small, focused API covering the operations supported today.
 
-**No DOM. No I/O. No persistence.** The same five functions run identically in browsers, Node, Deno, Bun, Web Workers, Cloudflare Workers, and edge runtimes. Errors are [ajv](https://ajv.js.org)-shaped — agents trained on JSON Schema vocabulary already know how to read them.
+The SDK is pure ESM and ships with no DOM dependencies and no I/O. UI rendering, transport, and persistence are intentionally left to the consuming application.
 
-**Who it's for:** UI editors that need a state machine, MCP servers that wrap document validation as tools, import pipelines that move data into DA HTML, Workers that validate incoming JSON. **Who it's not for:** general JSON Schema validation (use ajv) or non-DA HTML wire formats.
+In exchange, every tool built on the SDK shares the same DA Structured Content behavior — defined here once and used across all consumers, instead of being re-implemented (and inevitably drifting) in each tool.
 
-> Status: **early — the package name and version are placeholders.** Do not publish yet.
+## Status
 
-## What it provides
+**Pre-release.** This SDK is being stabilized for its first npm publication. The public API is in active development; expect possible breaking changes and no support commitments before the official release.
 
-Five top-level functions, narrow on purpose. The SDK covers what's needed today for three use cases; nothing speculative.
+## Install
 
-| Use case                                                             | Function            |
-| -------------------------------------------------------------------- | ------------------- |
-| **Interactive editing** (UI editors, agents holding state)           | `createEngine`      |
-| **Schema validation** (lint a schema before binding to it)           | `validateSchema`    |
-| **Data validation** (check data against a schema)                    | `validateData`      |
-| **JSON → HTML serialization** (import tools, agents writing content) | `convertJsonToHtml` |
-| **HTML → JSON parsing** (importers reading saved content)            | `convertHtmlToJson` |
+> **Not yet on npm.** The package name and version in `package.json` are placeholders — do not publish. Until the first release, use the temporary alternative below.
 
-`createEngine({ schema, document, onChange })` returns an engine object that exposes 6 methods:
+Build and vendor the bundle:
+
+```bash
+git clone https://github.com/adobe-rnd/da-sc-sdk.git
+cd da-sc-sdk && npm install && npm run build
+# → dist/index.js (self-contained ESM bundle)
+```
+
+```js
+import {
+  createEngine,
+  convertJsonToHtml,
+} from "./deps/da-sc-sdk/dist/index.js";
+```
+
+## Quick start
+
+```js
+import { createEngine, convertJsonToHtml } from "da-sc-sdk";
+
+const schema = {
+  type: "object",
+  title: "Project",
+  required: ["name"],
+  properties: {
+    name: { type: "string", title: "Name" },
+    tags: {
+      type: "array",
+      title: "Tags",
+      items: { type: "string", title: "Tag" },
+    },
+  },
+};
+
+const engine = createEngine({
+  schema,
+  document: { metadata: { schemaName: "project" }, data: {} },
+  onChange: () => {
+    /* state changed — read engine.getState() */
+  },
+});
+
+engine.setField("/data/name", "Alice");
+engine.addItem("/data/tags");
+engine.setField("/data/tags/0", "demo");
+
+const { html } = convertJsonToHtml({ json: engine.getState().document });
+// `html` is ready to POST. Persistence is your job.
+```
+
+Runnable scripts in [examples/](./examples/).
+
+## API
+
+Five top-level functions:
+
+| Function            | Purpose                                              | Returns                           |
+| ------------------- | ---------------------------------------------------- | --------------------------------- |
+| `createEngine`      | Stateful editing (UI editors, agents holding state). | `Engine`                          |
+| `validateSchema`    | Lint a schema before binding to it.                  | `{ valid, schemaIssues }`         |
+| `validateData`      | Check data against a schema.                         | `{ valid, errors, schemaIssues }` |
+| `convertJsonToHtml` | Convert JSON → DA wire-format HTML.                  | `{ html } \| { error }`           |
+| `convertHtmlToJson` | Convert DA HTML → JSON.                              | `{ json } \| { error }`           |
+
+`createEngine` compiles a schema + initial document into a stateful, mutable handle.
+
+**What it offers:**
+
+- Pointer-addressed mutations (`setField`, `addItem`, `insertItem`, `removeItem`, `moveItem`) that update immutably and re-validate atomically.
+- Schema defaults materialized into the initial document.
+- `onChange` fires exactly once per real mutation. Setting a field to its current value is a no-op and does not fire `onChange`.
+
+**Use it when** you edit a document over time — interactive editors, agents holding state across turns, anything where the document survives between operations.
+
+The handle exposes six methods. All synchronous, all addressed by RFC 6901 JSON Pointer:
 
 | Method                        | Purpose                              |
 | ----------------------------- | ------------------------------------ |
@@ -31,116 +99,41 @@ Five top-level functions, narrow on purpose. The SDK covers what's needed today 
 | `removeItem(pointer)`         | Remove the item at `pointer`.        |
 | `moveItem(pointer, from, to)` | Reorder an array item.               |
 
-Every mutation method is synchronous, returns the new state, and triggers `onChange`. `createEngine` itself is synchronous and does **not** fire `onChange` at construction — read the initial state via `getState()`. All mutations are addressed by RFC 6901 JSON Pointer. To start over with a different (schema, document), create a new engine.
+Every real mutation triggers `onChange`; the return value is the engine's current state after the call. `onChange` does **not** fire at construction — read the initial state via `getState()`. To start over with a different `(schema, document)`, create a new engine.
 
-## Install
+## Usage
 
-The package is not yet published to npm. Use one of the two paths below; both work today.
-
-**Build and vendor `dist/index.js`** — a single self-contained ESM file (~87KB gzipped). Drop it into your consumer's `deps/` and import the relative path:
-
-```bash
-git clone <this repo>
-cd da-sc-sdk
-npm install
-npm run build      # → dist/index.js
-```
+### Validate
 
 ```js
-// in your consumer
-import { convertJsonToHtml } from "./deps/da-sc-sdk/dist/index.js";
-const { html } = convertJsonToHtml({ json });
+import { validateSchema, validateData } from "da-sc-sdk";
+
+validateSchema({ schema });
+// → { valid, schemaIssues }
+
+validateData({ schema, data });
+// → { valid, errors, schemaIssues }
 ```
 
-**Or import the source directly** if you're working inside a monorepo that has the SDK as a sibling:
+`errors` is a pointer-keyed map; `errors[pointer]?.message` is O(1). Each entry exposes `keyword`, `instancePath`, `params`, and `message` fields. `valid` is `true` only when both `schemaIssues` and `errors` are empty — you can't claim a document is valid against a broken schema.
+
+### Convert (JSON ↔ HTML)
 
 ```js
-import { convertJsonToHtml } from "../../path/to/da-sc-sdk/src/index.js";
-```
+import { convertJsonToHtml, convertHtmlToJson } from "da-sc-sdk";
 
-Once published the install will become `npm install da-sc-sdk` — the import path and the API are stable. TypeScript declarations ship in `index.d.ts`; no peer dependencies; pure ESM; same call works in any ES2022 + ESM runtime (browsers, Node ≥18, Deno, Bun, Web Workers, Cloudflare Workers, edge).
-
-## Quick start
-
-### Validate a schema
-
-```js
-import { validateSchema } from "da-sc-sdk";
-
-const { valid, schemaIssues } = validateSchema({ schema: mySchema });
-if (!valid) {
-  console.error("Schema issues:", schemaIssues);
-}
-```
-
-### Validate data against a schema
-
-```js
-import { validateData } from "da-sc-sdk";
-
-const result = validateData({ schema, data: { name: "", status: "Unknown" } });
-// → { valid: false,
-//     errors: {
-//       '/data/name': {
-//         keyword: 'required', instancePath: '/data/name',
-//         params: { missingProperty: 'name' },
-//         message: 'This field is required.',
-//       },
-//       '/data/status': {
-//         keyword: 'enum', instancePath: '/data/status',
-//         params: { allowedValues: ['Draft', 'Active'] },
-//         message: 'Must be one of the allowed options.',
-//       },
-//     },
-//     schemaIssues: [] }
-```
-
-Both validators share `valid` + `schemaIssues`; `validateData` additionally exposes `errors` for data-level failures. `valid` is `true` iff `schemaIssues` AND `errors` are both empty — you can't claim a document is valid against a broken schema.
-
-`errors` is a pointer-keyed map. UIs do `errors[pointer]?.message` (O(1)); agents iterate via `Object.values(errors)`. Per-entry shape mirrors [ajv](https://ajv.js.org) (`keyword`, `instancePath`, `params`, `message`) so the JSON Schema vocabulary an LLM already knows just works. Two deliberate deviations from ajv's full shape: `schemaPath` is omitted (it leaks schema structure), and `required` errors land on the **child** pointer (where the missing field would be) rather than the parent — so consumers can look up errors by `instancePath` without pointer arithmetic. `schemaIssues` fires when the **schema** itself has problems; `errors` fires when the **data** doesn't satisfy the (well-formed) schema.
-
-### Serialize JSON to DA HTML
-
-```js
-import { convertJsonToHtml } from "da-sc-sdk";
-
-const { html, error } = convertJsonToHtml({
+const { html } = convertJsonToHtml({
   json: { metadata: { schemaName: "project" }, data: { name: "Alice" } },
 });
-// `html` is a string ready to POST to your storage; persistence is the caller's job.
+
+const { json } = convertHtmlToJson({ html });
 ```
 
-### Parse DA HTML back to JSON
+`convertHtmlToJson` returns `{ error: "<reason>" }` on empty or malformed input.
 
-```js
-import { convertHtmlToJson } from "da-sc-sdk";
+### Edit (with persistence)
 
-const { json, error } = convertHtmlToJson({ html });
-// → { json: { metadata: { schemaName: 'project', ... }, data: { name: 'Alice' } } }
-// Returns `{ error: '<reason>' }` on empty / malformed input.
-```
-
-### Stateful editing
-
-```js
-import { createEngine } from "da-sc-sdk";
-
-const engine = createEngine({
-  schema,
-  document: { metadata: {}, data: {} },
-  onChange: () => {
-    /* state changed — read engine.getState() */
-  },
-});
-
-engine.setField("/data/name", "Alice");
-engine.addItem("/data/tags");
-engine.setField("/data/tags/0", "demo");
-
-const { values } = engine.getState().document; // your current snapshot
-```
-
-The engine is a **pure state machine**. It has no persistence concept — no transport, no save status, no callback beyond `onChange`. `onChange` is NOT called at construction; the initial state is read via `engine.getState()`. To start over with a different `(schema, document)` pair, create a new engine. Consumers that want to save react to `onChange` and write their own logic:
+The engine has no transport and no save status. Wire your own persistence on top of `onChange`:
 
 ```js
 let engine;
@@ -149,70 +142,68 @@ engine = createEngine({
   schema,
   document,
   onChange: () => {
-    const next = engine.getState().document.values;
+    const next = engine.getState().document;
     if (next === lastValues) return; // skip non-mutation transitions
     lastValues = next;
-    // convert via `convertJsonToHtml`, POST, IndexedDB-cache — whatever fits
+    // convert via convertJsonToHtml, POST, IndexedDB-cache — whatever fits
   },
 });
-// onChange does NOT fire at init; capture the initial reference manually.
-lastValues = engine.getState().document.values;
+lastValues = engine.getState().document; // onChange does NOT fire at init
 ```
 
-For production semantics — single-flight save with re-queue, status tracking — see [docs/headless-consumer.md](docs/headless-consumer.md). The pattern is small enough (~40 lines) to vendor into any consumer.
+[docs/headless-consumer.md](docs/headless-consumer.md) has a ~40-line single-flight save pattern with status tracking.
 
-See [examples/](./examples/) for runnable scripts and [docs/headless-consumer.md](docs/headless-consumer.md) for the full walkthrough.
+## Error handling
 
-## Schema dialect
+The SDK reports validation, conversion, and mutation failures through return values rather than exceptions. Truly invalid arguments (wrong types, malformed pointers) may still surface as runtime errors.
 
-The SDK accepts a strict subset of JSON Schema 2020-12. The complete contract — supported types, validation keywords, authoring rules — is in [docs/schema-spec.md](docs/schema-spec.md). Anything outside that contract surfaces in `schemaIssues` and is not rendered or validated.
+- **Validators** (`validateSchema`, `validateData`) — check `result.valid`. When `false`, inspect `result.schemaIssues` for schema-level problems and `result.errors` for data-level problems (the latter is a `{ [pointer]: ValidationError }` map).
+- **Converters** (`convertJsonToHtml`, `convertHtmlToJson`) — destructure with a fallback: `const { html, error } = convertJsonToHtml(...)`. The `error` field is set on empty or malformed input; otherwise the success field (`html` or `json`) is set.
+- **Engine** — if the schema is malformed, `createEngine` still returns a handle but `getState().schemaIssues` will be non-empty and mutations no-op. Check `schemaIssues.length === 0` before relying on the engine.
 
-## What's NOT in this SDK
+## TypeScript
 
-By design:
+Type declarations ship in `index.d.ts` — no separate `@types/*` install needed.
 
-- **No UI.** No DOM, no Lit, no rendering. UI is the caller's job.
-- **No I/O.** No fetch, no file system, no DA-specific endpoints. Callers react to `onChange` and wire their own transport.
-- **No persistence orchestration.** Single-flight save, re-queue, error retry, offline queue — all the consumer's choice. See [docs/headless-consumer.md](docs/headless-consumer.md) for a reference pattern.
-- **No schema discovery.** Loading schemas from disk or external storage is the caller's job. The SDK accepts a schema object directly.
-- **No raw `json2html`, `HTMLConverter`, or `compileSchema` in the public API.** They exist as internals but aren't exported — the five public functions cover every documented use case. If a future need shows up, we'll add it deliberately.
-
-These concerns live in the consuming application.
-
-## Architecture
-
-```
-src/
-├── index.js          public API (5 named exports)
-├── state-engine/     schema-constrained JSON state machine (no DOM, no network)
-│   ├── index.js      createEngine, validateSchema, validateData (+ internals)
-│   ├── schema.js     compileSchema ($ref, $defs, composition handling)
-│   ├── model.js      buildModel + pointer→node map
-│   ├── mutate.js     setField, addItem, insertItem, removeItem, moveItem
-│   ├── pointer.js    RFC 6901 ops + definitionAt
-│   ├── validation.js validateDocument
-│   └── clone.js      deepClone util
-└── html/             HTML codec (pure strings; no DOM)
-    ├── html2json.js  parse DA wire format → JSON (convertHtmlToJson)
-    ├── json2html.js  emit JSON → DA wire format (convertJsonToHtml + raw json2html)
-    └── utils.js      prune helper shared by the emit path
+```ts
+import type {
+  Engine,
+  EditorState,
+  Document,
+  JsonPointer,
+  SchemaIssue,
+  ErrorsByPointer,
+  ValidationError,
+} from "da-sc-sdk";
 ```
 
-`state-engine/` has zero external imports. `html/` depends on `hast-util-from-html` (pure JS, parse5-based) only for the `html → JSON` parse direction; the `JSON → html` direction is a pure string builder with no dependencies. The whole SDK has no DOM and no Node built-ins — it runs in Cloudflare Workers and other V8-isolate environments without modification.
+## Runtime support
 
-## Stability
+- ES2022 + ESM. No Node built-ins, no DOM.
+- Node ≥18 and modern browsers.
+- One runtime dependency: [hast-util-from-html](https://www.npmjs.com/package/hast-util-from-html).
 
-The five named exports above are the SDK's **entire** API. They are also the semver boundary.
+## Design
 
-The `package.json` `exports` map blocks any other path — deep imports like `da-sc-sdk/src/state-engine/schema.js` fail with `ERR_PACKAGE_PATH_NOT_EXPORTED`. The vendored bundle (`dist/index.js`) only re-exports the same five functions. There is no supported way to reach internals from outside the package; that's by design.
+- **Headless.** No UI, no DOM, no rendering. UIs subscribe to `onChange`.
+- **No I/O.** No fetch, no file system, no DA endpoints. Callers wire their own transport.
+- **Five named exports.** The `package.json` `exports` map blocks deep imports. The five exports are the entire public API and the intended semver boundary.
+- **Strict schema subset.** A strict subset of JSON Schema 2020-12 — see [docs/schema-spec.md](docs/schema-spec.md). Anything outside that contract surfaces in `schemaIssues`.
+- **Not** for general JSON Schema validation.
 
-## Documentation
+## Development
 
-| Doc | What it covers |
-| --- | --- |
-| [docs/architecture.md](docs/architecture.md) | Layout, public API reference, state shape, validation, defaults policy, rules. |
-| [docs/lifecycle.md](docs/lifecycle.md) | The synchronous call flow inside each public function (createEngine, mutations, validate, convert) plus cost characteristics. |
-| [docs/schema-builder.md](docs/schema-builder.md) | `compileSchema` deep dive — schema resolution, kind inference, definition tree. |
-| [docs/model-builder.md](docs/model-builder.md) | `buildModel` deep dive — definition + document → renderable tree. |
-| [docs/schema-spec.md](docs/schema-spec.md) | The JSON Schema subset the SDK accepts — per-keyword contract. |
-| [docs/headless-consumer.md](docs/headless-consumer.md) | Worked example of a non-browser consumer (MCP / Worker / CLI). |
+Inside the repo:
+
+- `npm install` — install dev dependencies
+- `npm test` — run the test suite (Web Test Runner)
+- `npm run lint` / `npm run lint:fix` — lint
+- `npm run build` — produce `dist/index.js`
+
+## Internals
+
+For contributors and anyone going deeper than the public API — layout, lifecycle, schema/model builders, and the headless consumer pattern — see [docs/](./docs/).
+
+## License
+
+Apache-2.0 © Adobe Inc.

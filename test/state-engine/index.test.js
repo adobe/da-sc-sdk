@@ -25,13 +25,13 @@ function createObservedEditor() {
         schema,
         document,
         onChange: () => {
-          const next = editor.getState()?.document?.values;
+          const next = editor.getState()?.document;
           if (next === lastValues) { return; }
           lastValues = next;
           calls.push({ document: next });
         },
       });
-      lastValues = editor.getState()?.document?.values;
+      lastValues = editor.getState()?.document;
       return editor;
     },
     get editor() { return editor; },
@@ -59,7 +59,7 @@ describe('createEngine', () => {
       const state = core.getState();
 
       expect(state.model.root).to.exist;
-      expect(state.document.values.data.name).to.equal('Alice');
+      expect(state.document.data.name).to.equal('Alice');
       expect(state.validation.errors).to.deep.equal({});
     });
 
@@ -74,7 +74,7 @@ describe('createEngine', () => {
       const state = core.getState();
       expect(state.model).to.exist;
       expect(state.model.root.kind).to.equal('unsupported');
-      expect(state.document.values.data.name).to.equal('Alice');
+      expect(state.document.data.name).to.equal('Alice');
     });
 
     it('handles a malformed document without throwing', async () => {
@@ -88,7 +88,7 @@ describe('createEngine', () => {
     it('updates state with the new value', async () => {
       const core = createEngine({ schema: baseSchema, document: baseDocument });
       core.setField('/data/name', 'Bob');
-      expect(core.getState().document.values.data.name).to.equal('Bob');
+      expect(core.getState().document.data.name).to.equal('Bob');
     });
 
     it('notifies onChange on mutation', async () => {
@@ -109,8 +109,8 @@ describe('createEngine', () => {
     it('exposes the new value in the next state snapshot', async () => {
       const core = createEngine({ schema: baseSchema, document: baseDocument });
       const next = core.setField('/data/name', 'Carol');
-      expect(next.document.values.data.name).to.equal('Carol');
-      expect(core.getState().document.values.data.name).to.equal('Carol');
+      expect(next.document.data.name).to.equal('Carol');
+      expect(core.getState().document.data.name).to.equal('Carol');
     });
 
     it('does not throw when called on an engine created without a schema (mutations are no-ops)', () => {
@@ -125,13 +125,13 @@ describe('createEngine', () => {
     it('addItem appends a default-valued item', async () => {
       const core = createEngine({ schema: baseSchema, document: baseDocument });
       const next = core.addItem('/data/items');
-      expect(next.document.values.data.items).to.deep.equal(['a', 'b', '']);
+      expect(next.document.data.items).to.deep.equal(['a', 'b', '']);
     });
 
     it('insertItem inserts before the pointer and persists', async () => {
       const core = createEngine({ schema: baseSchema, document: baseDocument });
       const next = core.insertItem('/data/items/1');
-      expect(next.document.values.data.items).to.deep.equal(['a', '', 'b']);
+      expect(next.document.data.items).to.deep.equal(['a', '', 'b']);
     });
 
     it('removeItem respects minItems', async () => {
@@ -144,7 +144,7 @@ describe('createEngine', () => {
       const core = createEngine({ schema, document: { metadata: {}, data: { items: ['a', 'b'] } } });
       core.removeItem('/data/items/0');
       // unchanged because removal would violate minItems
-      expect(core.getState().document.values.data.items).to.deep.equal(['a', 'b']);
+      expect(core.getState().document.data.items).to.deep.equal(['a', 'b']);
     });
 
     it('addItem respects maxItems', async () => {
@@ -156,13 +156,13 @@ describe('createEngine', () => {
       };
       const core = createEngine({ schema, document: { metadata: {}, data: { items: ['a', 'b'] } } });
       core.addItem('/data/items');
-      expect(core.getState().document.values.data.items).to.have.lengthOf(2);
+      expect(core.getState().document.data.items).to.have.lengthOf(2);
     });
 
     it('moveItem reorders the array', async () => {
       const core = createEngine({ schema: baseSchema, document: baseDocument });
       const next = core.moveItem('/data/items', 0, 1);
-      expect(next.document.values.data.items).to.deep.equal(['b', 'a']);
+      expect(next.document.data.items).to.deep.equal(['b', 'a']);
     });
 
     it('moveItem with from===to is a no-op', async () => {
@@ -170,7 +170,7 @@ describe('createEngine', () => {
       const editor = harness.init({ schema: baseSchema, document: baseDocument });
       editor.moveItem('/data/items', 0, 0);
       expect(harness.calls).to.have.lengthOf(0);
-      expect(editor.getState().document.values.data.items).to.deep.equal(['a', 'b']);
+      expect(editor.getState().document.data.items).to.deep.equal(['a', 'b']);
     });
   });
 
@@ -238,8 +238,8 @@ describe('createEngine', () => {
         document: { metadata: {}, data: ['x'] },
       });
       const next = core.addItem('/data');
-      expect(next.document.values.data).to.deep.equal(['x', '']);
-      expect(core.getState().document.values.data).to.deep.equal(['x', '']);
+      expect(next.document.data).to.deep.equal(['x', '']);
+      expect(core.getState().document.data).to.deep.equal(['x', '']);
     });
 
     it('setField updates a leaf via a path that descends from the root array', async () => {
@@ -248,7 +248,7 @@ describe('createEngine', () => {
         document: { metadata: {}, data: [{ name: 'alpha', matrix: [['a1']] }] },
       });
       const next = core.setField('/data/0/name', 'gamma');
-      expect(next.document.values.data[0].name).to.equal('gamma');
+      expect(next.document.data[0].name).to.equal('gamma');
     });
 
     it('still rejects a document whose data is a non-container value', async () => {
@@ -280,7 +280,7 @@ describe('createEngine', () => {
         document: { metadata: { schemaName: 'x' }, data: {} },
       });
       const state = core.getState();
-      expect(state.document.values.data).to.deep.equal({ a: 'X', b: 'Y' });
+      expect(state.document.data).to.deep.equal({ a: 'X', b: 'Y' });
     });
 
     it('writes defaults when the loaded data is recursively empty', async () => {
@@ -290,7 +290,7 @@ describe('createEngine', () => {
         document: { metadata: { schemaName: 'x' }, data: { a: '', b: null } },
       });
       const state = core.getState();
-      expect(state.document.values.data).to.deep.equal({ a: 'X', b: 'Y' });
+      expect(state.document.data).to.deep.equal({ a: 'X', b: 'Y' });
     });
 
     it('does not materialize on a non-empty document — missing keys stay missing', async () => {
@@ -299,7 +299,7 @@ describe('createEngine', () => {
         document: { metadata: { schemaName: 'x' }, data: { a: 'Alice' } },
       });
       const state = core.getState();
-      expect(state.document.values.data).to.deep.equal({ a: 'Alice' });
+      expect(state.document.data).to.deep.equal({ a: 'Alice' });
     });
 
     it('the first mutation produces state that includes materialized defaults', async () => {
@@ -312,7 +312,7 @@ describe('createEngine', () => {
         document: { metadata: { schemaName: 'x' }, data: {} },
       });
       core.setField('/data/c', 'Z');
-      expect(core.getState().document.values.data).to.deep.equal({ a: 'X', b: 'Y', c: 'Z' });
+      expect(core.getState().document.data).to.deep.equal({ a: 'X', b: 'Y', c: 'Z' });
     });
 
     it('does not notify onChange when a fresh engine is created but never mutated', async () => {
@@ -334,7 +334,7 @@ describe('createEngine', () => {
         document: { metadata: { schemaName: 'x' }, data: {} },
       });
       const state = core.getState();
-      expect(state.document.values.data).to.deep.equal({});
+      expect(state.document.data).to.deep.equal({});
     });
 
     it('clearing a materialized default removes the key from the document', async () => {
@@ -343,7 +343,7 @@ describe('createEngine', () => {
         document: { metadata: { schemaName: 'x' }, data: {} },
       });
       const next = core.setField('/data/a', '');
-      expect(next.document.values.data).to.deep.equal({ b: 'Y' });
+      expect(next.document.data).to.deep.equal({ b: 'Y' });
     });
 
     it('does not re-materialize when the user mutates a fresh document', async () => {
@@ -355,7 +355,7 @@ describe('createEngine', () => {
       });
       core.setField('/data/a', '');
       const next = core.setField('/data/c', 'Z');
-      expect(next.document.values.data).to.deep.equal({ b: 'Y', c: 'Z' });
+      expect(next.document.data).to.deep.equal({ b: 'Y', c: 'Z' });
     });
 
     it('materializes nested object defaults', async () => {
@@ -375,7 +375,7 @@ describe('createEngine', () => {
         document: { metadata: { schemaName: 'x' }, data: {} },
       });
       const state = core.getState();
-      expect(state.document.values.data).to.deep.equal({ outer: { inner: 'nested' } });
+      expect(state.document.data).to.deep.equal({ outer: { inner: 'nested' } });
     });
 
     it('leaves arrays empty even when items have a default', async () => {
@@ -391,7 +391,7 @@ describe('createEngine', () => {
         document: { metadata: { schemaName: 'x' }, data: {} },
       });
       const state = core.getState();
-      expect(state.document.values.data).to.deep.equal({});
+      expect(state.document.data).to.deep.equal({});
     });
 
     it('materializes a boolean without an explicit default as false', async () => {
@@ -404,7 +404,7 @@ describe('createEngine', () => {
         document: { metadata: { schemaName: 'x' }, data: {} },
       });
       const state = core.getState();
-      expect(state.document.values.data).to.deep.equal({ flag: false });
+      expect(state.document.data).to.deep.equal({ flag: false });
     });
 
     it('respects an explicit boolean default of true', async () => {
@@ -417,7 +417,7 @@ describe('createEngine', () => {
         document: { metadata: { schemaName: 'x' }, data: {} },
       });
       const state = core.getState();
-      expect(state.document.values.data).to.deep.equal({ flag: true });
+      expect(state.document.data).to.deep.equal({ flag: true });
     });
 
     it('materializes nested booleans inside objects', async () => {
@@ -435,7 +435,7 @@ describe('createEngine', () => {
         document: { metadata: { schemaName: 'x' }, data: {} },
       });
       const state = core.getState();
-      expect(state.document.values.data).to.deep.equal({ outer: { flag: false } });
+      expect(state.document.data).to.deep.equal({ outer: { flag: false } });
     });
 
     it('saves an unchanged false boolean alongside a typed field on first mutation', async () => {
@@ -453,7 +453,7 @@ describe('createEngine', () => {
         document: { metadata: { schemaName: 'x' }, data: {} },
       });
       core.setField('/data/name', 'Alice');
-      expect(core.getState().document.values.data).to.deep.equal({ flag: false, name: 'Alice' });
+      expect(core.getState().document.data).to.deep.equal({ flag: false, name: 'Alice' });
     });
 
     it('exposes a saved enum value on node.value (drives select render)', async () => {
@@ -489,7 +489,7 @@ describe('createEngine', () => {
         document: { metadata: { schemaName: 'x' }, data: { flag: false } },
       });
       const state = core.getState();
-      expect(state.document.values.data).to.deep.equal({ flag: false });
+      expect(state.document.data).to.deep.equal({ flag: false });
     });
   });
 

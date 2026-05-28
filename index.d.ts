@@ -152,7 +152,7 @@ export interface Model {
 // ─── State (what getState / onChange callers see) ──────────────────────────
 
 export interface EditorState {
-  document: { values: Document | null };
+  document: Document | null;
   model: Model | null;
   validation: { errors: ErrorsByPointer };
   schemaIssues: SchemaIssue[];

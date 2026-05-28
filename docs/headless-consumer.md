@@ -46,13 +46,13 @@ engine.setField('/data/status', 'Active');          // satisfies `enum`
 engine.addItem('/data/tags');                       // append an array slot
 engine.setField('/data/tags/0', 'demo');            // fill the slot
 
-console.log(JSON.stringify(engine.getState().document.values, null, 2));
+console.log(JSON.stringify(engine.getState().document, null, 2));
 // → {"metadata":{},"data":{"name":"Alice","status":"Active","tags":["demo"]}}
 ```
 
 ## With save-on-change
 
-Layer your own persistence inside `onChange`. Track `document.values` by reference to skip non-mutation transitions:
+Layer your own persistence inside `onChange`. Track `document` by reference to skip non-mutation transitions:
 
 ```js
 import { createEngine, convertJsonToHtml } from 'da-sc-sdk';
@@ -64,7 +64,7 @@ engine = createEngine({
   schema,
   document: { metadata: { schemaName: 'project' }, data: {} },
   onChange: () => {
-    const next = engine.getState().document.values;
+    const next = engine.getState().document;
     if (next === lastValues) return;     // ignore non-mutation transitions
     lastValues = next;
 
@@ -74,7 +74,7 @@ engine = createEngine({
   },
 });
 // onChange doesn't fire at init — capture the initial reference manually.
-lastValues = engine.getState().document.values;
+lastValues = engine.getState().document;
 
 engine.setField('/data/name', 'Alice');     // → onChange fires → you save
 ```

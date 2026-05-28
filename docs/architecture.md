@@ -173,21 +173,21 @@ engine = createEngine({
   schema,
   document,
   onChange: () => {
-    const next = engine.getState().document.values;
+    const next = engine.getState().document;
     if (next === lastValues) return;     // non-mutation change (e.g. validation refresh)
     lastValues = next;
     // ...your save here...
   },
 });
 // onChange doesn't fire at init — capture the initial reference manually.
-lastValues = engine.getState().document.values;
+lastValues = engine.getState().document;
 ```
 
-Detecting mutations: every real mutation produces a new `document.values` reference (mutate.js deep-clones). Non-mutation transitions keep the same reference. Reference comparison is sufficient.
+Detecting mutations: every real mutation produces a new `document` reference (mutate.js deep-clones). Non-mutation transitions keep the same reference. Reference comparison is sufficient.
 
 ### Reference pattern
 
-A typical consumer-side persistence layer exposes a `notify()` method that the consumer's `onChange` calls; on each notification, the layer compares `document.values` to the last captured reference, ignores no-ops, and runs single-flight save with re-queue. Fits in ~40 lines and stays outside the SDK so each consumer can pick its own save semantics.
+A typical consumer-side persistence layer exposes a `notify()` method that the consumer's `onChange` calls; on each notification, the layer compares `document` to the last captured reference, ignores no-ops, and runs single-flight save with re-queue. Fits in ~40 lines and stays outside the SDK so each consumer can pick its own save semantics.
 
 If a consumer needs different semantics (bulk save, atomic multi-doc, offline queue, optimistic rollback), they write their own version. The engine doesn't care — it just calls `onChange`.
 

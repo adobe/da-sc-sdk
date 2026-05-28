@@ -4,7 +4,7 @@
 // just want "is this valid? if not, where?". No engine instance, no state,
 // nothing held in memory. Suits MCP tools, CLI linters, pre-commit hooks.
 //
-// Run: node examples/validate.js
+// Run: node examples/validate-data.js
 
 import { validateData } from '../src/index.js';
 
