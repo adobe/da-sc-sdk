@@ -30,9 +30,6 @@ export default defineConfig([
     rules: {
       'class-methods-use-this': 0,
 
-      // headers not required to keep file size down
-      'header/header': 0,
-
       'import/no-cycle': 'off',
 
       'import/no-unresolved': ['error', {
@@ -120,6 +117,7 @@ export default defineConfig([
   {
     files: ['examples/**/*.js'],
     rules: {
+      'header/header': 0,
       'no-console': 'off',
     },
   },
