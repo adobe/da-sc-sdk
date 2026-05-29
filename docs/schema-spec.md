@@ -1,11 +1,11 @@
 # JSON Schema support
 
-Reference specification for JSON Schemas consumed by this form. Defines the complete set of allowed keywords and forms.
+Reference specification for JSON Schemas consumed by this SDK. Defines the complete set of allowed keywords and forms.
 
 - **Dialect:** JSON Schema 2020-12 (subset — see rules and supported keywords below)
 - **Audience:** schema authors and code-generation agents
 
-> A conformant schema uses only the constructs documented here. Anything else has no effect on the form.
+> A conformant schema uses only the constructs documented here. Anything else has no effect.
 
 ---
 
@@ -205,7 +205,7 @@ These keywords describe presentation. They do not constrain the value.
 
 ## 4. Supported constraints
 
-These keywords restrict the value. The form shows an error under the field when violated.
+These keywords restrict the value. Validation reports an error when violated.
 
 | Keyword              | Type   | Applies to       |
 | -------------------- | ------ | ---------------- |
@@ -282,13 +282,13 @@ These keywords restrict the value. The form shows an error under the field when 
 
 ## 6. Scope
 
-Any keyword, type, or construct not listed in §2–5 has no effect on the form.
+Any keyword, type, or construct not listed in §2–5 is ignored by the SDK.
 
 ---
 
 ## 7. Empty value semantics
 
-The form treats unfilled values as absent.
+The SDK treats unfilled values as absent.
 
 - An empty string (`""`), a whitespace-only string, an empty array (`[]`), and an empty object (`{}` or one whose fields are all empty) are considered absent.
 - Constraints (`enum`, `pattern`, `minLength`, etc.) are not enforced on absent optional fields.
@@ -322,9 +322,9 @@ For the schema
 
 ## 8. Best practices
 
-Conventions that produce a readable form and a maintainable schema.
+Conventions that produce a usable document and a maintainable schema.
 
-- **Set `title` on every node, including `$defs` entries and `items`.** Without it the form falls back to the property name, which is rarely the right label.
+- **Set `title` on every node, including `$defs` entries and `items`.** Without it consumers fall back to the property name, which is rarely the right label.
 - **Use `enum` for closed value sets**, not `pattern`. A select dropdown communicates intent and prevents typos.
 - **Factor repeated shapes into `$defs`.** If the same object appears in two places, define it once and `$ref` to it.
 - **Use `default` to seed the most likely value.** It pre-fills the input and is preserved through the absent-stripping rule because the user does not have to do anything for it to be valid.
