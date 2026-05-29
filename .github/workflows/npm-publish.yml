@@ -1,4 +1,4 @@
-# Publishes the SDK to npm when semantic-release creates a GitHub Release.
+# Publishes the SDK to npm when a GitHub Release is published.
 # Requires `secrets.ADOBE_BOT_NPM_TOKEN` (npm automation token with publish access).
 name: npm-publish
 on:
