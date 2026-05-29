@@ -1,6 +1,6 @@
 {
   "name": "da-sc-sdk",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Headless SDK for DA Structured Content: schema-driven JSON document editing, validation, and HTML serialization.",
   "type": "module",
   "sideEffects": false,
