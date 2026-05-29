@@ -6,13 +6,13 @@
   "sideEffects": false,
   "license": "Apache-2.0",
   "author": "Adobe Inc.",
-  "homepage": "https://github.com/adobe-rnd/da-sc-sdk#readme",
+  "homepage": "https://github.com/adobe/da-sc-sdk#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/adobe-rnd/da-sc-sdk.git"
+    "url": "git+https://github.com/adobe/da-sc-sdk.git"
   },
   "bugs": {
-    "url": "https://github.com/adobe-rnd/da-sc-sdk/issues"
+    "url": "https://github.com/adobe/da-sc-sdk/issues"
   },
   "keywords": [
     "adobe",
