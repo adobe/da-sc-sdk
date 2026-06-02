@@ -1,3 +1,10 @@
+## [0.1.1](https://github.com/adobe/da-sc-sdk/compare/v0.1.0...v0.1.1) (2026-06-02)
+
+
+### Bug Fixes
+
+* update README install instructions for published npm package ([#6](https://github.com/adobe/da-sc-sdk/issues/6)) ([3c5ae26](https://github.com/adobe/da-sc-sdk/commit/3c5ae26493ed623734acefe005fd8de233b6c87e))
+
 # 0.1.0 (2026-05-29)
 
 
