@@ -8,31 +8,25 @@ In exchange, every tool built on the SDK shares the same DA Structured Content b
 
 ## Status
 
-**Pre-release.** This SDK is being stabilized for its first npm publication. The public API is in active development; expect possible breaking changes and no support commitments before the official release.
+`0.x` — the public API may change before `1.0.0`.
 
 ## Install
 
-> **Not yet on npm.** The package name and version in `package.json` are placeholders — do not publish. Until the first release, use the temporary alternative below.
-
-Build and vendor the bundle:
-
 ```bash
-git clone https://github.com/adobe-rnd/da-sc-sdk.git
-cd da-sc-sdk && npm install && npm run build
-# → dist/index.js (self-contained ESM bundle)
+npm install @adobe/da-sc-sdk
 ```
 
 ```js
 import {
   createEngine,
   convertJsonToHtml,
-} from "./deps/da-sc-sdk/dist/index.js";
+} from "@adobe/da-sc-sdk";
 ```
 
 ## Quick start
 
 ```js
-import { createEngine, convertJsonToHtml } from "da-sc-sdk";
+import { createEngine, convertJsonToHtml } from "@adobe/da-sc-sdk";
 
 const schema = {
   type: "object",
@@ -106,7 +100,7 @@ Every real mutation triggers `onChange`; the return value is the engine's curren
 ### Validate
 
 ```js
-import { validateSchema, validateData } from "da-sc-sdk";
+import { validateSchema, validateData } from "@adobe/da-sc-sdk";
 
 validateSchema({ schema });
 // → { valid, schemaIssues }
@@ -120,7 +114,7 @@ validateData({ schema, data });
 ### Convert (JSON ↔ HTML)
 
 ```js
-import { convertJsonToHtml, convertHtmlToJson } from "da-sc-sdk";
+import { convertJsonToHtml, convertHtmlToJson } from "@adobe/da-sc-sdk";
 
 const { html } = convertJsonToHtml({
   json: { metadata: { schemaName: "project" }, data: { name: "Alice" } },
@@ -174,7 +168,7 @@ import type {
   SchemaIssue,
   ErrorsByPointer,
   ValidationError,
-} from "da-sc-sdk";
+} from "@adobe/da-sc-sdk";
 ```
 
 ## Runtime support
