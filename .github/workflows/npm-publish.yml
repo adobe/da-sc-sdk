@@ -1,4 +1,11 @@
-# Publishes the SDK to npm when a GitHub Release is published.
+# Manual rescue path for publishing the SDK to npm.
+#
+# The primary publish flow runs inside semantic-release in main.yaml; this
+# workflow only fires for releases created by a real user identity (e.g. when
+# you manually create or re-publish a release from the GitHub UI). GitHub
+# releases authored by GITHUB_TOKEN do not trigger this event, so there is no
+# double-publish race with the inline flow.
+#
 # Requires `secrets.ADOBE_BOT_NPM_TOKEN` (npm automation token with publish access).
 name: npm-publish
 on:
