@@ -53,8 +53,10 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: '22.x'
+          registry-url: 'https://registry.npmjs.org/'
       - run: npm install
       - name: Semantic Release
         run: npm run semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.ADOBE_BOT_NPM_TOKEN }}
