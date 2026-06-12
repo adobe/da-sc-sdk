@@ -96,6 +96,98 @@ describe('createEngine', () => {
     });
   });
 
+  describe('schema evolution: fields removed from the schema', () => {
+    // A document is authored against a rich schema (v1) exercising every
+    // supported type, then the schema (v2) drops one field of each type.
+    // Loading the older document must NOT silently strip the now-orphaned data —
+    // the engine renders only the surviving field but keeps the full data
+    // intact, for primitives, enums, arrays, and nested objects alike.
+    // (Garbage-collecting orphaned data, if ever wanted, is a separate, explicit
+    // operation — never a hidden side effect of loading.)
+
+    // v2 keeps only `keptString`; every other property was removed from v1.
+    const evolvedSchema = {
+      type: 'object',
+      properties: {
+        keptString: { type: 'string' },
+      },
+    };
+
+    // Authored against v1, which still defined all of these. Covers every
+    // SUPPORTED_TYPE: string, number, integer, boolean, enum, array (of scalars
+    // and of objects), and a nested object.
+    const removedData = {
+      removedString: 'gone-string',
+      removedNumber: 3.14,
+      removedInteger: 42,
+      removedBooleanTrue: true,
+      removedBooleanFalse: false,
+      removedEnum: 'archived',
+      removedScalarArray: ['a', 'b', 'c'],
+      removedObjectArray: [
+        { title: 'one', count: 1, active: true },
+        { title: 'two', count: 2, active: false },
+      ],
+      removedNestedObject: {
+        label: 'nested',
+        meta: { weight: 9, flagged: true, tags: ['x', 'y'] },
+      },
+    };
+
+    const olderDocument = {
+      metadata: { schemaName: 'x' },
+      data: { keptString: 'Alice', ...removedData },
+    };
+
+    it('keeps every removed-type field on the loaded document, byte-for-byte', () => {
+      const core = createEngine({ schema: evolvedSchema, document: olderDocument });
+      const { data } = core.getState().document;
+      expect(data.keptString).to.equal('Alice');
+      // Each removed field of each supported type survives unchanged.
+      for (const [key, value] of Object.entries(removedData)) {
+        expect(data[key]).to.deep.equal(value);
+      }
+    });
+
+    it('does not coerce or normalize the orphaned values', () => {
+      // coerceData walks the schema; removed fields have no definition, so their
+      // values must pass through with their original types intact.
+      const core = createEngine({ schema: evolvedSchema, document: olderDocument });
+      const { data } = core.getState().document;
+      expect(data.removedNumber).to.be.a('number');
+      expect(data.removedInteger).to.equal(42);
+      expect(data.removedBooleanFalse).to.equal(false);
+      expect(data.removedScalarArray).to.be.an('array').with.lengthOf(3);
+      expect(data.removedObjectArray[0].active).to.equal(true);
+      expect(data.removedNestedObject.meta.tags).to.deep.equal(['x', 'y']);
+    });
+
+    it('builds a model node only for the surviving field', () => {
+      const core = createEngine({ schema: evolvedSchema, document: olderDocument });
+      const { byPointer } = core.getState().model;
+      expect(byPointer['/data/keptString']).to.exist;
+      for (const key of Object.keys(removedData)) {
+        expect(byPointer[`/data/${key}`]).to.equal(undefined);
+      }
+    });
+
+    it('preserves all orphaned fields when the surviving field is edited', () => {
+      const core = createEngine({ schema: evolvedSchema, document: olderDocument });
+      core.setField('/data/keptString', 'Bob');
+      const { data } = core.getState().document;
+      expect(data.keptString).to.equal('Bob');
+      for (const [key, value] of Object.entries(removedData)) {
+        expect(data[key]).to.deep.equal(value);
+      }
+    });
+
+    it('does not mutate the caller-provided document object', () => {
+      createEngine({ schema: evolvedSchema, document: olderDocument });
+      // The engine deep-clones on load; the original is untouched either way.
+      expect(olderDocument.data).to.deep.equal({ keptString: 'Alice', ...removedData });
+    });
+  });
+
   describe('setField', () => {
     it('updates state with the new value', async () => {
       const core = createEngine({ schema: baseSchema, document: baseDocument });
