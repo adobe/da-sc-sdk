@@ -193,8 +193,11 @@ export default class HTMLConverter {
 
   getNumber(text) {
     const num = Number(text);
-    const isNum = Number.isFinite(num);
-    if (!isNum) { return null; }
+    if (!Number.isFinite(num)) { return null; }
+    // Only coerce when the text is the number's canonical form. `Number()`
+    // accepts forms that don't round-trip (e.g. "710E-3" -> 0.71, "0xFF" ->
+    // 255, "007" -> 7), which would corrupt string codes.
+    if (String(num) !== text) { return null; }
     return num;
   }
 }
