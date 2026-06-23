@@ -1,3 +1,10 @@
+## [0.1.2](https://github.com/adobe/da-sc-sdk/compare/v0.1.1...v0.1.2) (2026-06-23)
+
+
+### Bug Fixes
+
+* **html2json:** preserve numeric-looking string codes verbatim ([#9](https://github.com/adobe/da-sc-sdk/issues/9)) ([789bcf4](https://github.com/adobe/da-sc-sdk/commit/789bcf45bcad52fea9844978d9d8684ac59daa8d))
+
 ## [0.1.1](https://github.com/adobe/da-sc-sdk/compare/v0.1.0...v0.1.1) (2026-06-02)
 
 
