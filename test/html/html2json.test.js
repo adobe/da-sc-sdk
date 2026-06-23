@@ -98,13 +98,88 @@ describe('HTML to JSON Conversion', () => {
       expect(json.data.zero).to.equal(0);
     });
 
+    // Regression: string codes that look like numbers must survive untouched.
+    // `Number()` accepts lossy forms (scientific notation, hex, leading/
+    // trailing zeros, big ints) that previously corrupted such codes.
+    it('keeps non-canonical numeric-looking strings as strings', () => {
+      const html = `
+        <main>
+          <div>
+            <div class="da-form">
+              <div><div><p>x-schema-name</p></div><div><p>test-schema</p></div></div>
+            </div>
+            <div class="test-schema">
+              <div><div><p>sci</p></div><div><p>710E-3</p></div></div>
+              <div><div><p>exp</p></div><div><p>1E3</p></div></div>
+              <div><div><p>hex</p></div><div><p>0xFF</p></div></div>
+              <div><div><p>leadingZero</p></div><div><p>007</p></div></div>
+              <div><div><p>trailingZero</p></div><div><p>1.50</p></div></div>
+              <div><div><p>bigInt</p></div><div><p>12345678901234567890</p></div></div>
+            </div>
+          </div>
+        </main>
+      `;
+
+      const { json } = convertHtmlToJson({ html });
+      expect(json.data.sci).to.equal('710E-3');
+      expect(json.data.exp).to.equal('1E3');
+      expect(json.data.hex).to.equal('0xFF');
+      expect(json.data.leadingZero).to.equal('007');
+      expect(json.data.trailingZero).to.equal('1.50');
+      expect(json.data.bigInt).to.equal('12345678901234567890');
+    });
+
+    // Regression: list items that look like numbers must also be preserved.
+    it('preserves numeric-looking list items verbatim', () => {
+      const html = `
+        <main>
+          <div>
+            <div class="da-form">
+              <div><div><p>x-schema-name</p></div><div><p>test-schema</p></div></div>
+            </div>
+            <div class="test-schema">
+              <div>
+                <div><p>codes</p></div>
+                <div><ul><li>710E-3</li><li>AB12-01</li><li>X-003</li><li>N480-5</li></ul></div>
+              </div>
+            </div>
+          </div>
+        </main>
+      `;
+
+      const { json } = convertHtmlToJson({ html });
+      expect(json.data.codes).to.deep.equal(['710E-3', 'AB12-01', 'X-003', 'N480-5']);
+    });
+
+    // Canonical numbers (incl. negatives) still coerce, so genuine number
+    // fields are unaffected.
+    it('still coerces canonical numbers, including negatives', () => {
+      const html = `
+        <main>
+          <div>
+            <div class="da-form">
+              <div><div><p>x-schema-name</p></div><div><p>test-schema</p></div></div>
+            </div>
+            <div class="test-schema">
+              <div><div><p>neg</p></div><div><p>-5</p></div></div>
+              <div><div><p>negFloat</p></div><div><p>-3.14</p></div></div>
+            </div>
+          </div>
+        </main>
+      `;
+
+      const { json } = convertHtmlToJson({ html });
+      expect(json.data.neg).to.equal(-5);
+      expect(json.data.negFloat).to.equal(-3.14);
+    });
+
     it('handles metadata properties', () => {
       const html = `
         <main>
           <div>
             <div class="da-form">
               <div><div><p>x-schema-name</p></div><div><p>test-schema</p></div></div>
-              <div><div><p>version</p></div><div><p>1.0</p></div></div>
+              <div><div><p>version</p></div><div><p>1</p></div></div>
               <div><div><p>author</p></div><div><p>Test Author</p></div></div>
             </div>
             <div class="test-schema">
