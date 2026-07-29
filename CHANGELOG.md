@@ -1,3 +1,10 @@
+# [0.2.0](https://github.com/adobe/da-sc-sdk/compare/v0.1.2...v0.2.0) (2026-07-29)
+
+
+### Features
+
+* add x-semantic-type annotation (long-text) ([#11](https://github.com/adobe/da-sc-sdk/issues/11)) ([8f6bfc9](https://github.com/adobe/da-sc-sdk/commit/8f6bfc9f61a0b25adf38d1bebb206e9c65f4e5aa))
+
 ## [0.1.2](https://github.com/adobe/da-sc-sdk/compare/v0.1.1...v0.1.2) (2026-06-23)
 
 
