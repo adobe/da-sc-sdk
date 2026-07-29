@@ -70,6 +70,12 @@ describe('buildModel', () => {
     expect(nodeAt({ model, pointer: '/data/c~0d' })?.value).to.equal('y');
   });
 
+  it('surfaces semanticType from the definition on string nodes', () => {
+    const def = objectDef([stringDef('body', { semanticType: 'long-text' })]);
+    const model = buildModel({ definition: def, document: { data: { body: 'hi' } } });
+    expect(nodeAt({ model, pointer: '/data/body' })?.semanticType).to.equal('long-text');
+  });
+
   it('exposes itemLabel from the item definition on array nodes', () => {
     const def = objectDef([
       arrayDef('contacts', { ...objectDef([stringDef('name')]), label: 'Contact' }),

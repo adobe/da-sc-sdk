@@ -200,6 +200,14 @@ const SUPPORTED_TYPES = new Set([
   'string', 'number', 'integer', 'boolean', 'object', 'array',
 ]);
 
+// Recognized `x-semantic-type` values mapped to the JSON type each applies to.
+// A value is surfaced to consumers only when the field's kind matches; any
+// other value (or type mismatch) is dropped so consumers never receive a hint
+// they can't act on.
+const SEMANTIC_TYPES = new Map([
+  ['long-text', 'string'],
+]);
+
 function unsupportedKind({ reason, feature, schemaPath = '/', variants = 0, details = null }) {
   return {
     kind: 'unsupported',
@@ -394,6 +402,13 @@ function compileNode({
 
   if (Array.isArray(schema?.enum)) {
     return { ...base, enumValues: schema.enum };
+  }
+
+  // Vendor semantic-type hint. Carried onto the node only when the value is
+  // recognized and applies to this field's kind (see SEMANTIC_TYPES); unknown
+  // values or type mismatches are dropped. `enum` takes precedence above.
+  if (SEMANTIC_TYPES.get(schema?.['x-semantic-type']) === kind) {
+    return { ...base, semanticType: schema['x-semantic-type'] };
   }
 
   return base;

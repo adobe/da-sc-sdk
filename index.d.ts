@@ -125,6 +125,8 @@ export interface ModelNode {
   itemLabel?: string;
   // Primitives with `enum`:
   enumValues?: unknown[];
+  // String primitives with `x-semantic-type` (vendor presentation hint):
+  semanticType?: string;
   // Unsupported-kind extras:
   unsupported?: {
     reason: string;

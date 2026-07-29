@@ -68,6 +68,44 @@ describe('compileSchema', () => {
       expect(color.enumValues).to.deep.equal(['red', 'green']);
     });
 
+    it('captures semanticType for a string with x-semantic-type', () => {
+      const { definition } = compileSchema({
+        type: 'object',
+        properties: { body: { type: 'string', 'x-semantic-type': 'long-text' } },
+      });
+      const body = definition.children[0];
+      expect(body.kind).to.equal('string');
+      expect(body.semanticType).to.equal('long-text');
+    });
+
+    it('lets enum win over x-semantic-type', () => {
+      const { definition } = compileSchema({
+        type: 'object',
+        properties: { color: { type: 'string', enum: ['red'], 'x-semantic-type': 'long-text' } },
+      });
+      const color = definition.children[0];
+      expect(color.enumValues).to.deep.equal(['red']);
+      expect(color.semanticType).to.equal(undefined);
+    });
+
+    it('ignores x-semantic-type on a non-string type', () => {
+      const { definition } = compileSchema({
+        type: 'object',
+        properties: { count: { type: 'number', 'x-semantic-type': 'long-text' } },
+      });
+      expect(definition.children[0].semanticType).to.equal(undefined);
+    });
+
+    it('drops an unrecognized x-semantic-type value', () => {
+      const { definition } = compileSchema({
+        type: 'object',
+        properties: { swatch: { type: 'string', 'x-semantic-type': 'color' } },
+      });
+      const swatch = definition.children[0];
+      expect(swatch.kind).to.equal('string');
+      expect(swatch.semanticType).to.equal(undefined);
+    });
+
     it('marks a property without an explicit type as unsupported', () => {
       const { definition, editable } = compileSchema({
         type: 'object',
