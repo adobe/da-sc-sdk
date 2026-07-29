@@ -201,6 +201,30 @@ These keywords describe presentation. They do not constrain the value.
 }
 ```
 
+### Vendor annotations
+
+Vendor extensions are keywords outside standard JSON Schema, prefixed `x-`. They carry presentation
+intent and do not constrain the value. Only the keywords and values defined below have meaning;
+anything else is undefined.
+
+| Keyword | Type | Applies to | Effect |
+| ------- | ---- | ---------- | ------ |
+| `x-semantic-type` | string | `string` | Declares the semantic kind of a `string` value. Defined value: `long-text` (long-form, multi-line text). |
+
+#### `x-semantic-type`
+
+`long-text` declares that the string holds long-form, multi-line text rather than a short
+single-line value.
+
+```json
+{ "type": "string", "title": "Summary", "maxLength": 2000, "x-semantic-type": "long-text" }
+```
+
+- Valid only on `string`; on any other type it has no meaning.
+- If `enum` is also present, `enum` applies and `x-semantic-type` has no effect.
+- `long-text` is the only defined value; any other value has no meaning.
+- Does not affect validation — `minLength`, `maxLength`, and `pattern` apply independently.
+
 ---
 
 ## 4. Supported constraints
