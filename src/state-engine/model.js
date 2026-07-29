@@ -37,6 +37,7 @@ function buildNode({
     base.unsupportedComposition = definition.unsupportedComposition;
   }
   if (Array.isArray(definition.enumValues)) { base.enumValues = definition.enumValues; }
+  if (definition.semanticType) { base.semanticType = definition.semanticType; }
 
   let node;
 
