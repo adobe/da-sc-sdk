@@ -45,7 +45,7 @@ Returns:
   schema,      // fully-resolved JSON Schema ($refs inlined, $defs unused). null if rawSchema was invalid.
   definition,  // compiled definition tree — input to buildModel
   editable,    // boolean: true when no issues were collected
-  issues,      // array of { pointer, compositionKeyword, feature, reason, variants, scope, details }
+  issues,      // array of { reason, message, schemaPath, pointer, details } — see §6
 }
 ```
 
@@ -99,7 +99,7 @@ Walks the resolved schema. At each node:
 4. **Recurses** for composite kinds:
    - `object` → compiles each `properties` entry into `children`. `required` flags carry through.
    - `array` → compiles `items` into a single `item` node (the *template* for array elements; the model later instantiates one node per document element).
-5. **Collects issues** into the shared `issues` array. Each issue records its pointer, the offending feature, and whether it's at the root or in a subtree.
+5. **Collects issues** into the shared `issues` array. Each issue records its `reason`, a human `message`, both locations (`schemaPath` in the schema, `pointer` in the data), and a reason-specific `details` blob.
 
 Output of phase 2: the **definition tree**.
 
@@ -324,13 +324,11 @@ In practice, **avoid cyclic schemas.** The form has no UI for unbounded recursio
 // compileSchema(...).issues
 [
   {
+    reason: 'unsupported-composition',
+    message: 'Composition "oneOf" is not supported.',
+    schemaPath: '/properties/weird',
     pointer: '/data/weird',
-    compositionKeyword: 'oneOf',
-    feature: 'oneOf',
-    reason: 'unsupported-schema-feature',  // or 'unsupported-composition' at the object level
-    variants: 2,
-    scope: 'subtree',
-    details: null,
+    details: { keyword: 'oneOf', variants: 2 },
   },
 ]
 ```
@@ -400,17 +398,22 @@ Issues populate `compileSchema(...).issues` and drive both:
 
 ```js
 {
-  pointer,              // '/data/weird' — where in the *data* the issue applies
-  compositionKeyword,   // 'oneOf' | 'allOf' | 'anyOf' | 'external-ref' | 'unresolved-ref' | ...
-  feature,              // human-readable feature name (often equal to compositionKeyword)
-  reason,               // 'unsupported-composition' | 'unsupported-schema-feature' | 'external-ref' | ...
-  variants,             // number of branches the composition keyword had (0 if N/A)
-  scope,                // 'root' if pointer === '/data', otherwise 'subtree'
-  details,              // optional kind-specific blob (e.g. { ref } for unsupported refs)
+  reason,      // machine code: 'unsupported-composition' | 'unsupported-type' |
+               //   'type-as-array' | 'missing-type' | 'external-ref' |
+               //   'unresolved-ref' | 'invalid-pattern' — branch on this
+  message,     // human-readable summary, derived from reason/details
+  schemaPath,  // '/properties/weird' — where to fix it in the *schema* ($refs
+               //   re-rooted at their $def); '/' at the root
+  pointer,     // '/data/weird' — where it manifests in the *data* (canonical addressing)
+  details,     // structured, reason-specific context, or null:
+               //   { type }            — unsupported-type / type-as-array
+               //   { keyword, variants }— unsupported-composition
+               //   { ref }             — external-ref / unresolved-ref
+               //   { pattern }         — invalid-pattern
 }
 ```
 
-The compiler does **not** sort or deduplicate; issues appear in traversal order. Consumers that want a stable display order should sort by `pointer`.
+The compiler does **not** sort or deduplicate; issues appear in traversal order. Consumers that want a stable display order should sort by `pointer` (or `schemaPath`). A shared `$def` referenced from several places yields one entry per usage — dedupe on `schemaPath` to collapse them.
 
 `editable` is `issues.length === 0`. Any single issue marks the schema as non-editable — `createEngine` still produces an engine and `getState()` returns a populated model, but consumers typically display a "schema has issues" banner over (or instead of) the editor UI.
 
