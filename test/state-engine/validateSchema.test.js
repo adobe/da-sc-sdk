@@ -101,4 +101,115 @@ describe('validateSchema', () => {
     // Calling with no arg at all also handled gracefully.
     expect(validateSchema()).to.deep.equal({ valid: false, schemaIssues: [] });
   });
+
+  describe('schemaPath', () => {
+    it('points at the schema root for a missing type', () => {
+      const [issue] = validateSchema({ schema: {} }).schemaIssues;
+      expect(issue.reason).to.equal('missing-type');
+      expect(issue.pointer).to.equal('/data');
+      expect(issue.schemaPath).to.equal('/');
+    });
+
+    it('points at the property, not the data-instance path', () => {
+      const [issue] = validateSchema({
+        schema: {
+          type: 'object',
+          properties: { code: { type: 'string', pattern: '[' } },
+        },
+      }).schemaIssues;
+      expect(issue.reason).to.equal('invalid-pattern');
+      expect(issue.pointer).to.equal('/data/code');
+      expect(issue.schemaPath).to.equal('/properties/code');
+    });
+
+    it('re-roots at the $def a ref points to', () => {
+      const [issue] = validateSchema({
+        schema: {
+          $defs: {
+            Achievement: { type: ['object'], properties: { year: { type: 'integer' } } },
+          },
+          type: 'object',
+          properties: {
+            timeline: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  achievements: { type: 'array', items: { $ref: '#/$defs/Achievement' } },
+                },
+              },
+            },
+          },
+        },
+      }).schemaIssues;
+      expect(issue.reason).to.equal('type-as-array');
+      // Instance path threads through the arrays; schema path lands on the def.
+      expect(issue.pointer).to.equal('/data/timeline/0/achievements/0');
+      expect(issue.schemaPath).to.equal('/$defs/Achievement');
+    });
+
+    it('re-roots a ref nested inside another ref\'d def', () => {
+      const [issue] = validateSchema({
+        schema: {
+          $defs: {
+            YearAchievement: { type: ['object'], properties: { year: { type: 'integer' } } },
+            TimelinePeriod: {
+              type: 'object',
+              properties: {
+                notableAchievements: { type: 'array', items: { $ref: '#/$defs/YearAchievement' } },
+              },
+            },
+          },
+          type: 'object',
+          properties: {
+            historicalTimeline: { type: 'array', items: { $ref: '#/$defs/TimelinePeriod' } },
+          },
+        },
+      }).schemaIssues;
+      // The offender is two ref hops deep; the path must land on the inner def,
+      // not the outer def's usage site.
+      expect(issue.reason).to.equal('type-as-array');
+      expect(issue.schemaPath).to.equal('/$defs/YearAchievement');
+    });
+
+    it('points a ref\'d property at its def, not the usage site', () => {
+      const [issue] = validateSchema({
+        schema: {
+          $defs: { Project: { type: 'object', properties: { name: { type: ['string', 'number'] } } } },
+          type: 'object',
+          properties: { projects: { type: 'array', items: { $ref: '#/$defs/Project' } } },
+        },
+      }).schemaIssues;
+      expect(issue.schemaPath).to.equal('/$defs/Project/properties/name');
+    });
+  });
+
+  describe('message and details', () => {
+    it('carries a human message and reason-specific details', () => {
+      const typeArray = validateSchema({ schema: { type: ['object'] } }).schemaIssues[0];
+      expect(typeArray.message).to.equal('The type must be a single value, not an array.');
+      expect(typeArray.details).to.deep.equal({ type: ['object'] });
+
+      const [missing] = validateSchema({ schema: {} }).schemaIssues;
+      expect(missing.message).to.equal('A type is required.');
+      expect(missing.details).to.equal(null);
+    });
+
+    it('folds composition keyword and branch count into details', () => {
+      const [issue] = validateSchema({
+        schema: { type: 'object', properties: { a: { oneOf: [{ type: 'string' }, { type: 'number' }, { type: 'boolean' }] } } },
+      }).schemaIssues;
+      expect(issue.reason).to.equal('unsupported-composition');
+      expect(issue.message).to.equal('Composition "oneOf" is not supported.');
+      expect(issue.details).to.deep.equal({ keyword: 'oneOf', variants: 3 });
+    });
+
+    it('does not carry the removed legacy fields', () => {
+      const [issue] = validateSchema({ schema: { type: ['object'] } }).schemaIssues;
+      expect(issue).to.not.have.any.keys('feature', 'compositionKeyword', 'variants', 'scope');
+      expect(Object.keys(issue).sort()).to.deep.equal(
+        ['details', 'message', 'pointer', 'reason', 'schemaPath'],
+      );
+    });
+  });
 });
