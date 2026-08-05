@@ -154,4 +154,16 @@ describe('validateData', () => {
     expect(result.errors['/data/0/name']?.keyword).to.equal('required');
     expect(result.errors['/data/0/name']?.params?.missingProperty).to.equal('name');
   });
+
+  it('never leaks a schema location into data errors', () => {
+    const result = validateData({
+      schema: { type: 'object', properties: { name: { type: 'string', minLength: 3 } } },
+      data: { name: 'a' },
+    });
+    // Data errors describe the data for the person filling it in — they must
+    // not expose schema structure. schemaPath lives on schemaIssues only.
+    for (const error of Object.values(result.errors)) {
+      expect(error).to.not.have.property('schemaPath');
+    }
+  });
 });

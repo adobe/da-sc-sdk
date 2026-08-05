@@ -57,12 +57,14 @@ console.log('Bad schema:');
 console.log('  valid       :', result.valid);
 console.log('  schemaIssues:');
 for (const issue of result.schemaIssues) {
-  console.log(`    ${issue.pointer}: ${issue.reason} (${issue.feature ?? issue.compositionKeyword ?? '—'})`);
+  // reason = machine code to branch on; schemaPath = where to fix it;
+  // message = ready human summary. (Also available: issue.pointer, issue.details.)
+  console.log(`    ${issue.reason} at ${issue.schemaPath} — ${issue.message}`);
 }
 // → valid       : false
 //   schemaIssues:
-//     /data/mystery: unsupported-composition (oneOf)
-//     /data/nullable: type-as-array (type-as-array)
-//     /data/remote: external-ref (external-ref)
-//     /data/untyped: missing-type (missing-type)
-//     /data/code: invalid-pattern (pattern)
+//     unsupported-composition at /properties/mystery — Composition "oneOf" is not supported.
+//     type-as-array at /properties/nullable — The type must be a single value, not an array.
+//     external-ref at /properties/remote — External reference "https://example.com/schema.json" is not supported; use a local "#/…" reference.
+//     missing-type at /properties/untyped — A type is required.
+//     invalid-pattern at /properties/code — The pattern is not a valid regular expression.

@@ -38,13 +38,41 @@ export type SchemaIssueReason =
   | 'invalid-pattern';          // a `pattern` value that isn't a valid regex
 
 export interface SchemaIssue {
-  /** Pointer to the offending location in the schema. */
-  pointer: string;
+  /** Machine code for what's wrong — branch on this. */
   reason: SchemaIssueReason;
-  /** A short label for the failing construct (e.g. `oneOf`, `pattern`). */
-  feature: string;
-  /** Additional structured context, keyword-dependent. */
-  details?: unknown;
+  /**
+   * Human-readable summary of the issue, derived from `reason`/`details`.
+   * Location-independent (add location from `schemaPath`/`pointer`).
+   */
+  message: string;
+  /**
+   * RFC 6901 pointer to the offending construct in the *schema source*, rooted
+   * at the schema (`/`). `$ref`s are re-rooted at their target, so an issue
+   * inside a `$def` points at the def (`/$defs/YearAchievement`) rather than the
+   * inlined usage site. This is the location to fix.
+   */
+  schemaPath: string;
+  /**
+   * RFC 6901 pointer to where the issue manifests in a *data instance*, rooted
+   * at `/data` (array positions as `0`, `$ref`s resolved away). The SDK's
+   * canonical addressing — the same space the model and data errors use.
+   */
+  pointer: string;
+  /**
+   * Structured, reason-specific context:
+   * `type-as-array`/`unsupported-type` → `{ type }`,
+   * `unsupported-composition` → `{ keyword, variants }`,
+   * `external-ref`/`unresolved-ref` → `{ ref }`,
+   * `invalid-pattern` → `{ pattern }`,
+   * `missing-type` → `null`.
+   */
+  details: {
+    type?: string | string[];
+    keyword?: 'allOf' | 'oneOf' | 'anyOf';
+    variants?: number;
+    ref?: string;
+    pattern?: string;
+  } | null;
 }
 
 // ─── Validation errors (data-against-schema) ───────────────────────────────

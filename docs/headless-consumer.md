@@ -128,13 +128,13 @@ const result = validateData({ schema, data: { name: '', status: 'Unknown' } });
 
 `instancePath` is the field — `engine.setField(error.instancePath, value)` works directly. This is one deliberate deviation from ajv, which puts `required` at the parent pointer; the SDK puts pointer construction on its own side of the API.
 
-Why the SDK omits `schemaPath`: ajv's full shape includes a pointer into the schema (e.g. `#/properties/name/minLength`). The SDK deliberately drops it — schema paths leak internal schema structure to whoever sees the errors, and our consumers (form UI, MCP, workers) don't need it. If you forward errors to an untrusted client, consider stripping `params.pattern` and `params.allowedValues` too.
+Why the data `errors` omit `schemaPath`: ajv's full shape includes a pointer into the schema (e.g. `#/properties/name/minLength`). The SDK deliberately drops it from **data** errors — schema paths leak internal schema structure to whoever is filling in the data, and our consumers (form UI, MCP, workers) don't need it there. If you forward errors to an untrusted client, consider stripping `params.pattern` and `params.allowedValues` too. (Schema *issues* are different — see below — they do carry `schemaPath`, because anyone validating a schema already has it.)
 
 ## Three things to remember
 
 - **Mutations are pointer-based.** Every change is identified by an RFC 6901 pointer (`/data/tags/0`). This maps directly to MCP tool parameters or agent action descriptions — no opaque handles, no field IDs.
 - **Errors are structured data, not events.** `state.validation.errors` is a pointer-keyed map of `{ keyword, instancePath, params, message }` — UIs look up by pointer, agents iterate via `Object.values()`. Per-entry shape uses the standard JSON Schema vocabulary any agent already recognizes.
-- **Schema issues are structured.** `state.schemaIssues` is an array of `{ pointer, reason, feature, details }` where `reason` is one of `unsupported-composition` / `unsupported-type` / `type-as-array` / `missing-type` / `external-ref` / `unresolved-ref` / `invalid-pattern`. An agent that built the schema can use the reason code to decide how to fix it on the next attempt.
+- **Schema issues are structured.** `state.schemaIssues` is an array of `{ reason, message, schemaPath, pointer, details }` where `reason` is one of `unsupported-composition` / `unsupported-type` / `type-as-array` / `missing-type` / `external-ref` / `unresolved-ref` / `invalid-pattern`. `message` is a human summary; `schemaPath` is the location in the schema source (`/$defs/…`, `$ref`s re-rooted at their target) — the spot to fix; `pointer` is the data-instance path (`/data/timeline/0/…`); `details` is a reason-specific blob (`{ type }`, `{ keyword, variants }`, `{ ref }`, `{ pattern }`, or `null`). An agent that built the schema can branch on `reason` and jump to `schemaPath` to fix it on the next attempt.
 
 ## What schemas to write
 

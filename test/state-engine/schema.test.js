@@ -231,7 +231,7 @@ describe('compileSchema', () => {
       });
       expect(editable).to.equal(false);
       expect(definition.children[0].kind).to.equal('unsupported');
-      expect(issues.some((i) => i.compositionKeyword === 'allOf')).to.equal(true);
+      expect(issues.some((i) => i.details?.keyword === 'allOf')).to.equal(true);
     });
 
     it('marks a property with oneOf as unsupported; root definition still exists and editable is false', () => {
@@ -242,7 +242,7 @@ describe('compileSchema', () => {
         },
       });
       expect(editable).to.equal(false);
-      expect(issues.some((i) => i.compositionKeyword === 'oneOf')).to.equal(true);
+      expect(issues.some((i) => i.details?.keyword === 'oneOf')).to.equal(true);
       expect(definition).to.exist;
       expect(definition.kind).to.equal('object');
       expect(definition.children[0].kind).to.equal('unsupported');
@@ -254,7 +254,7 @@ describe('compileSchema', () => {
         properties: { x: { anyOf: [{ type: 'string' }, { type: 'number' }] } },
       });
       expect(editable).to.equal(false);
-      expect(issues.some((i) => i.compositionKeyword === 'anyOf')).to.equal(true);
+      expect(issues.some((i) => i.details?.keyword === 'anyOf')).to.equal(true);
     });
 
     it('marks multi-entry allOf as unsupported', () => {
@@ -263,7 +263,7 @@ describe('compileSchema', () => {
         properties: { x: { allOf: [{ type: 'string' }, { minLength: 3 }] } },
       });
       expect(editable).to.equal(false);
-      expect(issues.some((i) => i.compositionKeyword === 'allOf')).to.equal(true);
+      expect(issues.some((i) => i.details?.keyword === 'allOf')).to.equal(true);
     });
   });
 
@@ -297,7 +297,7 @@ describe('compileSchema', () => {
       expect(result.definition.unsupportedComposition).to.deep.include({ compositionKeyword: 'allOf' });
       expect(result.definition.children).to.have.lengthOf(2);
       expect(result.editable).to.equal(false);
-      expect(result.issues.some((i) => i.compositionKeyword === 'allOf')).to.equal(true);
+      expect(result.issues.some((i) => i.details?.keyword === 'allOf')).to.equal(true);
     });
 
     it('compiles a sub-property as object with unsupportedComposition when anyOf + properties co-exist', () => {

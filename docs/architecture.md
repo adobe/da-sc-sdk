@@ -75,7 +75,7 @@ state = {
   validation:  {
     errors: { [instancePath]: { keyword, instancePath, params, message }, ... },
   },
-  schemaIssues: [{ pointer, reason, feature, details }, ...],
+  schemaIssues: [{ reason, message, schemaPath, pointer, details }, ...],
 }
 ```
 
