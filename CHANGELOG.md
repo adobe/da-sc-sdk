@@ -1,3 +1,10 @@
+# [0.3.0](https://github.com/adobe/da-sc-sdk/compare/v0.2.0...v0.3.0) (2026-08-05)
+
+
+### Features
+
+* **schema:** restructure schemaIssues into a clean diagnostic shape ([#13](https://github.com/adobe/da-sc-sdk/issues/13)) ([8c61e34](https://github.com/adobe/da-sc-sdk/commit/8c61e3479328975c96644e13f4acf37ec2036f96))
+
 # [0.2.0](https://github.com/adobe/da-sc-sdk/compare/v0.1.2...v0.2.0) (2026-07-29)
 
 
