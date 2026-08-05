@@ -51,6 +51,12 @@ function escapeSchemaPathSegment(segment) {
   return String(segment).replace(/~/g, '~0').replace(/\//g, '~1');
 }
 
+// Append a suffix to a schema path without doubling the separator at the root
+// (`/` + `/items` would otherwise be `//items`).
+function joinSchemaPath(base, suffix) {
+  return base === '/' ? `/${suffix}` : `${base}/${suffix}`;
+}
+
 function markUnsupportedComposition({
   node, compositionKeyword, variants, schemaPath,
 }) {
@@ -66,6 +72,10 @@ function resolveNode({
   if (!node || typeof node !== 'object') { return node; }
 
   let resolved = { ...node };
+  // The schema-source location for this node. When a `$ref` resolves, we
+  // re-root here at the ref target (`#/$defs/Foo` → `/$defs/Foo`) so issues
+  // point at the `$def` the author wrote, not the inlined usage site.
+  let effectivePath = schemaPath;
 
   if (resolved.$ref) {
     const ref = resolved.$ref;
@@ -78,6 +88,7 @@ function resolveNode({
         ...resolved,
         $ref: undefined,
         unsupportedRef: { reason: 'external-ref', ref },
+        schemaPath,
       };
     }
 
@@ -92,11 +103,13 @@ function resolveNode({
           ...resolved,
           $ref: undefined,
           unsupportedRef: { reason: 'unresolved-ref', ref },
+          schemaPath,
         };
       }
       seenRefs.add(ref);
+      effectivePath = ref.slice(1);
       const derefTarget = resolveNode({
-        node: deepClone(target), rootSchema, seenRefs, schemaPath,
+        node: deepClone(target), rootSchema, seenRefs, schemaPath: effectivePath,
       });
       seenRefs.delete(ref);
       resolved = mergeSchemas(derefTarget, { ...resolved, $ref: undefined });
@@ -123,10 +136,13 @@ function resolveNode({
       node: resolved,
       compositionKeyword: composition.key,
       variants: composition.entries.length,
-      schemaPath,
+      schemaPath: effectivePath,
     });
 
     if (!hasDirectProperties) {
+      // Only the first (ref-aware) pass sets the path; a redundant re-resolve of
+      // an already-dereferenced subtree must not clobber a re-rooted $def path.
+      resolved.schemaPath ??= effectivePath;
       return resolved;
     }
 
@@ -138,7 +154,7 @@ function resolveNode({
       node: resolved.items,
       rootSchema,
       seenRefs,
-      schemaPath: `${schemaPath}/items`,
+      schemaPath: joinSchemaPath(effectivePath, 'items'),
     });
   }
 
@@ -150,12 +166,14 @@ function resolveNode({
           node: propertySchema,
           rootSchema,
           seenRefs,
-          schemaPath: `${schemaPath}/properties/${escapeSchemaPathSegment(key)}`,
+          schemaPath: joinSchemaPath(effectivePath, `properties/${escapeSchemaPathSegment(key)}`),
         }),
       ]),
     );
   }
 
+  // Preserve a path set on a deeper (ref-aware) pass; only stamp if unset.
+  resolved.schemaPath ??= effectivePath;
   return resolved;
 }
 
@@ -277,12 +295,39 @@ function inferKind(schema = {}) {
   });
 }
 
+// Human-readable summary of an issue, derived from its machine `reason` and
+// `details`. `reason` stays the contract consumers branch on; `message` is the
+// convenience string. Location-independent (consumers add it from `schemaPath`),
+// period-terminated to match the data-validation error voice.
+function issueMessage({ reason, details }) {
+  switch (reason) {
+    case 'missing-type':
+      return 'A type is required.';
+    case 'type-as-array':
+      return 'The type must be a single value, not an array.';
+    case 'unsupported-type':
+      return `The type "${details?.type ?? ''}" is not supported.`;
+    case 'unsupported-composition':
+      return `Composition "${details?.keyword ?? ''}" is not supported.`;
+    case 'external-ref':
+      return `External reference "${details?.ref ?? ''}" is not supported; use a local "#/…" reference.`;
+    case 'unresolved-ref':
+      return `Reference "${details?.ref ?? ''}" could not be resolved.`;
+    case 'invalid-pattern':
+      return 'The pattern is not a valid regular expression.';
+    default:
+      return 'This schema construct is not supported.';
+  }
+}
+
 function compileNode({
   key, schema, required = false, labelFallback = '', pointer = '/data', issues,
 }) {
   const { kind, unsupported: inferred = null } = inferKind(schema);
   const label = schema?.title ?? labelFallback ?? key ?? '';
   const defaults = getDefaults({ schema, kind });
+  // Where this node lives in the schema source (refs resolved to their $def).
+  const schemaPath = schema?.schemaPath ?? '/';
 
   // Validate `pattern` at compile time. ajv treats an unparseable pattern as a
   // schema error (thrown at compile time, never reaches data validation); we
@@ -293,14 +338,13 @@ function compileNode({
       // eslint-disable-next-line no-new
       new RegExp(schema.pattern);
     } catch {
+      const details = { pattern: schema.pattern };
       issues.push({
-        pointer,
         reason: 'invalid-pattern',
-        feature: 'pattern',
-        compositionKeyword: 'pattern',
-        variants: 0,
-        scope: pointer === '/data' ? 'root' : 'subtree',
-        details: { pattern: schema.pattern },
+        message: issueMessage({ reason: 'invalid-pattern', details }),
+        schemaPath,
+        pointer,
+        details,
       });
       delete defaults.validation.pattern;
     }
@@ -319,14 +363,19 @@ function compileNode({
   if (kind === 'unsupported') {
     const u = inferred ?? {};
     const keyword = u.compositionKeyword ?? 'unknown';
+    const reason = u.reason ?? 'unsupported-schema-feature';
+    const feature = u.feature ?? keyword;
+    // Composition folds its keyword + branch count into details; every other
+    // reason keeps its own details blob ({ type } / { ref } / null).
+    const issueDetails = reason === 'unsupported-composition'
+      ? { keyword, variants: u.variants ?? 0 }
+      : (u.details ?? null);
     issues.push({
+      reason,
+      message: issueMessage({ reason, details: issueDetails }),
+      schemaPath,
       pointer,
-      compositionKeyword: keyword,
-      feature: u.feature ?? keyword,
-      reason: u.reason ?? 'unsupported-schema-feature',
-      variants: u.variants ?? 0,
-      scope: pointer === '/data' ? 'root' : 'subtree',
-      details: u.details ?? null,
+      details: issueDetails,
     });
 
     return {
@@ -335,10 +384,10 @@ function compileNode({
       readonly: true,
       unsupported: {
         compositionKeyword: keyword,
-        feature: u.feature ?? keyword,
-        reason: u.reason ?? 'unsupported-schema-feature',
+        feature,
+        reason,
         variants: u.variants ?? 0,
-        schemaPath: u.schemaPath ?? '/',
+        schemaPath,
         details: u.details ?? null,
       },
     };
@@ -351,14 +400,13 @@ function compileNode({
     if (schema?.unsupportedComposition) {
       const u = schema.unsupportedComposition;
       const keyword = u.compositionKeyword ?? 'unknown';
+      const details = { keyword, variants: u.variants ?? 0 };
       issues.push({
-        pointer,
-        compositionKeyword: keyword,
-        feature: keyword,
         reason: 'unsupported-composition',
-        variants: u.variants ?? 0,
-        scope: pointer === '/data' ? 'root' : 'subtree',
-        details: null,
+        message: issueMessage({ reason: 'unsupported-composition', details }),
+        schemaPath,
+        pointer,
+        details,
       });
     }
 
