@@ -225,6 +225,7 @@ const SUPPORTED_TYPES = new Set([
 // they can't act on.
 const SEMANTIC_TYPES = new Map([
   ['long-text', 'string'],
+  ['media', 'string'],
 ]);
 
 // Native JSON Schema string `format` values we surface to the UI as date/time
