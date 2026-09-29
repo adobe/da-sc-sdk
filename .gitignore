@@ -35,3 +35,6 @@ Thumbs.db
 
 # Claude Code local settings (per-user, not shared)
 .claude/settings.local.json
+
+# Scout tool local config and index data (per-developer, not shared)
+.scout/
