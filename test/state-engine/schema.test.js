@@ -78,6 +78,36 @@ describe('compileSchema', () => {
       expect(body.semanticType).to.equal('long-text');
     });
 
+    it('captures a media semantic type for a string without changing its value kind', () => {
+      const { definition } = compileSchema({
+        type: 'object',
+        properties: { hero: { type: 'string', title: 'Hero', 'x-semantic-type': 'media' } },
+      });
+      const hero = definition.children[0];
+      expect(hero.kind).to.equal('string');
+      expect(hero.semanticType).to.equal('media');
+    });
+
+    it('ignores media semantics on a non-string field', () => {
+      const { definition } = compileSchema({
+        type: 'object',
+        properties: { hero: { type: 'object', 'x-semantic-type': 'media' } },
+      });
+      expect(definition.children[0].semanticType).to.equal(undefined);
+    });
+
+    it('lets an enum or supported format take precedence over media semantics', () => {
+      const { definition } = compileSchema({
+        type: 'object',
+        properties: {
+          option: { type: 'string', enum: ['first'], 'x-semantic-type': 'media' },
+          date: { type: 'string', format: 'date', 'x-semantic-type': 'media' },
+        },
+      });
+      expect(definition.children[0].semanticType).to.equal(undefined);
+      expect(definition.children[1].semanticType).to.equal(undefined);
+    });
+
     it('lets enum win over x-semantic-type', () => {
       const { definition } = compileSchema({
         type: 'object',
