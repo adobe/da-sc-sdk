@@ -219,14 +219,23 @@ const SUPPORTED_TYPES = new Set([
   'string', 'number', 'integer', 'boolean', 'object', 'array',
 ]);
 
+const MEDIA_SEMANTIC_TYPE = 'media';
+
 // Recognized `x-semantic-type` values mapped to the JSON type each applies to.
 // A value is surfaced to consumers only when the field's kind matches; any
 // other value (or type mismatch) is dropped so consumers never receive a hint
 // they can't act on.
 const SEMANTIC_TYPES = new Map([
   ['long-text', 'string'],
-  ['media', 'string'],
+  [MEDIA_SEMANTIC_TYPE, 'string'],
 ]);
+
+// Media fields may narrow the referenced file with the standard `contentMediaType` keyword.
+function mediaTypeOf(schema) {
+  const mediaType = schema?.contentMediaType;
+  if (typeof mediaType !== 'string' || !mediaType.trim()) { return {}; }
+  return { contentMediaType: mediaType.trim() };
+}
 
 // Native JSON Schema string `format` values we surface to the UI as date/time
 // widgets. Standard RFC 3339 keywords — no proprietary hint needed. Carried onto
@@ -466,7 +475,9 @@ function compileNode({
 
   // Vendor hint; `enum` and the standard `format` keyword take precedence above.
   if (SEMANTIC_TYPES.get(schema?.['x-semantic-type']) === kind) {
-    return { ...base, semanticType: schema['x-semantic-type'] };
+    const semanticType = schema['x-semantic-type'];
+    const mediaType = semanticType === MEDIA_SEMANTIC_TYPE ? mediaTypeOf(schema) : {};
+    return { ...base, semanticType, ...mediaType };
   }
 
   return base;

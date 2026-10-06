@@ -210,7 +210,7 @@ anything else is ignored.
 
 | Keyword | Type | Applies to | Effect |
 | ------- | ---- | ---------- | ------ |
-| `x-semantic-type` | string | `string` | Declares the semantic kind of a `string` value. Defined values: `long-text` (multi-line text) and `media` (one media reference). |
+| `x-semantic-type` | string | `string` | Declares the semantic kind of a `string` value. Defined values: `long-text` (multi-line text) and `media` (one file reference). |
 
 #### `x-semantic-type`
 
@@ -221,13 +221,26 @@ single-line value.
 { "type": "string", "title": "Summary", "maxLength": 2000, "x-semantic-type": "long-text" }
 ```
 
-`media` declares that the string contains a single media reference, such as an image.
-It changes the editor's presentation, not the stored value or validation. The media
-bytes remain at their source, such as EDS Media Bus or AEM Assets. Editors decide which
-media kinds they accept.
+`media` declares that the string contains a single file reference, such as an image, a
+video or a PDF. It changes the editor's presentation, not the stored value or validation.
+The file bytes remain at their source, such as EDS Media Bus or AEM Assets.
 
 ```json
 { "type": "string", "title": "Hero image", "x-semantic-type": "media" }
+```
+
+A `media` field may narrow the kind of file with the standard `contentMediaType` keyword.
+The SDK passes the value to editors as `contentMediaType` and does not validate against it.
+Here it describes the referenced file, not inline string content, and a trailing `/*`
+wildcard (for example `image/*`) is allowed. Without it, the field accepts any file.
+`contentMediaType` is ignored on fields that are not `media`.
+
+```json
+{ "type": "string", "title": "Hero image", "x-semantic-type": "media", "contentMediaType": "image/*" }
+```
+
+```json
+{ "type": "string", "title": "Datasheet", "x-semantic-type": "media", "contentMediaType": "application/pdf" }
 ```
 
 - Valid only on `string`; on any other type it is ignored.
