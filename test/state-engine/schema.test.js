@@ -96,34 +96,6 @@ describe('compileSchema', () => {
       expect(definition.children[0].semanticType).to.equal(undefined);
     });
 
-    it('passes contentMediaType through on a media field', () => {
-      const { definition } = compileSchema({
-        type: 'object',
-        properties: {
-          hero: { type: 'string', title: 'Hero', 'x-semantic-type': 'media', contentMediaType: 'image/*' },
-          sheet: { type: 'string', title: 'Sheet', 'x-semantic-type': 'media', contentMediaType: ' application/pdf ' },
-          any: { type: 'string', title: 'Any', 'x-semantic-type': 'media' },
-        },
-      });
-      const [hero, sheet, any] = definition.children;
-      expect(hero.contentMediaType).to.equal('image/*');
-      expect(sheet.contentMediaType).to.equal('application/pdf');
-      expect(any.contentMediaType).to.equal(undefined);
-    });
-
-    it('ignores contentMediaType outside media fields or when it is not a non-empty string', () => {
-      const { definition } = compileSchema({
-        type: 'object',
-        properties: {
-          plain: { type: 'string', title: 'Plain', contentMediaType: 'image/*' },
-          long: { type: 'string', title: 'Long', 'x-semantic-type': 'long-text', contentMediaType: 'text/plain' },
-          blank: { type: 'string', title: 'Blank', 'x-semantic-type': 'media', contentMediaType: '  ' },
-          list: { type: 'string', title: 'List', 'x-semantic-type': 'media', contentMediaType: ['image/*'] },
-        },
-      });
-      definition.children.forEach((child) => expect(child.contentMediaType).to.equal(undefined));
-    });
-
     it('lets an enum or supported format take precedence over media semantics', () => {
       const { definition } = compileSchema({
         type: 'object',

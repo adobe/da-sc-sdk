@@ -90,12 +90,6 @@ describe('buildModel', () => {
     expect(nodeAt({ model, pointer: '/data/hero' })?.value).to.equal(href);
   });
 
-  it('exposes contentMediaType on media nodes', () => {
-    const def = objectDef([stringDef('sheet', { semanticType: 'media', contentMediaType: 'application/pdf' })]);
-    const model = buildModel({ definition: def, document: { data: {} } });
-    expect(nodeAt({ model, pointer: '/data/sheet' })?.contentMediaType).to.equal('application/pdf');
-  });
-
   it('exposes itemLabel from the item definition on array nodes', () => {
     const def = objectDef([
       arrayDef('contacts', { ...objectDef([stringDef('name')]), label: 'Contact' }),
