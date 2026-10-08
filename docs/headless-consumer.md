@@ -68,7 +68,7 @@ engine = createEngine({
     if (next === lastValues) return;     // ignore non-mutation transitions
     lastValues = next;
 
-    const { html, error } = convertJsonToHtml({ json: next });
+    const { html, error } = convertJsonToHtml({ json: next, schema });
     if (error) return;
     // ...POST `html` to your storage, write to disk, push to git, etc...
   },

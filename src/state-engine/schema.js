@@ -500,3 +500,14 @@ export function compileSchema(rawSchema) {
     issues,
   };
 }
+
+// The compiled definition tree, or null when `schema` is missing or cannot be
+// compiled. For callers that treat an unusable schema like no schema.
+export function compileDefinition(schema) {
+  if (!schema) { return null; }
+  try {
+    return compileSchema(schema).definition;
+  } catch {
+    return null;
+  }
+}

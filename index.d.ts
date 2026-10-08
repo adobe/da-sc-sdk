@@ -260,13 +260,22 @@ export function validateData(options?: {
  * JSON → DA wire-format HTML. Prunes empty / null / whitespace leaves
  * before emitting (same shape the editor saves). Pure string builder,
  * no DOM. Symmetric pair with `convertHtmlToJson`.
+ *
+ * Pass the document's `schema` to write `x-semantic-type: media` fields as
+ * `<img>`, so EDS ingests them into the media bus. Image sources are trimmed,
+ * and media bus paths lose their rendition parameters. Without a schema, or
+ * with one that cannot be compiled, every value is written as text.
  */
 export function convertJsonToHtml(options: {
   json: Document;
+  schema?: unknown;
 }): { html: string } | { error: string };
 
 /**
  * DA wire-format HTML → JSON. Symmetric pair with `convertJsonToHtml`.
+ * A value cell or list item without text but with an `<img>` reads as its
+ * trimmed `src`; text always wins. EDS media bus paths drop their rendition
+ * query and fragment, for example `./media_<hash>.jpg`.
  * Returns `{ error }` on empty / malformed input — never silently null.
  */
 export function convertHtmlToJson(options?: {

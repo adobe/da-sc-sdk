@@ -12,6 +12,19 @@
 
 // Shared helpers for the HTML codec.
 
+// EDS appends rendition parameters to media bus images, for example
+// `./media_<hash>.jpg?width=750&format=jpg`. Media values keep the bare path
+// so consumers choose their own rendition.
+const MEDIA_BUS_PATH = /^(?:\.\/)?media_[0-9a-f]+\.[a-z0-9]+(?=[?#]|$)/i;
+
+// The stored form of an image source: trimmed, and without rendition
+// parameters when it is a media bus path. Writer and reader both apply it,
+// so a media value round-trips unchanged after its first save.
+export function toMediaValue(src) {
+  const trimmed = src.trim();
+  return trimmed.match(MEDIA_BUS_PATH)?.[0] ?? trimmed;
+}
+
 function isEmpty(value) {
   if (value === null || value === undefined || value === '') { return true; }
   if (typeof value === 'string' && value.trim() === '') { return true; }

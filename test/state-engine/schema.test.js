@@ -11,7 +11,7 @@
  */
 
 import { expect } from '@esm-bundle/chai';
-import { compileSchema } from '../../src/state-engine/schema.js';
+import { compileDefinition, compileSchema } from '../../src/state-engine/schema.js';
 
 describe('compileSchema', () => {
   describe('basic types', () => {
@@ -424,5 +424,24 @@ describe('compileSchema', () => {
       expect(channel.kind).to.equal('unsupported');
       expect(channel.unsupported.compositionKeyword).to.equal('oneOf');
     });
+  });
+});
+
+describe('compileDefinition', () => {
+  it('returns the compiled definition tree', () => {
+    const schema = { type: 'object', properties: { name: { type: 'string' } } };
+    expect(compileDefinition(schema)).to.deep.equal(compileSchema(schema).definition);
+  });
+
+  it('returns null without a schema', () => {
+    [undefined, null, '', 0].forEach((missing) => {
+      expect(compileDefinition(missing)).to.equal(null);
+    });
+  });
+
+  it('returns null instead of throwing for a schema that cannot be compiled', () => {
+    const schema = { type: 'object', required: 5, properties: { name: { type: 'string' } } };
+    expect(() => compileSchema(schema)).to.throw();
+    expect(compileDefinition(schema)).to.equal(null);
   });
 });

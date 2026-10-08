@@ -54,7 +54,7 @@ engine.setField("/data/name", "Alice");
 engine.addItem("/data/tags");
 engine.setField("/data/tags/0", "demo");
 
-const { html } = convertJsonToHtml({ json: engine.getState().document });
+const { html } = convertJsonToHtml({ json: engine.getState().document, schema });
 // `html` is ready to POST. Persistence is your job.
 ```
 
@@ -125,6 +125,14 @@ const { json } = convertHtmlToJson({ html });
 
 `convertHtmlToJson` returns `{ error: "<reason>" }` on empty or malformed input.
 
+Pass the document's schema to write `x-semantic-type: "media"` fields as images. EDS then ingests them into the media bus on preview, as it does for images in regular pages. Image sources are trimmed, and media bus paths are stored without rendition parameters. A schema that cannot be compiled is treated like no schema.
+
+```js
+const { html } = convertJsonToHtml({ json, schema });
+```
+
+`convertHtmlToJson` reads a cell or list item that holds an image and no text as the image's `src`. Text always wins over an image. On delivered pages the value is the media bus path without rendition parameters, for example `./media_<hash>.jpg`.
+
 ### Edit (with persistence)
 
 The engine has no transport and no save status. Wire your own persistence on top of `onChange`:
@@ -139,7 +147,7 @@ engine = createEngine({
     const next = engine.getState().document;
     if (next === lastValues) return; // skip non-mutation transitions
     lastValues = next;
-    // convert via convertJsonToHtml, POST, IndexedDB-cache — whatever fits
+    // convert via convertJsonToHtml({ json: next, schema }), POST, IndexedDB-cache — whatever fits
   },
 });
 lastValues = engine.getState().document; // onChange does NOT fire at init

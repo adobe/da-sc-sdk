@@ -11,6 +11,7 @@
  */
 
 import { fromHtml } from 'hast-util-from-html';
+import { toMediaValue } from './utils.js';
 
 const SELF_REF = 'self://#';
 
@@ -48,6 +49,17 @@ function textContent(node) {
   if (!node) { return ''; }
   if (node.type === 'text') { return node.value ?? ''; }
   return (node.children ?? []).map(textContent).join('');
+}
+
+// The first non-empty `<img src>` below `node` in its stored form, or null.
+// The writer emits at most one image per value; any further images are ignored.
+function imageSource(node) {
+  const images = [];
+  collectElements(node, 'img', images);
+  const src = images
+    .map((img) => img.properties?.src)
+    .find((value) => typeof value === 'string' && value.trim() !== '');
+  return src === undefined ? null : toMediaValue(src);
 }
 
 // Find a direct list child of a value cell. The wire format uses `<ul>`,
@@ -96,15 +108,16 @@ export default class HTMLConverter {
     }, {});
   }
 
-  // Read a value cell. A `<ul>` or `<ol>` child makes it an array; anything
-  // else (or bare text) makes it a primitive whose value is the cell's text
-  // content.
+  // Read a value cell. A `<ul>` or `<ol>` child makes it an array. Otherwise
+  // the cell's text is the value; a cell without text but with an `<img>`
+  // reads as the image source. Text always wins, so an image never replaces
+  // authored text.
   readValue(valCol) {
     const list = firstListChild(valCol);
     if (list) { return this.readListValue(list); }
 
     const text = textContent(valCol).trim();
-    if (text === '') { return ''; }
+    if (text === '') { return imageSource(valCol) ?? ''; }
     return this.getTypedValue(text);
   }
 
@@ -116,6 +129,8 @@ export default class HTMLConverter {
       .filter((c) => c.tagName === 'li')
       .map((li) => {
         const text = textContent(li).trim();
+        const src = text === '' ? imageSource(li) : null;
+        if (src !== null) { return src; }
         const ref = this.getReference(text);
         if (ref !== null) { return ref; }
         return this.getTypedValue(text);
