@@ -34,7 +34,7 @@ const schema = {
 const path = '/projects/demo';
 let lastValues;
 const persist = (document) => {
-  const { html, error } = convertJsonToHtml({ json: document });
+  const { html, error } = convertJsonToHtml({ json: document, schema });
   if (error) { return; }
   console.log(`[save] ${path} → ${html.length} chars`);
 };

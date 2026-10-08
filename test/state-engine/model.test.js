@@ -82,6 +82,14 @@ describe('buildModel', () => {
     expect(nodeAt({ model, pointer: '/data/body' })?.semanticType).to.equal('long-text');
   });
 
+  it('retains a media URL as a string while surfacing media semantics', () => {
+    const href = './media_example.png';
+    const def = objectDef([stringDef('hero', { semanticType: 'media' })]);
+    const model = buildModel({ definition: def, document: { data: { hero: href } } });
+    expect(nodeAt({ model, pointer: '/data/hero' })?.semanticType).to.equal('media');
+    expect(nodeAt({ model, pointer: '/data/hero' })?.value).to.equal(href);
+  });
+
   it('exposes itemLabel from the item definition on array nodes', () => {
     const def = objectDef([
       arrayDef('contacts', { ...objectDef([stringDef('name')]), label: 'Contact' }),

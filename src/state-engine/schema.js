@@ -225,6 +225,7 @@ const SUPPORTED_TYPES = new Set([
 // they can't act on.
 const SEMANTIC_TYPES = new Map([
   ['long-text', 'string'],
+  ['media', 'string'],
 ]);
 
 // Native JSON Schema string `format` values we surface to the UI as date/time
@@ -498,4 +499,15 @@ export function compileSchema(rawSchema) {
     editable: issues.length === 0,
     issues,
   };
+}
+
+// The compiled definition tree, or null when `schema` is missing or cannot be
+// compiled. For callers that treat an unusable schema like no schema.
+export function compileDefinition(schema) {
+  if (!schema) { return null; }
+  try {
+    return compileSchema(schema).definition;
+  } catch {
+    return null;
+  }
 }

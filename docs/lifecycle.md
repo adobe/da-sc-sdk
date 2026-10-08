@@ -140,16 +140,18 @@ validateSchema({ schema })
 
 Schema-only. Skips data parsing, model building, and document validation — useful for "is this schema well-formed?" without any data on hand.
 
-### 3.3. `convertJsonToHtml({ json })`
+### 3.3. `convertJsonToHtml({ json, schema? })`
 
 ```txt
-convertJsonToHtml({ json })
+convertJsonToHtml({ json, schema? })
   ├─ shape-check: json is an object with metadata.schemaName (string)
   │    └─ if not: return { error: '<reason>' }
   ├─ pruned = prune(json.data)                ← drop empty/null/whitespace leaves
-  └─ html = json2html({ ...json, data: pruned })
+  ├─ definition = compileSchema(schema).definition, or null without a usable schema
+  └─ html = json2html({ ...json, data: pruned }, definition)
        ├─ build <body><main><div>…</div></main></body> via template literals
-       └─ recursively emit <div class="<schemaName>"> nodes for nested objects/arrays
+       ├─ recursively emit <div class="<schemaName>"> nodes for nested objects/arrays
+       └─ write `x-semantic-type: media` strings as <img src="…" alt="">, all else as text
   return { html }
 ```
 
