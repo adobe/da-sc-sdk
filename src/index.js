@@ -38,9 +38,15 @@ export { validateData } from './state-engine/index.js';
 
 // JSON → DA wire-format HTML. Prunes empty/null/whitespace leaves before
 // emitting (same shape the engine saves). Pure string builder, no DOM.
-// `convertJsonToHtml({ json, schema? })` returns `{ html } | { error }`. With a
-// schema, media fields are written as images.
+// `convertJsonToHtml({ json, schema?, media? })` returns `{ html } | { error }`.
+// With a schema, media fields are written as images, or as links for
+// non-image files and for images `media.isLinked` returns true for.
 export { convertJsonToHtml } from './html/json2html.js';
+
+// Media helpers, grouped so new ones never widen the top-level API.
+// `media.isImage(src)` tells whether a media value is an image EDS can
+// deliver, judged by its path. Other files are written as links.
+export { media } from './html/media.js';
 
 // DA wire-format HTML → JSON. Symmetric pair with `convertJsonToHtml`.
 // `convertHtmlToJson({ html })` returns `{ json } | { error }`.

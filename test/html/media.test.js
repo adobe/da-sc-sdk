@@ -13,6 +13,7 @@
 import { expect } from '@esm-bundle/chai';
 import { convertJsonToHtml } from '../../src/html/json2html.js';
 import { convertHtmlToJson } from '../../src/html/html2json.js';
+import { media as mediaHelpers } from '../../src/index.js';
 
 const media = (title) => ({ type: 'string', title, 'x-semantic-type': 'media' });
 
@@ -37,6 +38,12 @@ const sources = {
   hlx6: './media_1a2b3c.png',
   publish: 'https://publish-p1-e1.adobeaemcloud.com/content/dam/site/hero.jpg',
   smartCrop: 'https://delivery-p1-e1.adobeaemcloud.com/adobe/assets/urn:aaid:aem:1/as/hero.avif?smartcrop=wide&width=1920',
+};
+
+const files = {
+  pdf: 'https://publish-p1-e1.adobeaemcloud.com/content/dam/site/datasheet.pdf',
+  video: 'https://delivery-p1-e1.adobeaemcloud.com/adobe/assets/urn:aaid:aem:2/play',
+  audio: 'https://delivery-p1-e1.adobeaemcloud.com/adobe/assets/urn:aaid:aem:3/original/as/theme.mp3',
 };
 
 const doc = (data) => ({ metadata: { schemaName: 'player' }, data });
@@ -258,6 +265,154 @@ describe('media fields', () => {
 
       const second = convertJsonToHtml({ json: doc({ hero: stored }), schema }).html;
       expect(convertHtmlToJson({ html: second }).json.data.hero).to.equal(stored);
+    });
+
+    it('returns file and linked image URLs unchanged', () => {
+      const data = {
+        hero: files.pdf,
+        gallery: [files.video, sources.publish],
+        sponsor: { logo: files.audio },
+      };
+      const { html } = convertJsonToHtml({
+        json: doc(data),
+        schema,
+        media: { isLinked: (src) => src === sources.publish },
+      });
+      expect(convertHtmlToJson({ html }).json.data).to.deep.equal(data);
+    });
+  });
+});
+
+describe('media files and linked images', () => {
+  const links = (html) => [...parse(html).querySelectorAll('a')]
+    .map((link) => [link.getAttribute('href'), link.textContent]);
+
+  it('writes non-image files as links with the URL as text', () => {
+    const { html } = convertJsonToHtml({
+      json: doc({ hero: files.pdf, gallery: [files.video, sources.upload] }),
+      schema,
+    });
+    expect(links(html)).to.deep.equal([[files.pdf, files.pdf], [files.video, files.video]]);
+    expect(imageSources(html)).to.deep.equal([sources.upload]);
+  });
+
+  it('writes a value without an extension as a link and reads it back unchanged', () => {
+    const external = 'https://images.example.com/photo-1609432638531?auto=format&w=750';
+    const { html } = convertJsonToHtml({ json: doc({ hero: external }), schema });
+    expect(imageSources(html)).to.deep.equal([]);
+    expect(links(html)).to.deep.equal([[external, external]]);
+    expect(convertHtmlToJson({ html }).json.data.hero).to.equal(external);
+  });
+
+  it('writes images as links when media.isLinked returns true', () => {
+    const { html } = convertJsonToHtml({
+      json: doc({ hero: sources.publish, gallery: [sources.upload] }),
+      schema,
+      media: { isLinked: (src) => src === sources.publish },
+    });
+    expect(links(html)).to.deep.equal([[sources.publish, sources.publish]]);
+    expect(imageSources(html)).to.deep.equal([sources.upload]);
+  });
+
+  it('passes the normalized source to media.isLinked', () => {
+    const seen = [];
+    convertJsonToHtml({
+      json: doc({ hero: ' ./media_ab12.png?width=750 ' }),
+      schema,
+      media: {
+        isLinked: (src) => {
+          seen.push(src);
+          return false;
+        },
+      },
+    });
+    expect(seen).to.deep.equal(['./media_ab12.png']);
+  });
+
+  it('calls media.isLinked as a method of the media options', () => {
+    const { html } = convertJsonToHtml({
+      json: doc({ hero: sources.publish }),
+      schema,
+      media: {
+        linked: new Set([sources.publish]),
+        isLinked(src) {
+          return this.linked.has(src);
+        },
+      },
+    });
+    expect(html).to.include(`<a href="${sources.publish}">`);
+  });
+
+  it('ignores a media.isLinked that is not a function', () => {
+    const { html } = convertJsonToHtml({
+      json: doc({ hero: sources.upload }),
+      schema,
+      media: { isLinked: true },
+    });
+    expect(imageSources(html)).to.deep.equal([sources.upload]);
+  });
+
+  it('never calls media.isLinked for text fields or without a schema', () => {
+    let calls = 0;
+    const isLinked = () => {
+      calls += 1;
+      return true;
+    };
+    convertJsonToHtml({ json: doc({ caption: sources.upload }), schema, media: { isLinked } });
+    convertJsonToHtml({ json: doc({ hero: sources.upload }), media: { isLinked } });
+    expect(calls).to.equal(0);
+  });
+
+  it('escapes link URLs in the attribute and the text', () => {
+    const href = 'https://x.test/a.pdf?a=1&b="<2>"';
+    const { html } = convertJsonToHtml({ json: doc({ hero: href }), schema });
+    expect(html).to.include('<a href="https://x.test/a.pdf?a=1&amp;b=&quot;<2>&quot;">');
+    expect(html).to.include('>https://x.test/a.pdf?a=1&amp;b="&lt;2&gt;"</a>');
+    expect(convertHtmlToJson({ html }).json.data.hero).to.equal(href);
+  });
+});
+
+describe('media.isImage', () => {
+  it('treats the formats the media bus delivers as images, in any case', () => {
+    ['a.jpg', 'b.JPEG', 'c.png', 'd.gif', 'e.webp', 'f.AVIF', 'g.svg'].forEach((name) => {
+      expect(mediaHelpers.isImage(`https://x.test/dam/${name}`), name).to.equal(true);
+    });
+  });
+
+  it('treats every other extension as a file', () => {
+    ['a.pdf', 'b.DOCX', 'c.mp4', 'd.mp3', 'e.zip', 'f.psd', 'g.tif', 'h.heic'].forEach((name) => {
+      expect(mediaHelpers.isImage(`https://x.test/dam/${name}`), name).to.equal(false);
+    });
+  });
+
+  it('treats the AEM Assets video rendition as a file', () => {
+    expect(mediaHelpers.isImage(files.video)).to.equal(false);
+    expect(mediaHelpers.isImage(`${files.video}?autoplay=1`)).to.equal(false);
+  });
+
+  it('treats values without an extension as files, so they are never saved as broken images', () => {
+    [
+      'https://images.unsplash.com/photo-1609432638531?auto=format&w=750',
+      'https://x.test/display',
+      'https://x.test/folder/',
+      'https://x.test',
+      'https://x.test/archive.v2/download',
+    ].forEach((src) => expect(mediaHelpers.isImage(src), src).to.equal(false));
+  });
+
+  it('treats AEM smart crop and Dynamic Media renditions with an image extension as images', () => {
+    expect(mediaHelpers.isImage(sources.smartCrop)).to.equal(true);
+  });
+
+  it('judges only the path, not the query or fragment', () => {
+    expect(mediaHelpers.isImage('https://x.test/a.png?download=report.pdf')).to.equal(true);
+    expect(mediaHelpers.isImage('https://x.test/a.pdf#page=2')).to.equal(false);
+    expect(mediaHelpers.isImage('  https://x.test/a.pdf  ')).to.equal(false);
+  });
+
+  it('returns false for values that are not strings', () => {
+    [undefined, null, 5, {}].forEach((value) => {
+      expect(mediaHelpers.isImage(value)).to.equal(false);
     });
   });
 });

@@ -11,7 +11,7 @@
  */
 
 import { fromHtml } from 'hast-util-from-html';
-import { toMediaValue } from './utils.js';
+import { normalizeMediaSource } from './media.js';
 
 const SELF_REF = 'self://#';
 
@@ -59,7 +59,7 @@ function imageSource(node) {
   const src = images
     .map((img) => img.properties?.src)
     .find((value) => typeof value === 'string' && value.trim() !== '');
-  return src === undefined ? null : toMediaValue(src);
+  return src !== undefined ? normalizeMediaSource(src) : null;
 }
 
 // Find a direct list child of a value cell. The wire format uses `<ul>`,

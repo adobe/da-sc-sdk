@@ -88,23 +88,24 @@ Per-entry shape (the values in the map) is ajv-style: `{ keyword, instancePath, 
 
 Note: there is no `saveStatus` field. The engine doesn't persist; consumers that do maintain their own status outside the engine.
 
-### Public API — five exports
+### Public API — six exports
 
-The SDK exposes exactly five named exports from `'da-sc-sdk'`. The surface is narrow on purpose; additions go through deliberate semver minors.
+The SDK exposes exactly six named exports from `'da-sc-sdk'`, five functions and the `media` namespace. The surface is narrow on purpose; additions go through deliberate semver minors.
 
 | Function | Source | Purpose |
 | -------- | ------ | ------- |
 | `createEngine({ schema, document, onChange })` | [src/state-engine/index.js](../src/state-engine/index.js) | Stateful JSON state engine — initialized synchronously, exposes mutations and validation. Returns `{ getState, setField, addItem, insertItem, removeItem, moveItem }`. Pure state machine: no persistence, no I/O. `onChange` is NOT called at construction; initial state is read via `engine.getState()`. To swap (schema, document), create a new engine. |
 | `validateSchema({ schema })` | [src/state-engine/index.js](../src/state-engine/index.js) | Schema-only validation. Returns `{ valid, schemaIssues }`. Use to check that a schema is well-formed before binding to it. |
 | `validateData({ schema, data })` | [src/state-engine/index.js](../src/state-engine/index.js) | Data-against-schema validation. Returns `{ valid, errors, schemaIssues }`. `errors` is a pointer-keyed map of ajv-style entries. `valid` is `true` iff both `schemaIssues` and `errors` are empty. Symmetric with `validateSchema`: both validators expose `valid` + `schemaIssues`; `validateData` adds `errors`. |
-| `convertJsonToHtml({ json, schema? })` | [src/html/json2html.js](../src/html/json2html.js) | JSON → DA wire-format HTML. Prunes empty/null/whitespace leaves before emitting (same shape the engine would save). With a schema, `x-semantic-type: media` fields are written as `<img>` so EDS ingests them. Pure string builder, no DOM. Returns `{ html } \| { error }`. |
+| `convertJsonToHtml({ json, schema?, media? })` | [src/html/json2html.js](../src/html/json2html.js) | JSON → DA wire-format HTML. Prunes empty/null/whitespace leaves before emitting (same shape the engine would save). With a schema, `x-semantic-type: media` fields are written as `<img>` so EDS ingests them, and non-image files as links. `media.isLinked` also writes chosen images as links. Pure string builder, no DOM. Returns `{ html } \| { error }`. |
 | `convertHtmlToJson({ html })` | [src/html/html2json.js](../src/html/html2json.js) | DA wire-format HTML → JSON. A cell without text but with an `<img>` reads as its source. Returns `{ json } \| { error }` so a malformed input produces a clear reason instead of a silent null. |
+| `media.isImage(src)` | [src/html/media.js](../src/html/media.js) | Whether a media value is an image EDS can deliver, judged by its path. Only JPEG, PNG, GIF, WebP, AVIF and SVG paths are images. Other extensions and values without an extension, such as the AEM Assets video rendition `/play`, are files. |
 
 ### Everything else is internal — and unreachable
 
 `src/state-engine/pointer.js`, `src/state-engine/mutate.js`, `src/state-engine/model.js`, `src/state-engine/clone.js`, `src/state-engine/validation.js`, `src/state-engine/schema.js`, `src/html/json2html.js`, plus the `compileSchema` / `coerceData` / `materializeDefaults` / `isDataEmpty` / `HTMLConverter` symbols inside them — all internal.
 
-The `package.json` `exports` map exposes only `.` (the main entry). Per the Node ESM spec, this **blocks every other subpath** — a consumer attempting `import x from 'da-sc-sdk/src/state-engine/schema.js'` gets `ERR_PACKAGE_PATH_NOT_EXPORTED`. The vendored bundle (`dist/index.js`) only re-exports the five public functions. There is no path-based escape hatch.
+The `package.json` `exports` map exposes only `.` (the main entry). Per the Node ESM spec, this **blocks every other subpath** — a consumer attempting `import x from 'da-sc-sdk/src/state-engine/schema.js'` gets `ERR_PACKAGE_PATH_NOT_EXPORTED`. The vendored bundle (`dist/index.js`) only re-exports the five functions and the `media` namespace. There is no path-based escape hatch.
 
 The only code that reaches internals is the SDK's own tests via relative paths into `src/` — that's white-box testing, not API consumption.
 

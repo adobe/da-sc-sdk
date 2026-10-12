@@ -26,7 +26,8 @@
 // Text nodes and attribute values are escaped at the boundary; structural
 // markup is composed from template literals.
 
-import { prune, toMediaValue } from './utils.js';
+import { prune } from './utils.js';
+import { isMediaImage, normalizeMediaSource } from './media.js';
 import { compileDefinition } from '../state-engine/schema.js';
 
 function escapeText(value) {
@@ -53,13 +54,18 @@ function block(name, innerHtml) {
   return `<div class="${escapeAttr(name.toLowerCase())}">${innerHtml}</div>`;
 }
 
-// Media fields are written as images so EDS ingests them into the media bus.
 function isMedia(definition, value) {
   return definition?.semanticType === 'media' && typeof value === 'string' && value.trim() !== '';
 }
 
-function image(src) {
-  return `<img src="${escapeAttr(toMediaValue(src))}" alt="">`;
+// Images are written as `<img>` so EDS ingests them into the media bus. Other
+// files, and images the caller wants linked, are written as links that EDS keeps.
+function mediaHtml(src, { isLinked }) {
+  const value = normalizeMediaSource(src);
+  if (isMediaImage(value) && !isLinked(value)) {
+    return `<img src="${escapeAttr(value)}" alt="">`;
+  }
+  return `<a href="${escapeAttr(value)}">${escapeText(value)}</a>`;
 }
 
 function childDefinition(definition, key) {
@@ -70,43 +76,45 @@ function selfRefLi(key, guid) {
   return `<li>${textContent(`self://#${key.toLowerCase()}-${guid}`)}</li>`;
 }
 
-function arrayItemLi(key, item, nestedBlocks, definition) {
+function arrayItemLi(key, item, context, definition) {
   if (Array.isArray(item)) {
     // eslint-disable-next-line no-use-before-define
-    return selfRefLi(key, arrayBlock(key, item, nestedBlocks, definition));
+    return selfRefLi(key, arrayBlock(key, item, context, definition));
   }
   if (typeof item === 'object' && item !== null) {
     // eslint-disable-next-line no-use-before-define
-    return selfRefLi(key, nestedBlock(key, item, nestedBlocks, definition));
+    return selfRefLi(key, nestedBlock(key, item, context, definition));
   }
-  if (isMedia(definition, item)) { return `<li>${image(item)}</li>`; }
+  if (isMedia(definition, item)) {
+    return `<li>${mediaHtml(item, context.media)}</li>`;
+  }
   return `<li>${textContent(item)}</li>`;
 }
 
-function nestedBlock(key, obj, nestedBlocks, definition) {
+function nestedBlock(key, obj, context, definition) {
   const guid = Math.random().toString(36).substring(2, 8);
   const className = `${key} ${key}-${guid}`;
   const rowsHtml = Object.entries(obj).map(([k, v]) => {
     // eslint-disable-next-line no-use-before-define
-    const valColHtml = valueCol(k, v, nestedBlocks, childDefinition(definition, k));
+    const valColHtml = valueCol(k, v, context, childDefinition(definition, k));
     return row(k, valColHtml);
   }).join('');
-  nestedBlocks.push(block(className, rowsHtml));
+  context.nestedBlocks.push(block(className, rowsHtml));
   return guid;
 }
 
-function arrayBlock(key, arr, nestedBlocks, definition) {
+function arrayBlock(key, arr, context, definition) {
   const guid = Math.random().toString(36).substring(2, 8);
   const className = `${key} ${key}-${guid}`;
   const itemsHtml = arr
-    .map((item) => arrayItemLi(key, item, nestedBlocks, definition?.item))
+    .map((item) => arrayItemLi(key, item, context, definition?.item))
     .join('');
   const valColHtml = `<div><ul>${itemsHtml}</ul></div>`;
-  nestedBlocks.push(block(className, row('@items', valColHtml)));
+  context.nestedBlocks.push(block(className, row('@items', valColHtml)));
   return guid;
 }
 
-function valueCol(key, value, nestedBlocks, definition) {
+function valueCol(key, value, context, definition) {
   if (value === null) { return null; }
   if (value === undefined) { return '<div></div>'; }
 
@@ -114,54 +122,58 @@ function valueCol(key, value, nestedBlocks, definition) {
     if (Array.isArray(value)) {
       if (!value.length) { return null; }
       const itemsHtml = value
-        .map((item) => arrayItemLi(key, item, nestedBlocks, definition?.item))
+        .map((item) => arrayItemLi(key, item, context, definition?.item))
         .join('');
       return `<div><ul>${itemsHtml}</ul></div>`;
     }
 
     if (Object.keys(value).length === 0) { return null; }
-    const objGuid = nestedBlock(key, value, nestedBlocks, definition);
+    const objGuid = nestedBlock(key, value, context, definition);
     return `<div><p>${textContent(`self://#${key.toLowerCase()}-${objGuid}`)}</p></div>`;
   }
 
-  if (isMedia(definition, value)) { return `<div><p>${image(value)}</p></div>`; }
+  if (isMedia(definition, value)) {
+    return `<div><p>${mediaHtml(value, context.media)}</p></div>`;
+  }
   return `<div><p>${textContent(value)}</p></div>`;
 }
 
-function formBlock(metadata, nestedBlocks) {
+function formBlock(metadata, context) {
   const rowsHtml = Object.entries(metadata).map(([key, value]) => {
     const xKey = key === 'schemaName' ? 'x-schema-name' : key;
-    const valColHtml = valueCol(key, value, nestedBlocks);
+    const valColHtml = valueCol(key, value, context);
     if (valColHtml === null) { return ''; }
     return row(xKey, valColHtml);
   }).join('');
   return block('da-form', rowsHtml);
 }
 
-function dataBlock(schemaName, data, nestedBlocks, definition) {
+function dataBlock(schemaName, data, context, definition) {
   if (Array.isArray(data)) {
-    const valColHtml = valueCol(schemaName, data, nestedBlocks, definition);
+    const valColHtml = valueCol(schemaName, data, context, definition);
     const inner = valColHtml === null ? '' : row('@items', valColHtml);
     return block(schemaName, inner);
   }
   const rowsHtml = Object.entries(data).map(([key, value]) => {
-    const valColHtml = valueCol(key, value, nestedBlocks, childDefinition(definition, key));
+    const valColHtml = valueCol(key, value, context, childDefinition(definition, key));
     if (valColHtml === null) { return ''; }
     return row(key, valColHtml);
   }).join('');
   return block(schemaName, rowsHtml);
 }
 
+const DEFAULT_MEDIA = Object.freeze({ isLinked: () => false });
+
 // Raw JSON → DA wire-format HTML. Default export; kept for the public
 // `convertJsonToHtml` wrapper below and for tests. No pruning happens here.
 // `definition` is an optional compiled schema node that identifies media fields.
-export default function json2html(json, definition) {
+export default function json2html(json, definition, media = DEFAULT_MEDIA) {
   const { metadata, data } = json;
   const { schemaName } = metadata;
-  const nestedBlocks = [];
-  const formBlockHtml = formBlock(metadata, nestedBlocks);
-  const dataBlockHtml = dataBlock(schemaName, data, nestedBlocks, definition);
-  const mainInner = `${formBlockHtml}${dataBlockHtml}${nestedBlocks.join('')}`;
+  const context = { nestedBlocks: [], media };
+  const formBlockHtml = formBlock(metadata, context);
+  const dataBlockHtml = dataBlock(schemaName, data, context, definition);
+  const mainInner = `${formBlockHtml}${dataBlockHtml}${context.nestedBlocks.join('')}`;
   return `<body><header></header><main><div>${mainInner}</div></main><footer></footer></body>`;
 }
 
@@ -170,13 +182,16 @@ export default function json2html(json, definition) {
 // `convertHtmlToJson` from html2json.js.
 //
 // With an optional `schema`, `x-semantic-type: media` fields are written as
-// `<img>` so EDS ingests them. Without one, every value is written as text.
+// `<img>` so EDS ingests them, and non-image files as links that EDS keeps.
+// Media options are grouped under `media`. `media.isLinked(src)` also writes
+// the images it returns true for as links, for sites that deliver images
+// through their own code. Without a schema, every value is written as text.
 //
 // `json.metadata.schemaName` is required — it determines the outer data
 // block's class name (the schema identifier in DA's wire format). We check
 // it explicitly so consumers get a clear error instead of a deep TypeError
 // when the metadata is missing or malformed.
-export function convertJsonToHtml({ json, schema } = {}) {
+export function convertJsonToHtml({ json, schema, media } = {}) {
   if (!json || typeof json !== 'object' || Array.isArray(json)) {
     return { error: 'Invalid JSON payload.' };
   }
@@ -187,6 +202,11 @@ export function convertJsonToHtml({ json, schema } = {}) {
     return { error: 'json.metadata.schemaName is required and must be a non-empty string.' };
   }
   const pruned = prune(json.data);
+  const mediaOptions = typeof media?.isLinked === 'function'
+    ? { isLinked: (src) => media.isLinked(src) }
+    : DEFAULT_MEDIA;
   // An unusable schema writes every value as text, so saving never fails on it.
-  return { html: json2html({ ...json, data: pruned ?? {} }, compileDefinition(schema)) };
+  return {
+    html: json2html({ ...json, data: pruned ?? {} }, compileDefinition(schema), mediaOptions),
+  };
 }
