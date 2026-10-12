@@ -29,6 +29,17 @@ export function normalizeMediaSource(src) {
   return trimmed.match(MEDIA_BUS_PATH)?.[0] ?? trimmed;
 }
 
+// Resolves a media bus path against the site origin, so `./media_ab12.jpg`
+// becomes `https://<host>/media_ab12.jpg`. EDS serves a media bus file under
+// every path of the site, so the root form stays valid when a document moves.
+// Other sources are returned unchanged.
+export function toAbsoluteMediaUrl(src, origin) {
+  if (origin && MEDIA_BUS_PATH.test(src)) {
+    return `${origin}/${src.replace(/^\.\//, '')}`;
+  }
+  return src;
+}
+
 function pathOf(src) {
   const [path] = src.trim().split(/[?#]/);
   return path;

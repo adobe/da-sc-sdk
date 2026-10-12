@@ -237,6 +237,52 @@ describe('media fields', () => {
       expect(readHero('<div><p><img src="123"></p></div>')).to.equal('123');
       expect(readHero('<div><p><img src="true"></p></div>')).to.equal('true');
     });
+
+    describe('with media.origin', () => {
+      const origin = 'https://main--site--org.aem.page';
+      const readWithOrigin = (cell, mediaOrigin = origin) => convertHtmlToJson({
+        html: page(cell),
+        media: { origin: mediaOrigin },
+      });
+
+      it('returns media bus images as absolute URLs on the origin', () => {
+        const cell = '<div><picture><img src="./media_1c0072.jpg?width=750&amp;format=jpg"></picture></div>';
+        expect(readWithOrigin(cell).json.data.hero).to.equal(`${origin}/media_1c0072.jpg`);
+        expect(readWithOrigin('<div><p><img src="media_ab12.png"></p></div>').json.data.hero)
+          .to.equal(`${origin}/media_ab12.png`);
+      });
+
+      it('resolves media bus images in list items', () => {
+        const cell = '<div><ul><li><picture><img src="./media_ab12.png?width=750"></picture></li></ul></div>';
+        expect(readWithOrigin(cell).json.data.hero).to.deep.equal([`${origin}/media_ab12.png`]);
+      });
+
+      it('uses only the origin of the given URL', () => {
+        const cell = '<div><p><img src="./media_ab12.png"></p></div>';
+        expect(readWithOrigin(cell, `${origin}/articles/example?x=1`).json.data.hero)
+          .to.equal(`${origin}/media_ab12.png`);
+      });
+
+      it('keeps other image URLs, links and text unchanged', () => {
+        expect(readWithOrigin(`<div><p><img src="${sources.publish}"></p></div>`).json.data.hero)
+          .to.equal(sources.publish);
+        expect(readWithOrigin(`<div><p><a href="${files.pdf}">${files.pdf}</a></p></div>`).json.data.hero)
+          .to.equal(files.pdf);
+        expect(readWithOrigin('<div><p>./media_ab12.png</p></div>').json.data.hero)
+          .to.equal('./media_ab12.png');
+      });
+
+      it('returns an error for an origin that is not an absolute http or https URL', () => {
+        ['site.aem.page', '/players', 'ftp://x.test', ''].forEach((invalid) => {
+          expect(readWithOrigin('<div><p>x</p></div>', invalid).error, invalid)
+            .to.equal('media.origin must be an absolute http or https URL.');
+        });
+      });
+
+      it('keeps relative media bus paths without an origin', () => {
+        expect(readHero('<div><p><img src="./media_ab12.png"></p></div>')).to.equal('./media_ab12.png');
+      });
+    });
   });
 
   describe('round trip', () => {

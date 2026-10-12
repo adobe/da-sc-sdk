@@ -11,7 +11,8 @@
  */
 
 import { fromHtml } from 'hast-util-from-html';
-import { normalizeMediaSource } from './media.js';
+import { normalizeMediaSource, toAbsoluteMediaUrl } from './media.js';
+import { httpOrigin } from './utils.js';
 
 const SELF_REF = 'self://#';
 
@@ -53,13 +54,17 @@ function textContent(node) {
 
 // The first non-empty `<img src>` below `node` in its stored form, or null.
 // The writer emits at most one image per value; any further images are ignored.
-function imageSource(node) {
+// With a `mediaOrigin`, media bus paths become absolute URLs on that origin.
+function imageSource(node, mediaOrigin) {
   const images = [];
   collectElements(node, 'img', images);
   const src = images
     .map((img) => img.properties?.src)
     .find((value) => typeof value === 'string' && value.trim() !== '');
-  return src !== undefined ? normalizeMediaSource(src) : null;
+  if (src !== undefined) {
+    return toAbsoluteMediaUrl(normalizeMediaSource(src), mediaOrigin);
+  }
+  return null;
 }
 
 // Find a direct list child of a value cell. The wire format uses `<ul>`,
@@ -74,7 +79,8 @@ function firstListChild(node) {
 }
 
 export default class HTMLConverter {
-  constructor(html) {
+  constructor(html, { mediaOrigin } = {}) {
+    this.mediaOrigin = mediaOrigin;
     this.tree = fromHtml(html);
     this.blocks = selectBlocks(this.tree);
     this.json = this.convertBlocksToJson();
@@ -117,7 +123,7 @@ export default class HTMLConverter {
     if (list) { return this.readListValue(list); }
 
     const text = textContent(valCol).trim();
-    if (text === '') { return imageSource(valCol) ?? ''; }
+    if (text === '') { return imageSource(valCol, this.mediaOrigin) ?? ''; }
     return this.getTypedValue(text);
   }
 
@@ -129,7 +135,7 @@ export default class HTMLConverter {
       .filter((c) => c.tagName === 'li')
       .map((li) => {
         const text = textContent(li).trim();
-        const src = text === '' ? imageSource(li) : null;
+        const src = text === '' ? imageSource(li, this.mediaOrigin) : null;
         if (src !== null) { return src; }
         const ref = this.getReference(text);
         if (ref !== null) { return ref; }
@@ -220,12 +226,20 @@ export default class HTMLConverter {
 // Convert DA wire-format HTML back to a structured JSON document. Symmetric
 // pair with `convertJsonToHtml`. Returns `{ json } | { error }` so callers
 // see a clear reason on failure instead of a silent null.
-export function convertHtmlToJson({ html } = {}) {
+//
+// Pass `media.origin` when reading a delivered EDS page, for example
+// `https://main--site--org.aem.page`, to return media bus images as absolute
+// URLs instead of paths relative to the page.
+export function convertHtmlToJson({ html, media } = {}) {
   if (typeof html !== 'string' || !html.trim()) {
     return { error: 'html must be a non-empty string.' };
   }
+  const mediaOrigin = media?.origin !== undefined ? httpOrigin(media.origin) : undefined;
+  if (mediaOrigin === null) {
+    return { error: 'media.origin must be an absolute http or https URL.' };
+  }
   try {
-    return { json: new HTMLConverter(html).json };
+    return { json: new HTMLConverter(html, { mediaOrigin }).json };
   } catch (e) {
     return { error: `Failed to parse HTML: ${e?.message ?? e}` };
   }

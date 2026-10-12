@@ -51,3 +51,13 @@ export function prune(value) {
 
   return value;
 }
+
+// The origin of an absolute http(s) URL, or null.
+export function httpOrigin(value) {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) ? url.origin : null;
+  } catch {
+    return null;
+  }
+}

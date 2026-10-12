@@ -1,0 +1,11 @@
+{
+  "metadata": {
+    "schemaName": "article",
+    "title": "sample"
+  },
+  "data": {
+    "headline": "Sample Article",
+    "hero": "https://publish-p1-e1.adobeaemcloud.com/content/dam/site/images/hero.jpg",
+    "thumbnail": "https://content.da.live/org/site/articles/.sample/thumbnail.png"
+  }
+}

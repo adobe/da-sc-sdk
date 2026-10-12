@@ -26,7 +26,7 @@ da-sc-sdk/
       validation.js     validateDocument → { errors } (pointer-keyed map)
       clone.js          single deepClone util
     html/             DA wire-format HTML ↔ JSON
-      html2json.js      parse DA HTML → JSON; HTMLConverter class + convertHtmlToJson({ html })
+      html2json.js      parse DA HTML → JSON; HTMLConverter class + convertHtmlToJson({ html, media? })
       json2html.js      emit JSON → DA HTML; defines convertJsonToHtml (public) + json2html (internal raw)
       utils.js          prune helper shared by the emit path
   dist/
@@ -98,7 +98,7 @@ The SDK exposes exactly six named exports from `'da-sc-sdk'`, five functions and
 | `validateSchema({ schema })` | [src/state-engine/index.js](../src/state-engine/index.js) | Schema-only validation. Returns `{ valid, schemaIssues }`. Use to check that a schema is well-formed before binding to it. |
 | `validateData({ schema, data })` | [src/state-engine/index.js](../src/state-engine/index.js) | Data-against-schema validation. Returns `{ valid, errors, schemaIssues }`. `errors` is a pointer-keyed map of ajv-style entries. `valid` is `true` iff both `schemaIssues` and `errors` are empty. Symmetric with `validateSchema`: both validators expose `valid` + `schemaIssues`; `validateData` adds `errors`. |
 | `convertJsonToHtml({ json, schema?, media? })` | [src/html/json2html.js](../src/html/json2html.js) | JSON → DA wire-format HTML. Prunes empty/null/whitespace leaves before emitting (same shape the engine would save). With a schema, `x-semantic-type: media` fields are written as `<img>` so EDS ingests them, and non-image files as links. `media.isLinked` also writes chosen images as links. Pure string builder, no DOM. Returns `{ html } \| { error }`. |
-| `convertHtmlToJson({ html })` | [src/html/html2json.js](../src/html/html2json.js) | DA wire-format HTML → JSON. A cell without text but with an `<img>` reads as its source. Returns `{ json } \| { error }` so a malformed input produces a clear reason instead of a silent null. |
+| `convertHtmlToJson({ html, media? })` | [src/html/html2json.js](../src/html/html2json.js) | DA wire-format HTML → JSON. A cell without text but with an `<img>` reads as its source. With `media.origin`, media bus images come back as absolute URLs on that origin. Returns `{ json } \| { error }` so a malformed input produces a clear reason instead of a silent null. |
 | `media.isImage(src)` | [src/html/media.js](../src/html/media.js) | Whether a media value is an image EDS can deliver, judged by its path. Only JPEG, PNG, GIF, WebP, AVIF and SVG paths are images. Other extensions and values without an extension, such as the AEM Assets video rendition `/play`, are files. |
 
 ### Everything else is internal — and unreachable

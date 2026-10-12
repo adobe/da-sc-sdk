@@ -158,17 +158,20 @@ convertJsonToHtml({ json, schema?, media? })
 
 Pure string builder. No DOM, no async. Symmetric with `convertHtmlToJson`.
 
-### 3.4. `convertHtmlToJson({ html })`
+### 3.4. `convertHtmlToJson({ html, media? })`
 
 ```txt
-convertHtmlToJson({ html })
+convertHtmlToJson({ html, media? })
   ├─ shape-check: html is a non-empty string
   │    └─ if not: return { error: '...' }
+  ├─ if media.origin is given, take the origin of that http(s) URL
+  │    └─ if invalid: return { error: '...' }
   ├─ parse via hast-util-from-html (parse5 internally)
   ├─ walk the hast tree:
   │    ├─ find <div class="da-form"> block → metadata (schemaName, …)
   │    ├─ find <div class="<schemaName>"> block → data
-  │    └─ resolve `self://#…` references between blocks
+  │    ├─ resolve `self://#…` references between blocks
+  │    └─ resolve media bus images against the origin, if any
   └─ return { json: { metadata, data } }
 ```
 

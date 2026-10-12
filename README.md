@@ -142,7 +142,14 @@ const { html } = convertJsonToHtml({
 });
 ```
 
-`convertHtmlToJson` reads a cell or list item that holds an image and no text as the image's `src`. Text always wins over an image, and a link reads as its text, which is the URL. On delivered pages an image value is the media bus path without rendition parameters, for example `./media_<hash>.jpg`.
+`convertHtmlToJson` reads a cell or list item that holds an image and no text as the image's `src`. Text always wins over an image, and a link reads as its text, which is the URL. On delivered pages, EDS has replaced images with media bus paths relative to the page. Pass the site origin so consumers get absolute URLs that work from anywhere, without rendition parameters.
+
+```js
+const { json } = convertHtmlToJson({ html, media: { origin: "https://main--site--org.aem.page" } });
+// image value: "https://main--site--org.aem.page/media_<hash>.jpg"
+```
+
+Without `media.origin`, image values stay relative to the page, for example `./media_<hash>.jpg`.
 
 ### Edit (with persistence)
 
