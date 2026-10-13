@@ -313,23 +313,19 @@ describe('media fields', () => {
       expect(convertHtmlToJson({ html: second }).json.data.hero).to.equal(stored);
     });
 
-    it('returns file and linked image URLs unchanged', () => {
+    it('returns file URLs unchanged', () => {
       const data = {
         hero: files.pdf,
         gallery: [files.video, sources.publish],
         sponsor: { logo: files.audio },
       };
-      const { html } = convertJsonToHtml({
-        json: doc(data),
-        schema,
-        media: { isLinked: (src) => src === sources.publish },
-      });
+      const { html } = convertJsonToHtml({ json: doc(data), schema });
       expect(convertHtmlToJson({ html }).json.data).to.deep.equal(data);
     });
   });
 });
 
-describe('media files and linked images', () => {
+describe('media files', () => {
   const links = (html) => [...parse(html).querySelectorAll('a')]
     .map((link) => [link.getAttribute('href'), link.textContent]);
 
@@ -348,65 +344,6 @@ describe('media files and linked images', () => {
     expect(imageSources(html)).to.deep.equal([]);
     expect(links(html)).to.deep.equal([[external, external]]);
     expect(convertHtmlToJson({ html }).json.data.hero).to.equal(external);
-  });
-
-  it('writes images as links when media.isLinked returns true', () => {
-    const { html } = convertJsonToHtml({
-      json: doc({ hero: sources.publish, gallery: [sources.upload] }),
-      schema,
-      media: { isLinked: (src) => src === sources.publish },
-    });
-    expect(links(html)).to.deep.equal([[sources.publish, sources.publish]]);
-    expect(imageSources(html)).to.deep.equal([sources.upload]);
-  });
-
-  it('passes the normalized source to media.isLinked', () => {
-    const seen = [];
-    convertJsonToHtml({
-      json: doc({ hero: ' ./media_ab12.png?width=750 ' }),
-      schema,
-      media: {
-        isLinked: (src) => {
-          seen.push(src);
-          return false;
-        },
-      },
-    });
-    expect(seen).to.deep.equal(['./media_ab12.png']);
-  });
-
-  it('calls media.isLinked as a method of the media options', () => {
-    const { html } = convertJsonToHtml({
-      json: doc({ hero: sources.publish }),
-      schema,
-      media: {
-        linked: new Set([sources.publish]),
-        isLinked(src) {
-          return this.linked.has(src);
-        },
-      },
-    });
-    expect(html).to.include(`<a href="${sources.publish}">`);
-  });
-
-  it('ignores a media.isLinked that is not a function', () => {
-    const { html } = convertJsonToHtml({
-      json: doc({ hero: sources.upload }),
-      schema,
-      media: { isLinked: true },
-    });
-    expect(imageSources(html)).to.deep.equal([sources.upload]);
-  });
-
-  it('never calls media.isLinked for text fields or without a schema', () => {
-    let calls = 0;
-    const isLinked = () => {
-      calls += 1;
-      return true;
-    };
-    convertJsonToHtml({ json: doc({ caption: sources.upload }), schema, media: { isLinked } });
-    convertJsonToHtml({ json: doc({ hero: sources.upload }), media: { isLinked } });
-    expect(calls).to.equal(0);
   });
 
   it('escapes link URLs in the attribute and the text', () => {

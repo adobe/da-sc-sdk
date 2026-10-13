@@ -132,16 +132,6 @@ Pass the document's schema to write `x-semantic-type: "media"` fields as images.
 const { html } = convertJsonToHtml({ json, schema });
 ```
 
-Sites that deliver images through their own code, for example AEM Assets link mode, can keep chosen images as links with `media.isLinked`.
-
-```js
-const { html } = convertJsonToHtml({
-  json,
-  schema,
-  media: { isLinked: (src) => linked.has(src) },
-});
-```
-
 `convertHtmlToJson` reads a cell or list item that holds an image and no text as the image's `src`. Text always wins over an image, and a link reads as its text, which is the URL. On delivered pages, EDS has replaced images with media bus paths relative to the page. Pass the site origin so consumers get absolute URLs that work from anywhere, without rendition parameters.
 
 ```js
