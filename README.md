@@ -125,6 +125,13 @@ const { json } = convertHtmlToJson({ html });
 
 `convertHtmlToJson` returns `{ error: "<reason>" }` on empty or malformed input.
 
+Both converters accept an optional `schema`. Pass it when the schema uses `x-semantic-type: rich-text`, so those values are stored as HTML markup in the document instead of escaped text (see [schema-spec.md](docs/schema-spec.md#x-semantic-type)):
+
+```js
+const { html } = convertJsonToHtml({ json, schema });
+const { json } = convertHtmlToJson({ html, schema });
+```
+
 ### Edit (with persistence)
 
 The engine has no transport and no save status. Wire your own persistence on top of `onChange`:
