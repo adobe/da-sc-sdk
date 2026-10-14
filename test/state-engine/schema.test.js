@@ -79,6 +79,22 @@ describe('compileSchema', () => {
       expect(body.semanticType).to.equal('long-text');
     });
 
+    it('captures the rich-text semanticType on a string', () => {
+      const { definition } = compileSchema({
+        type: 'object',
+        properties: { body: { type: 'string', 'x-semantic-type': 'rich-text' } },
+      });
+      expect(definition.children[0].semanticType).to.equal('rich-text');
+    });
+
+    it('ignores rich-text on a non-string type', () => {
+      const { definition } = compileSchema({
+        type: 'object',
+        properties: { body: { type: 'array', items: { type: 'string' }, 'x-semantic-type': 'rich-text' } },
+      });
+      expect(definition.children[0].semanticType).to.equal(undefined);
+    });
+
     it('compiles an image as an object with the SDK-defined src and altText fields, src required', () => {
       const { definition, issues } = compileSchema({
         type: 'object',
