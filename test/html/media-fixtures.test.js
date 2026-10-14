@@ -47,14 +47,15 @@ describe('media fields from editor to delivery', () => {
     expect(convertHtmlToJson({ html }).json).to.deep.equal(expected);
   });
 
-  it('reads the delivered EDS page to absolute media URLs on the site origin, as da-sc does', async () => {
+  it('reads the delivered EDS page to absolute media URLs next to the page, as da-sc does', async () => {
     const html = await readFixture('mediaForm.eds.html');
     const expected = await readJsonFixture('mediaForm.eds.json');
-    const { json } = convertHtmlToJson({ html, media: { origin: 'https://main--site--org.aem.live' } });
+    const base = 'https://main--site--org.aem.live/articles/sample';
+    const { json } = convertHtmlToJson({ html, media: { base } });
     expect(json).to.deep.equal(expected);
   });
 
-  it('keeps media bus paths relative to the page without an origin', async () => {
+  it('keeps media bus paths relative to the page without a base', async () => {
     const html = await readFixture('mediaForm.eds.html');
     const { data } = convertHtmlToJson({ html }).json;
     expect(data.hero).to.equal('./media_1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5.jpg');
@@ -102,10 +103,11 @@ describe('nested media fields from editor to delivery', () => {
     expect(convertHtmlToJson({ html }).json).to.deep.equal(expected);
   });
 
-  it('reads the delivered EDS page to an absolute media URL on the site origin', async () => {
+  it('reads the delivered EDS page to an absolute media URL next to the page', async () => {
     const html = await readFixture('nestedMediaForm.eds.html');
     const expected = await readJsonFixture('nestedMediaForm.eds.json');
-    const { json } = convertHtmlToJson({ html, media: { origin: 'https://main--site--org.aem.live' } });
+    const base = 'https://main--site--org.aem.live/players/ilya-moreau';
+    const { json } = convertHtmlToJson({ html, media: { base } });
     expect(json).to.deep.equal(expected);
   });
 

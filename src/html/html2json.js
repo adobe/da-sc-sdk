@@ -12,7 +12,7 @@
 
 import { fromHtml } from 'hast-util-from-html';
 import { normalizeMediaSource, toAbsoluteMediaUrl } from './media.js';
-import { httpOrigin } from './utils.js';
+import { httpHref } from './utils.js';
 
 const SELF_REF = 'self://#';
 
@@ -54,15 +54,15 @@ function textContent(node) {
 
 // The first non-empty `<img src>` below `node` in its stored form, or null.
 // The writer emits at most one image per value; any further images are ignored.
-// With a `mediaOrigin`, media bus paths become absolute URLs on that origin.
-function imageSource(node, mediaOrigin) {
+// With a `mediaBase`, media bus paths become absolute URLs resolved against it.
+function imageSource(node, mediaBase) {
   const images = [];
   collectElements(node, 'img', images);
   const src = images
     .map((img) => img.properties?.src)
     .find((value) => typeof value === 'string' && value.trim() !== '');
   if (src !== undefined) {
-    return toAbsoluteMediaUrl(normalizeMediaSource(src), mediaOrigin);
+    return toAbsoluteMediaUrl(normalizeMediaSource(src), mediaBase);
   }
   return null;
 }
@@ -79,8 +79,8 @@ function firstListChild(node) {
 }
 
 export default class HTMLConverter {
-  constructor(html, { mediaOrigin } = {}) {
-    this.mediaOrigin = mediaOrigin;
+  constructor(html, { mediaBase } = {}) {
+    this.mediaBase = mediaBase;
     this.tree = fromHtml(html);
     this.blocks = selectBlocks(this.tree);
     this.json = this.convertBlocksToJson();
@@ -123,7 +123,7 @@ export default class HTMLConverter {
     if (list) { return this.readListValue(list); }
 
     const text = textContent(valCol).trim();
-    if (text === '') { return imageSource(valCol, this.mediaOrigin) ?? ''; }
+    if (text === '') { return imageSource(valCol, this.mediaBase) ?? ''; }
     return this.getTypedValue(text);
   }
 
@@ -135,7 +135,7 @@ export default class HTMLConverter {
       .filter((c) => c.tagName === 'li')
       .map((li) => {
         const text = textContent(li).trim();
-        const src = text === '' ? imageSource(li, this.mediaOrigin) : null;
+        const src = text === '' ? imageSource(li, this.mediaBase) : null;
         if (src !== null) { return src; }
         const ref = this.getReference(text);
         if (ref !== null) { return ref; }
@@ -227,19 +227,20 @@ export default class HTMLConverter {
 // pair with `convertJsonToHtml`. Returns `{ json } | { error }` so callers
 // see a clear reason on failure instead of a silent null.
 //
-// Pass `media.origin` when reading a delivered EDS page, for example
-// `https://main--site--org.aem.page`, to return media bus images as absolute
-// URLs instead of paths relative to the page.
+// Pass the URL of a delivered EDS page as `media.base`, for example
+// `https://main--site--org.aem.page/folder/x`, to return its media bus
+// images as absolute URLs, resolved like a browser resolves them on the page.
+// Without it they stay relative to the page.
 export function convertHtmlToJson({ html, media } = {}) {
   if (typeof html !== 'string' || !html.trim()) {
     return { error: 'html must be a non-empty string.' };
   }
-  const mediaOrigin = media?.origin !== undefined ? httpOrigin(media.origin) : undefined;
-  if (mediaOrigin === null) {
-    return { error: 'media.origin must be an absolute http or https URL.' };
+  const mediaBase = media?.base !== undefined ? httpHref(media.base) : undefined;
+  if (mediaBase === null) {
+    return { error: 'media.base must be an absolute http or https URL.' };
   }
   try {
-    return { json: new HTMLConverter(html, { mediaOrigin }).json };
+    return { json: new HTMLConverter(html, { mediaBase }).json };
   } catch (e) {
     return { error: `Failed to parse HTML: ${e?.message ?? e}` };
   }

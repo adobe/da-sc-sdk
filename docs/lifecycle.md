@@ -164,14 +164,14 @@ Pure string builder. No DOM, no async. Symmetric with `convertHtmlToJson`.
 convertHtmlToJson({ html, media? })
   ├─ shape-check: html is a non-empty string
   │    └─ if not: return { error: '...' }
-  ├─ if media.origin is given, take the origin of that http(s) URL
+  ├─ if media.base is given, check that it is an absolute http(s) URL
   │    └─ if invalid: return { error: '...' }
   ├─ parse via hast-util-from-html (parse5 internally)
   ├─ walk the hast tree:
   │    ├─ find <div class="da-form"> block → metadata (schemaName, …)
   │    ├─ find <div class="<schemaName>"> block → data
   │    ├─ resolve `self://#…` references between blocks
-  │    └─ resolve media bus images against the origin, if any
+  │    └─ resolve media bus images against the base, if any
   └─ return { json: { metadata, data } }
 ```
 

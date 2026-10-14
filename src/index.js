@@ -45,7 +45,7 @@ export { convertJsonToHtml } from './html/json2html.js';
 
 // DA wire-format HTML → JSON. Symmetric pair with `convertJsonToHtml`.
 // `convertHtmlToJson({ html, media? })` returns `{ json } | { error }`.
-// With `media.origin`, media bus images come back as absolute URLs.
+// With the page URL as `media.base`, media bus images come back as absolute URLs.
 export { convertHtmlToJson } from './html/html2json.js';
 
 // Media helpers, grouped so new ones never widen the top-level API.

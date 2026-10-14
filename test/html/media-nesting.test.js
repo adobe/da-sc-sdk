@@ -193,15 +193,15 @@ describe('deeply nested media', () => {
     });
   });
 
-  it('reads the delivered page with absolute media URLs on the site origin', () => {
-    const origin = 'https://main--site--org.aem.live';
+  it('reads the delivered page with absolute media URLs resolved against the page', () => {
+    const folder = 'https://main--site--org.aem.live/events';
     const { json: delivered } = convertHtmlToJson({
       html: deliverLikeEds(html),
-      media: { origin },
+      media: { base: `${folder}/summit` },
     });
     expect(delivered).to.deep.equal({
       ...json,
-      data: mapImages(data, (path) => `${origin}/${path}`),
+      data: mapImages(data, (path) => `${folder}/${path}`),
     });
   });
 

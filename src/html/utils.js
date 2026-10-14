@@ -52,11 +52,11 @@ export function prune(value) {
   return value;
 }
 
-// The origin of an absolute http(s) URL, or null.
-export function httpOrigin(value) {
+// The href of an absolute http(s) URL, or null.
+export function httpHref(value) {
   try {
     const url = new URL(value);
-    return ['http:', 'https:'].includes(url.protocol) ? url.origin : null;
+    return ['http:', 'https:'].includes(url.protocol) ? url.href : null;
   } catch {
     return null;
   }

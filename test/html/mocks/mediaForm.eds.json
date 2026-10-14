@@ -5,7 +5,7 @@
   },
   "data": {
     "headline": "Sample Article",
-    "hero": "https://main--site--org.aem.live/media_1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5.jpg",
-    "thumbnail": "https://main--site--org.aem.live/media_1f1e1d1c1b1a19181716151413121110f0e0d0c0b.png"
+    "hero": "https://main--site--org.aem.live/articles/media_1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5.jpg",
+    "thumbnail": "https://main--site--org.aem.live/articles/media_1f1e1d1c1b1a19181716151413121110f0e0d0c0b.png"
   }
 }

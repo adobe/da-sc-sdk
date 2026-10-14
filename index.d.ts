@@ -288,15 +288,16 @@ export const media: {
  * A value cell or list item without text but with an `<img>` reads as its
  * trimmed `src`. Text always wins. Media bus paths drop their rendition
  * query and fragment.
- * Pass `media.origin` (for example `https://main--site--org.aem.page`) when
- * reading a delivered EDS page, so media bus paths come back as absolute URLs
- * on that origin. Without it they stay relative to the page, for example
- * `./media_<hash>.jpg`.
+ * Pass the page URL as `media.base` (for example
+ * `https://main--site--org.aem.page/foo/bar`) when reading a delivered EDS
+ * page, so media bus paths come back as absolute URLs, resolved like a browser
+ * resolves them on that page. Without it they stay relative to the page, for
+ * example `./media_<hash>.jpg`.
  * Returns `{ error }` on empty / malformed input — never silently null.
  */
 export function convertHtmlToJson(options?: {
   html: string;
   media?: {
-    origin?: string;
+    base?: string;
   };
 }): { json: Document } | { error: string };

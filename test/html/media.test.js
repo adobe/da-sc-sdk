@@ -241,11 +241,11 @@ describe('media fields', () => {
     it('keeps about:error from a failed media bus copy visible', () => {
       const cell = '<div><p><img src="about:error" alt=""></p></div>';
       expect(readHero(cell)).to.equal('about:error');
-      const withOrigin = convertHtmlToJson({
+      const withBase = convertHtmlToJson({
         html: page(cell),
-        media: { origin: 'https://main--site--org.aem.page' },
+        media: { base: 'https://main--site--org.aem.page/players/ada' },
       });
-      expect(withOrigin.json.data.hero).to.equal('about:error');
+      expect(withBase.json.data.hero).to.equal('about:error');
     });
 
     it('reads the first of several pictures', () => {
@@ -295,48 +295,53 @@ describe('media fields', () => {
       expect(imageSources(writeHero(legacy, schema))).to.deep.equal([sources.upload]);
     });
 
-    describe('with media.origin', () => {
+    describe('with media.base', () => {
       const origin = 'https://main--site--org.aem.page';
-      const readWithOrigin = (cell, mediaOrigin = origin) => convertHtmlToJson({
+      const pageHref = `${origin}/players/ada`;
+      const readWithBase = (cell, base = pageHref) => convertHtmlToJson({
         html: page(cell),
-        media: { origin: mediaOrigin },
+        media: { base },
       });
 
-      it('returns media bus images as absolute URLs on the origin', () => {
+      it('resolves media bus images against the page like a browser', () => {
         const cell = '<div><picture><img src="./media_1c0072.jpg?width=750&amp;format=jpg"></picture></div>';
-        expect(readWithOrigin(cell).json.data.hero).to.equal(`${origin}/media_1c0072.jpg`);
-        expect(readWithOrigin('<div><p><img src="media_ab12.png"></p></div>').json.data.hero)
-          .to.equal(`${origin}/media_ab12.png`);
+        expect(readWithBase(cell).json.data.hero).to.equal(`${origin}/players/media_1c0072.jpg`);
+        expect(readWithBase('<div><p><img src="media_ab12.png"></p></div>').json.data.hero)
+          .to.equal(`${origin}/players/media_ab12.png`);
       });
 
       it('resolves media bus images in list items', () => {
         const cell = '<div><ul><li><picture><img src="./media_ab12.png?width=750"></picture></li></ul></div>';
-        expect(readWithOrigin(cell).json.data.hero).to.deep.equal([`${origin}/media_ab12.png`]);
+        expect(readWithBase(cell).json.data.hero).to.deep.equal([`${origin}/players/media_ab12.png`]);
       });
 
-      it('uses only the origin of the given URL', () => {
+      it('resolves against folder pages, root pages, and pages with a query or fragment', () => {
         const cell = '<div><p><img src="./media_ab12.png"></p></div>';
-        expect(readWithOrigin(cell, `${origin}/articles/example?x=1`).json.data.hero)
-          .to.equal(`${origin}/media_ab12.png`);
+        expect(readWithBase(cell, `${origin}/players/`).json.data.hero)
+          .to.equal(`${origin}/players/media_ab12.png`);
+        expect(readWithBase(cell, `${origin}/`).json.data.hero).to.equal(`${origin}/media_ab12.png`);
+        expect(readWithBase(cell, origin).json.data.hero).to.equal(`${origin}/media_ab12.png`);
+        expect(readWithBase(cell, `${pageHref}?x=1#top`).json.data.hero)
+          .to.equal(`${origin}/players/media_ab12.png`);
       });
 
       it('keeps other image URLs, links and text unchanged', () => {
-        expect(readWithOrigin(`<div><p><img src="${sources.publish}"></p></div>`).json.data.hero)
+        expect(readWithBase(`<div><p><img src="${sources.publish}"></p></div>`).json.data.hero)
           .to.equal(sources.publish);
-        expect(readWithOrigin(`<div><p><a href="${files.pdf}">${files.pdf}</a></p></div>`).json.data.hero)
+        expect(readWithBase(`<div><p><a href="${files.pdf}">${files.pdf}</a></p></div>`).json.data.hero)
           .to.equal(files.pdf);
-        expect(readWithOrigin('<div><p>./media_ab12.png</p></div>').json.data.hero)
+        expect(readWithBase('<div><p>./media_ab12.png</p></div>').json.data.hero)
           .to.equal('./media_ab12.png');
       });
 
-      it('returns an error for an origin that is not an absolute http or https URL', () => {
+      it('returns an error for a base that is not an absolute http or https URL', () => {
         ['site.aem.page', '/players', 'ftp://x.test', ''].forEach((invalid) => {
-          expect(readWithOrigin('<div><p>x</p></div>', invalid).error, invalid)
-            .to.equal('media.origin must be an absolute http or https URL.');
+          expect(readWithBase('<div><p>x</p></div>', invalid).error, invalid)
+            .to.equal('media.base must be an absolute http or https URL.');
         });
       });
 
-      it('keeps relative media bus paths without an origin', () => {
+      it('keeps relative media bus paths without a base', () => {
         expect(readHero('<div><p><img src="./media_ab12.png"></p></div>')).to.equal('./media_ab12.png');
       });
     });

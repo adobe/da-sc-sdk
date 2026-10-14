@@ -132,14 +132,14 @@ Pass the document's schema to write `x-semantic-type: "media"` fields as images.
 const { html } = convertJsonToHtml({ json, schema });
 ```
 
-`convertHtmlToJson` reads a cell or list item that holds an image and no text as the image's `src`. Text always wins over an image, and a link reads as its text, which is the URL. On delivered pages, EDS has replaced images with media bus paths relative to the page. Pass the site origin so consumers get absolute URLs that work from anywhere, without rendition parameters.
+`convertHtmlToJson` reads a cell or list item that holds an image and no text as the image's `src`. Text always wins over an image, and a link reads as its text, which is the URL. On delivered pages, EDS has replaced images with media bus paths relative to the page. Pass the page URL as `media.base` so consumers get absolute URLs, resolved the way a browser resolves them on that page, without rendition parameters.
 
 ```js
-const { json } = convertHtmlToJson({ html, media: { origin: "https://main--site--org.aem.page" } });
-// image value: "https://main--site--org.aem.page/media_<hash>.jpg"
+const { json } = convertHtmlToJson({ html, media: { base: "https://main--site--org.aem.page/players/ada" } });
+// image value: "https://main--site--org.aem.page/players/media_<hash>.jpg"
 ```
 
-Without `media.origin`, image values stay relative to the page, for example `./media_<hash>.jpg`.
+Without `media.base`, image values stay relative to the page, for example `./media_<hash>.jpg`.
 
 ### Edit (with persistence)
 
