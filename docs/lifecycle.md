@@ -140,31 +140,35 @@ validateSchema({ schema })
 
 Schema-only. Skips data parsing, model building, and document validation — useful for "is this schema well-formed?" without any data on hand.
 
-### 3.3. `convertJsonToHtml({ json })`
+### 3.3. `convertJsonToHtml({ json, schema? })`
 
 ```txt
-convertJsonToHtml({ json })
+convertJsonToHtml({ json, schema? })
   ├─ shape-check: json is an object with metadata.schemaName (string)
   │    └─ if not: return { error: '<reason>' }
+  ├─ definition = compileSchema(schema)       ← only when a schema is given
   ├─ pruned = prune(json.data)                ← drop empty/null/whitespace leaves
-  └─ html = json2html({ ...json, data: pruned })
+  └─ html = json2html({ ...json, data: pruned }, definition)
        ├─ build <body><main><div>…</div></main></body> via template literals
-       └─ recursively emit <div class="<schemaName>"> nodes for nested objects/arrays
+       ├─ recursively emit <div class="<schemaName>"> nodes for nested objects/arrays
+       └─ emit rich-text strings as sanitized markup instead of escaped text
   return { html }
 ```
 
 Pure string builder. No DOM, no async. Symmetric with `convertHtmlToJson`.
 
-### 3.4. `convertHtmlToJson({ html })`
+### 3.4. `convertHtmlToJson({ html, schema? })`
 
 ```txt
-convertHtmlToJson({ html })
+convertHtmlToJson({ html, schema? })
   ├─ shape-check: html is a non-empty string
   │    └─ if not: return { error: '...' }
+  ├─ definition = compileSchema(schema)       ← only when a schema is given
   ├─ parse via hast-util-from-html (parse5 internally)
   ├─ walk the hast tree:
   │    ├─ find <div class="da-form"> block → metadata (schemaName, …)
   │    ├─ find <div class="<schemaName>"> block → data
+  │    ├─ read rich-text cells as sanitized markup instead of text/arrays
   │    └─ resolve `self://#…` references between blocks
   └─ return { json: { metadata, data } }
 ```

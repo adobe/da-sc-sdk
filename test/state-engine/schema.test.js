@@ -78,6 +78,22 @@ describe('compileSchema', () => {
       expect(body.semanticType).to.equal('long-text');
     });
 
+    it('captures the rich-text semanticType on a string', () => {
+      const { definition } = compileSchema({
+        type: 'object',
+        properties: { body: { type: 'string', 'x-semantic-type': 'rich-text' } },
+      });
+      expect(definition.children[0].semanticType).to.equal('rich-text');
+    });
+
+    it('ignores rich-text on a non-string type', () => {
+      const { definition } = compileSchema({
+        type: 'object',
+        properties: { body: { type: 'array', items: { type: 'string' }, 'x-semantic-type': 'rich-text' } },
+      });
+      expect(definition.children[0].semanticType).to.equal(undefined);
+    });
+
     it('lets enum win over x-semantic-type', () => {
       const { definition } = compileSchema({
         type: 'object',

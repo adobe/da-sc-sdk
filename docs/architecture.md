@@ -26,9 +26,10 @@ da-sc-sdk/
       validation.js     validateDocument → { errors } (pointer-keyed map)
       clone.js          single deepClone util
     html/             DA wire-format HTML ↔ JSON
-      html2json.js      parse DA HTML → JSON; HTMLConverter class + convertHtmlToJson({ html })
+      html2json.js      parse DA HTML → JSON; HTMLConverter class + convertHtmlToJson({ html, schema? })
       json2html.js      emit JSON → DA HTML; defines convertJsonToHtml (public) + json2html (internal raw)
-      utils.js          prune helper shared by the emit path
+      rich-text.js      canonical HTML subset for x-semantic-type: rich-text values
+      utils.js          prune + schema-definition helpers shared by both directions
   dist/
     index.js          self-contained ESM bundle for vendor / CDN consumers
   test/               mirrors src/ — one .test.js per module + roundtrip suite
@@ -97,8 +98,8 @@ The SDK exposes exactly five named exports from `'da-sc-sdk'`. The surface is na
 | `createEngine({ schema, document, onChange })` | [src/state-engine/index.js](../src/state-engine/index.js) | Stateful JSON state engine — initialized synchronously, exposes mutations and validation. Returns `{ getState, setField, addItem, insertItem, removeItem, moveItem }`. Pure state machine: no persistence, no I/O. `onChange` is NOT called at construction; initial state is read via `engine.getState()`. To swap (schema, document), create a new engine. |
 | `validateSchema({ schema })` | [src/state-engine/index.js](../src/state-engine/index.js) | Schema-only validation. Returns `{ valid, schemaIssues }`. Use to check that a schema is well-formed before binding to it. |
 | `validateData({ schema, data })` | [src/state-engine/index.js](../src/state-engine/index.js) | Data-against-schema validation. Returns `{ valid, errors, schemaIssues }`. `errors` is a pointer-keyed map of ajv-style entries. `valid` is `true` iff both `schemaIssues` and `errors` are empty. Symmetric with `validateSchema`: both validators expose `valid` + `schemaIssues`; `validateData` adds `errors`. |
-| `convertJsonToHtml({ json })` | [src/html/json2html.js](../src/html/json2html.js) | JSON → DA wire-format HTML. Prunes empty/null/whitespace leaves before emitting (same shape the engine would save). Pure string builder, no DOM. Returns `{ html } \| { error }`. |
-| `convertHtmlToJson({ html })` | [src/html/html2json.js](../src/html/html2json.js) | DA wire-format HTML → JSON. Returns `{ json } \| { error }` so a malformed input produces a clear reason instead of a silent null. |
+| `convertJsonToHtml({ json, schema? })` | [src/html/json2html.js](../src/html/json2html.js) | JSON → DA wire-format HTML. Prunes empty/null/whitespace leaves before emitting (same shape the engine would save). With a schema, rich-text values are emitted as sanitized markup ([src/html/rich-text.js](../src/html/rich-text.js)). Pure string builder, no DOM. Returns `{ html } \| { error }`. |
+| `convertHtmlToJson({ html, schema? })` | [src/html/html2json.js](../src/html/html2json.js) | DA wire-format HTML → JSON. With a schema, rich-text cells are read as sanitized markup. Returns `{ json } \| { error }` so a malformed input produces a clear reason instead of a silent null. |
 
 ### Everything else is internal — and unreachable
 
