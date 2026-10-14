@@ -238,6 +238,63 @@ describe('media fields', () => {
       expect(readHero('<div><p><img src="true"></p></div>')).to.equal('true');
     });
 
+    it('keeps about:error from a failed media bus copy visible', () => {
+      const cell = '<div><p><img src="about:error" alt=""></p></div>';
+      expect(readHero(cell)).to.equal('about:error');
+      const withOrigin = convertHtmlToJson({
+        html: page(cell),
+        media: { origin: 'https://main--site--org.aem.page' },
+      });
+      expect(withOrigin.json.data.hero).to.equal('about:error');
+    });
+
+    it('reads the first of several pictures', () => {
+      const cell = `<div>
+        <p><picture><img src="./media_aa.png?width=750"></picture></p>
+        <p><picture><img src="./media_bb.png?width=750"></picture></p>
+      </div>`;
+      expect(readHero(cell)).to.equal('./media_aa.png');
+    });
+
+    it('reads a linked image as its source', () => {
+      const cell = '<div><p><a href="https://x.test/page"><img src="./media_ab12.png"></a></p></div>';
+      expect(readHero(cell)).to.equal('./media_ab12.png');
+    });
+
+    it('reads an image next to empty paragraphs and non-breaking spaces', () => {
+      const cell = `<div>
+        <p>&nbsp;</p>
+        <p><picture><img src="./media_ab12.png?width=750"></picture></p>
+        <p>  </p>
+      </div>`;
+      expect(readHero(cell)).to.equal('./media_ab12.png');
+    });
+
+    it('reads a link with other text as that text', () => {
+      expect(readHero(`<div><p><a href="${files.pdf}">Datasheet</a></p></div>`)).to.equal('Datasheet');
+    });
+
+    it('never reads an image from a nested block into the cell that references it', () => {
+      const html = `<body><main><div>
+        <div class="da-form"><div><div>x-schema-name</div><div>player</div></div></div>
+        <div class="player">
+          <div><div>sponsor</div><div><p>self://#sponsor-abc</p></div></div>
+          <div><div>hero</div><div></div></div>
+        </div>
+        <div class="sponsor sponsor-abc"><div><div>logo</div><div><p><img src="./media_ab12.png"></p></div></div></div>
+      </div></main></body>`;
+      expect(convertHtmlToJson({ html }).json.data).to.deep.equal({
+        sponsor: { logo: './media_ab12.png' },
+        hero: '',
+      });
+    });
+
+    it('writes a value stored as text by earlier versions as an image on the next save', () => {
+      const legacy = readHero(`<div><p>${sources.upload}</p></div>`);
+      expect(legacy).to.equal(sources.upload);
+      expect(imageSources(writeHero(legacy, schema))).to.deep.equal([sources.upload]);
+    });
+
     describe('with media.origin', () => {
       const origin = 'https://main--site--org.aem.page';
       const readWithOrigin = (cell, mediaOrigin = origin) => convertHtmlToJson({

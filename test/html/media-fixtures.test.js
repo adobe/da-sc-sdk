@@ -14,7 +14,7 @@ import { expect } from '@esm-bundle/chai';
 import { readFile } from '@web/test-runner-commands';
 import { convertJsonToHtml } from '../../src/html/json2html.js';
 import { convertHtmlToJson } from '../../src/html/html2json.js';
-import { cleanHtmlWhitespace } from './test-utils.js';
+import { cleanHtmlWhitespace, normalizeHtml } from './test-utils.js';
 
 // Fixtures captured from a real document, with anonymized content, hosts and IDs.
 // `mediaForm.da.html` is the DA source the editor saved, with an AEM Assets
@@ -67,5 +67,54 @@ describe('media fields from editor to delivery', () => {
     expect(delivered.metadata).to.deep.equal(source.metadata);
     expect(Object.keys(delivered.data)).to.deep.equal(Object.keys(source.data));
     expect(delivered.data.headline).to.equal(source.data.headline);
+  });
+});
+
+// The same way for a document whose image sits in an object inside an object, next to text,
+// numbers, a list and nested references. Nested blocks get random IDs on every write, so the
+// written source is compared with the IDs normalized.
+describe('nested media fields from editor to delivery', () => {
+  const nestedSchema = {
+    type: 'object',
+    properties: {
+      media: {
+        type: 'object',
+        properties: {
+          profileImage: {
+            type: 'object',
+            properties: { src: { type: 'string', 'x-semantic-type': 'media' } },
+          },
+        },
+      },
+    },
+  };
+
+  it('writes the DA source the editor saved', async () => {
+    const json = await readJsonFixture('nestedMediaForm.da.json');
+    const saved = await readFixture('nestedMediaForm.da.html');
+    const { html } = convertJsonToHtml({ json, schema: nestedSchema });
+    expect(normalizeHtml(html)).to.equal(normalizeHtml(saved));
+  });
+
+  it('reads the DA source back to the original image URL', async () => {
+    const html = await readFixture('nestedMediaForm.da.html');
+    const expected = await readJsonFixture('nestedMediaForm.da.json');
+    expect(convertHtmlToJson({ html }).json).to.deep.equal(expected);
+  });
+
+  it('reads the delivered EDS page to an absolute media URL on the site origin', async () => {
+    const html = await readFixture('nestedMediaForm.eds.html');
+    const expected = await readJsonFixture('nestedMediaForm.eds.json');
+    const { json } = convertHtmlToJson({ html, media: { origin: 'https://main--site--org.aem.live' } });
+    expect(json).to.deep.equal(expected);
+  });
+
+  it('keeps everything but the image the same from DA source to delivered page', async () => {
+    const source = convertHtmlToJson({ html: await readFixture('nestedMediaForm.da.html') }).json;
+    const delivered = convertHtmlToJson({ html: await readFixture('nestedMediaForm.eds.html') }).json;
+    expect(delivered.data.media.profileImage.src)
+      .to.equal('./media_1f2e3d4c5b6a79801f2e3d4c5b6a79801f2e3d4c5.jpg');
+    delivered.data.media.profileImage.src = source.data.media.profileImage.src;
+    expect(delivered).to.deep.equal(source);
   });
 });
