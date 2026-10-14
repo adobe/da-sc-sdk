@@ -11,6 +11,10 @@
  */
 
 import { fromHtml } from 'hast-util-from-html';
+import {
+  definitionFor, childDefinition, itemDefinition, isRichText,
+} from './utils.js';
+import { richTextFromNodes } from './rich-text.js';
 
 const SELF_REF = 'self://#';
 
@@ -62,7 +66,9 @@ function firstListChild(node) {
 }
 
 export default class HTMLConverter {
-  constructor(html) {
+  // `definition` is the optional compiled schema used to read rich-text cells.
+  constructor(html, definition) {
+    this.definition = definition;
     this.tree = fromHtml(html);
     this.blocks = selectBlocks(this.tree);
     this.json = this.convertBlocksToJson();
@@ -70,7 +76,7 @@ export default class HTMLConverter {
 
   convertBlocksToJson() {
     const metadata = this.getMetadata();
-    const data = this.findAndConvert(metadata.schemaName);
+    const data = this.findAndConvert(metadata.schemaName, false, this.definition);
     return { metadata, data };
   }
 
@@ -80,7 +86,7 @@ export default class HTMLConverter {
     return { schemaName, ...rest };
   }
 
-  getProperties(block) {
+  getProperties(block, def) {
     // Tolerant tree walk: skips whitespace text nodes between cells and
     // accepts value cells with or without an element wrapper. See the
     // "EDS-formatted HTML" tests in html2json.test.js for the shapes this
@@ -91,34 +97,39 @@ export default class HTMLConverter {
       const [keyCol, valCol] = cols;
       const key = textContent(keyCol).trim();
       if (!key) { return rdx; }
-      rdx[key] = this.readValue(valCol);
+      // `@items` rows carry the array itself, so they keep the array definition.
+      const keyDef = key === '@items' ? def : childDefinition(def, key);
+      rdx[key] = this.readValue(valCol, keyDef);
       return rdx;
     }, {});
   }
 
-  // Read a value cell. A `<ul>` or `<ol>` child makes it an array; anything
-  // else (or bare text) makes it a primitive whose value is the cell's text
-  // content.
-  readValue(valCol) {
+  // Read a value cell. Rich-text cells keep their canonical markup. Otherwise
+  // a `<ul>` or `<ol>` child makes it an array; anything else (or bare text)
+  // makes it a primitive whose value is the cell's text content.
+  readValue(valCol, def) {
+    if (isRichText(def)) { return richTextFromNodes(valCol.children); }
+
     const list = firstListChild(valCol);
-    if (list) { return this.readListValue(list); }
+    if (list) { return this.readListValue(list, itemDefinition(def)); }
 
     const text = textContent(valCol).trim();
     if (text === '') { return ''; }
-    return this.getTypedValue(text);
+    return this.getTypedValue(text, def);
   }
 
   // Iterate only `<li>` children. Stray non-`<li>` elements inside the list
   // (whitespace text is already filtered by `elementChildren`) are ignored
   // rather than silently treated as items — they were never list entries.
-  readListValue(list) {
+  readListValue(list, itemDef) {
     return elementChildren(list)
       .filter((c) => c.tagName === 'li')
       .map((li) => {
+        if (isRichText(itemDef)) { return richTextFromNodes(li.children); }
         const text = textContent(li).trim();
-        const ref = this.getReference(text);
+        const ref = this.getReference(text, itemDef);
         if (ref !== null) { return ref; }
-        return this.getTypedValue(text);
+        return this.getTypedValue(text, itemDef);
       });
   }
 
@@ -126,9 +137,10 @@ export default class HTMLConverter {
    * Find and convert a block to its basic JSON data
    * @param {String} searchTerm the block name or variation
    * @param {Boolean} searchRef if the variation should be used for search
+   * @param {Object} [def] compiled schema definition for the block's value
    * @returns {Object|Array} the JSON Object or Array representing the block
    */
-  findAndConvert(searchTerm, searchRef) {
+  findAndConvert(searchTerm, searchRef, def) {
     return this.blocks.reduce((acc, block) => {
       // If we are looking for a reference,
       // use the variation, not the block name
@@ -139,7 +151,7 @@ export default class HTMLConverter {
       // so we require no second class to pick the root.
       const isRootBlock = !searchRef && !block.properties.className[1];
       if (matches && (searchRef || isRootBlock)) {
-        const properties = this.getProperties(block);
+        const properties = this.getProperties(block, def);
         // If the block contains only @items, it represents an array
         // Return the array value directly instead of the object wrapper
         const keys = Object.keys(properties);
@@ -155,7 +167,7 @@ export default class HTMLConverter {
   // We will always try to convert to a strong type.
   // The schema is responsible for knowing if it
   // is correct and converting back if necessary.
-  getTypedValue(value) {
+  getTypedValue(value, def) {
     // It it doesn't exist, resolve to undefined
     if (!value) {
       return '';
@@ -166,7 +178,7 @@ export default class HTMLConverter {
     if (boolean !== null) { return boolean; }
 
     // Attempt reference
-    const reference = this.getReference(value);
+    const reference = this.getReference(value, def);
     if (reference !== null) { return reference; }
 
     // Attempt number
@@ -176,10 +188,10 @@ export default class HTMLConverter {
     return value;
   }
 
-  getReference(text) {
+  getReference(text, def) {
     if (text.startsWith(SELF_REF)) {
       const refId = text.split(SELF_REF)[1].replaceAll('/', '-');
-      const reference = this.findAndConvert(refId, true);
+      const reference = this.findAndConvert(refId, true, def);
       if (reference) { return reference; }
     }
     return null;
@@ -205,12 +217,17 @@ export default class HTMLConverter {
 // Convert DA wire-format HTML back to a structured JSON document. Symmetric
 // pair with `convertJsonToHtml`. Returns `{ json } | { error }` so callers
 // see a clear reason on failure instead of a silent null.
-export function convertHtmlToJson({ html } = {}) {
+//
+// `schema` is optional. When given, `x-semantic-type: rich-text` cells are
+// read as canonical HTML markup instead of plain text.
+export function convertHtmlToJson({ html, schema } = {}) {
   if (typeof html !== 'string' || !html.trim()) {
     return { error: 'html must be a non-empty string.' };
   }
+  const { definition, error } = definitionFor(schema);
+  if (error) { return { error }; }
   try {
-    return { json: new HTMLConverter(html).json };
+    return { json: new HTMLConverter(html, definition).json };
   } catch (e) {
     return { error: `Failed to parse HTML: ${e?.message ?? e}` };
   }

@@ -156,6 +156,7 @@ export interface ModelNode {
   // Primitives with `enum`:
   enumValues?: unknown[];
   // String primitives with `x-semantic-type` (vendor presentation hint):
+  // `long-text` or `rich-text`.
   semanticType?: string;
   // Unsupported-kind extras:
   unsupported?: {
@@ -263,6 +264,8 @@ export function validateData(options?: {
  */
 export function convertJsonToHtml(options: {
   json: Document;
+  /** Optional. Enables `x-semantic-type: rich-text` values to be written as HTML markup. */
+  schema?: object;
 }): { html: string } | { error: string };
 
 /**
@@ -271,4 +274,6 @@ export function convertJsonToHtml(options: {
  */
 export function convertHtmlToJson(options?: {
   html: string;
+  /** Optional. Enables `x-semantic-type: rich-text` cells to be read as HTML markup. */
+  schema?: object;
 }): { json: Document } | { error: string };

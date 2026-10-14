@@ -12,6 +12,31 @@
 
 // Shared helpers for the HTML codec.
 
+import { compileSchema } from '../state-engine/schema.js';
+
+// Compiled definition for the optional `schema` codec argument. Returns
+// `{ definition }` (undefined when no schema is given) or `{ error }`.
+export function definitionFor(schema) {
+  if (schema === undefined) { return {}; }
+  if (!schema || typeof schema !== 'object' || Array.isArray(schema)) {
+    return { error: 'schema must be an object when provided.' };
+  }
+  return { definition: compileSchema(schema).definition ?? undefined };
+}
+
+export function childDefinition(def, key) {
+  if (def?.kind !== 'object') { return undefined; }
+  return def.children?.find((child) => child.key === key);
+}
+
+export function itemDefinition(def) {
+  return def?.kind === 'array' ? def.item : undefined;
+}
+
+export function isRichText(def) {
+  return def?.kind === 'string' && def.semanticType === 'rich-text';
+}
+
 function isEmpty(value) {
   if (value === null || value === undefined || value === '') { return true; }
   if (typeof value === 'string' && value.trim() === '') { return true; }
