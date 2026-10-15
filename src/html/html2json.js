@@ -54,15 +54,15 @@ function textContent(node) {
 
 // The first non-empty `<img src>` below `node` in its stored form, or null.
 // The writer emits at most one image per value; any further images are ignored.
-// With a `mediaBase`, media bus paths become absolute URLs resolved against it.
-function imageSource(node, mediaBase) {
+// With an `assetBase`, media bus paths become absolute URLs resolved against it.
+function imageSource(node, assetBase) {
   const images = [];
   collectElements(node, 'img', images);
   const src = images
     .map((img) => img.properties?.src)
     .find((value) => typeof value === 'string' && value.trim() !== '');
   if (src !== undefined) {
-    return toAbsoluteMediaUrl(normalizeMediaSource(src), mediaBase);
+    return toAbsoluteMediaUrl(normalizeMediaSource(src), assetBase);
   }
   return null;
 }
@@ -79,8 +79,8 @@ function firstListChild(node) {
 }
 
 export default class HTMLConverter {
-  constructor(html, { mediaBase } = {}) {
-    this.mediaBase = mediaBase;
+  constructor(html, { assetBase } = {}) {
+    this.assetBase = assetBase;
     this.tree = fromHtml(html);
     this.blocks = selectBlocks(this.tree);
     this.json = this.convertBlocksToJson();
@@ -123,7 +123,7 @@ export default class HTMLConverter {
     if (list) { return this.readListValue(list); }
 
     const text = textContent(valCol).trim();
-    if (text === '') { return imageSource(valCol, this.mediaBase) ?? ''; }
+    if (text === '') { return imageSource(valCol, this.assetBase) ?? ''; }
     return this.getTypedValue(text);
   }
 
@@ -135,7 +135,7 @@ export default class HTMLConverter {
       .filter((c) => c.tagName === 'li')
       .map((li) => {
         const text = textContent(li).trim();
-        const src = text === '' ? imageSource(li, this.mediaBase) : null;
+        const src = text === '' ? imageSource(li, this.assetBase) : null;
         if (src !== null) { return src; }
         const ref = this.getReference(text);
         if (ref !== null) { return ref; }
@@ -235,12 +235,12 @@ export function convertHtmlToJson({ html, asset } = {}) {
   if (typeof html !== 'string' || !html.trim()) {
     return { error: 'html must be a non-empty string.' };
   }
-  const mediaBase = asset?.base !== undefined ? httpHref(asset.base) : undefined;
-  if (mediaBase === null) {
+  const assetBase = asset?.base !== undefined ? httpHref(asset.base) : undefined;
+  if (assetBase === null) {
     return { error: 'asset.base must be an absolute http or https URL.' };
   }
   try {
-    return { json: new HTMLConverter(html, { mediaBase }).json };
+    return { json: new HTMLConverter(html, { assetBase }).json };
   } catch (e) {
     return { error: `Failed to parse HTML: ${e?.message ?? e}` };
   }
