@@ -47,8 +47,3 @@ export { convertJsonToHtml } from './html/json2html.js';
 // `convertHtmlToJson({ html, media? })` returns `{ json } | { error }`.
 // With the page URL as `media.base`, media bus images come back as absolute URLs.
 export { convertHtmlToJson } from './html/html2json.js';
-
-// Media helpers, grouped so new ones never widen the top-level API.
-// `media.isImage(src)` tells whether a media value is an image EDS can
-// deliver, judged by its path. Other files are written as links.
-export { media } from './html/media.js';

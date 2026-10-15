@@ -13,7 +13,7 @@
 import { expect } from '@esm-bundle/chai';
 import { convertJsonToHtml } from '../../src/html/json2html.js';
 import { convertHtmlToJson } from '../../src/html/html2json.js';
-import { media as mediaHelpers } from '../../src/index.js';
+import { isMediaImage } from '../../src/html/media.js';
 
 const media = (title) => ({ type: 'string', title, 'x-semantic-type': 'media' });
 
@@ -417,22 +417,22 @@ describe('media files', () => {
   });
 });
 
-describe('media.isImage', () => {
+describe('isMediaImage', () => {
   it('treats the formats the media bus delivers as images, in any case', () => {
     ['a.jpg', 'b.JPEG', 'c.png', 'd.gif', 'e.webp', 'f.AVIF', 'g.svg'].forEach((name) => {
-      expect(mediaHelpers.isImage(`https://x.test/dam/${name}`), name).to.equal(true);
+      expect(isMediaImage(`https://x.test/dam/${name}`), name).to.equal(true);
     });
   });
 
   it('treats every other extension as a file', () => {
     ['a.pdf', 'b.DOCX', 'c.mp4', 'd.mp3', 'e.zip', 'f.psd', 'g.tif', 'h.heic'].forEach((name) => {
-      expect(mediaHelpers.isImage(`https://x.test/dam/${name}`), name).to.equal(false);
+      expect(isMediaImage(`https://x.test/dam/${name}`), name).to.equal(false);
     });
   });
 
   it('treats the AEM Assets video rendition as a file', () => {
-    expect(mediaHelpers.isImage(files.video)).to.equal(false);
-    expect(mediaHelpers.isImage(`${files.video}?autoplay=1`)).to.equal(false);
+    expect(isMediaImage(files.video)).to.equal(false);
+    expect(isMediaImage(`${files.video}?autoplay=1`)).to.equal(false);
   });
 
   it('treats values without an extension as files, so they are never saved as broken images', () => {
@@ -442,22 +442,22 @@ describe('media.isImage', () => {
       'https://x.test/folder/',
       'https://x.test',
       'https://x.test/archive.v2/download',
-    ].forEach((src) => expect(mediaHelpers.isImage(src), src).to.equal(false));
+    ].forEach((src) => expect(isMediaImage(src), src).to.equal(false));
   });
 
   it('treats AEM smart crop and Dynamic Media renditions with an image extension as images', () => {
-    expect(mediaHelpers.isImage(sources.smartCrop)).to.equal(true);
+    expect(isMediaImage(sources.smartCrop)).to.equal(true);
   });
 
   it('judges only the path, not the query or fragment', () => {
-    expect(mediaHelpers.isImage('https://x.test/a.png?download=report.pdf')).to.equal(true);
-    expect(mediaHelpers.isImage('https://x.test/a.pdf#page=2')).to.equal(false);
-    expect(mediaHelpers.isImage('  https://x.test/a.pdf  ')).to.equal(false);
+    expect(isMediaImage('https://x.test/a.png?download=report.pdf')).to.equal(true);
+    expect(isMediaImage('https://x.test/a.pdf#page=2')).to.equal(false);
+    expect(isMediaImage('  https://x.test/a.pdf  ')).to.equal(false);
   });
 
   it('returns false for values that are not strings', () => {
     [undefined, null, 5, {}].forEach((value) => {
-      expect(mediaHelpers.isImage(value)).to.equal(false);
+      expect(isMediaImage(value)).to.equal(false);
     });
   });
 });

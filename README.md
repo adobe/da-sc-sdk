@@ -62,7 +62,7 @@ Runnable scripts in [examples/](./examples/).
 
 ## API
 
-The SDK has five top-level functions and the `media` namespace.
+The SDK has five top-level functions.
 
 | Function            | Purpose                                              | Returns                           |
 | ------------------- | ---------------------------------------------------- | --------------------------------- |
@@ -71,7 +71,6 @@ The SDK has five top-level functions and the `media` namespace.
 | `validateData`      | Check data against a schema.                         | `{ valid, errors, schemaIssues }` |
 | `convertJsonToHtml` | Convert JSON → DA wire-format HTML.                  | `{ html } \| { error }`           |
 | `convertHtmlToJson` | Convert DA HTML → JSON.                              | `{ json } \| { error }`           |
-| `media.isImage`     | Check whether a media value is an image.             | `boolean`                         |
 
 `createEngine` compiles a schema + initial document into a stateful, mutable handle.
 
@@ -126,7 +125,7 @@ const { json } = convertHtmlToJson({ html });
 
 `convertHtmlToJson` returns `{ error: "<reason>" }` on empty or malformed input.
 
-Pass the document's schema to write `x-semantic-type: "media"` fields as images. EDS then ingests them into the media bus on preview, as it does for images in regular pages. Non-image files such as PDFs or videos are written as links, which EDS keeps, the same way Canvas inserts them. `media.isImage(src)` decides by the path. Only paths ending in JPEG, PNG, GIF, WebP, AVIF or SVG count as images. Everything else, including values without an extension, counts as a file, because a file saved as an image breaks while an image saved as a link still works. Sources are trimmed, and media bus paths are stored without rendition parameters. A schema that cannot be compiled is treated like no schema.
+Pass the document's schema to write `x-semantic-type: "media"` fields as images. EDS then ingests them into the media bus on preview, as it does for images in regular pages. Non-image files such as PDFs or videos are written as links, which EDS keeps, the same way Canvas inserts them. The path decides. Only paths ending in JPEG, PNG, GIF, WebP, AVIF or SVG count as images. Everything else, including values without an extension, counts as a file, because a file saved as an image breaks while an image saved as a link still works. Sources are trimmed, and media bus paths are stored without rendition parameters. A schema that cannot be compiled is treated like no schema.
 
 ```js
 const { html } = convertJsonToHtml({ json, schema });
@@ -197,7 +196,7 @@ import type {
 
 - **Headless.** No UI, no DOM, no rendering. UIs subscribe to `onChange`.
 - **No I/O.** No fetch, no file system, no DA endpoints. Callers wire their own transport.
-- **Six named exports.** The `package.json` `exports` map blocks deep imports. Five functions and the `media` namespace are the entire public API and the intended semver boundary.
+- **Five named exports.** The `package.json` `exports` map blocks deep imports. The five exports are the entire public API and the intended semver boundary.
 - **Strict schema subset.** A strict subset of JSON Schema 2020-12 — see [docs/schema-spec.md](docs/schema-spec.md). Anything outside that contract surfaces in `schemaIssues`.
 - **Not** for general JSON Schema validation.
 

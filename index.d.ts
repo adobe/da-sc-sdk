@@ -263,7 +263,8 @@ export function validateData(options?: {
  *
  * Pass the document's `schema` to write `x-semantic-type: media` fields as
  * `<img>`, so EDS ingests them into the media bus. Non-image files, judged by
- * `media.isImage`, are written as links that EDS keeps. Sources are trimmed,
+ * the extension of their path, are written as links that EDS keeps. Only JPEG,
+ * PNG, GIF, WebP, AVIF and SVG paths are images. Sources are trimmed,
  * and media bus paths lose their rendition parameters. Without a schema, or with one that cannot be
  * compiled, every value is written as text.
  */
@@ -271,17 +272,6 @@ export function convertJsonToHtml(options: {
   json: Document;
   schema?: unknown;
 }): { html: string } | { error: string };
-
-/** Media helpers, grouped under one namespace. */
-export const media: {
-  /**
-   * Whether a media value is an image EDS can deliver, judged by its path.
-   * Only JPEG, PNG, GIF, WebP, AVIF and SVG paths are images. Other extensions
-   * and values without an extension, such as the AEM Assets video rendition
-   * `/play`, are files.
-   */
-  isImage(src: string): boolean;
-};
 
 /**
  * DA wire-format HTML → JSON. Symmetric pair with `convertJsonToHtml`.

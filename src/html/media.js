@@ -62,6 +62,3 @@ export function isMediaImage(src) {
   }
   return IMAGE_EXTENSIONS.has(extensionOf(pathOf(src)));
 }
-
-// Public media helpers of the SDK.
-export const media = Object.freeze({ isImage: isMediaImage });
