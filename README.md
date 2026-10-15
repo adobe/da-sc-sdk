@@ -125,20 +125,20 @@ const { json } = convertHtmlToJson({ html });
 
 `convertHtmlToJson` returns `{ error: "<reason>" }` on empty or malformed input.
 
-Pass the document's schema to write `x-semantic-type: "media"` fields as images. EDS then ingests them into the media bus on preview, as it does for images in regular pages. Non-image files such as PDFs or videos are written as links, which EDS keeps, the same way Canvas inserts them. The path decides. Only paths ending in JPEG, PNG, GIF, WebP, AVIF or SVG count as images. Everything else, including values without an extension, counts as a file, because a file saved as an image breaks while an image saved as a link still works. Sources are trimmed, and media bus paths are stored without rendition parameters. A schema that cannot be compiled is treated like no schema.
+Pass the document's schema to write `x-semantic-type: "asset"` fields as images. EDS then ingests them into the media bus on preview, as it does for images in regular pages. Non-image files such as PDFs or videos are written as links, which EDS keeps, the same way Canvas inserts them. The path decides. Only paths ending in JPEG, PNG, GIF, WebP, AVIF or SVG count as images. Everything else, including values without an extension, counts as a file, because a file saved as an image breaks while an image saved as a link still works. Sources are trimmed, and media bus paths are stored without rendition parameters. A schema that cannot be compiled is treated like no schema.
 
 ```js
 const { html } = convertJsonToHtml({ json, schema });
 ```
 
-`convertHtmlToJson` reads a cell or list item that holds an image and no text as the image's `src`. Text always wins over an image, and a link reads as its text, which is the URL. On delivered pages, EDS has replaced images with media bus paths relative to the page. Pass the page URL as `media.base` so consumers get absolute URLs, resolved the way a browser resolves them on that page, without rendition parameters.
+`convertHtmlToJson` reads a cell or list item that holds an image and no text as the image's `src`. Text always wins over an image, and a link reads as its text, which is the URL. On delivered pages, EDS has replaced images with media bus paths relative to the page. Pass the page URL as `asset.base` so consumers get absolute URLs, resolved the way a browser resolves them on that page, without rendition parameters.
 
 ```js
-const { json } = convertHtmlToJson({ html, media: { base: "https://main--site--org.aem.page/players/ada" } });
+const { json } = convertHtmlToJson({ html, asset: { base: "https://main--site--org.aem.page/players/ada" } });
 // image value: "https://main--site--org.aem.page/players/media_<hash>.jpg"
 ```
 
-Without `media.base`, image values stay relative to the page, for example `./media_<hash>.jpg`.
+Without `asset.base`, image values stay relative to the page, for example `./media_<hash>.jpg`.
 
 ### Edit (with persistence)
 

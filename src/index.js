@@ -39,11 +39,11 @@ export { validateData } from './state-engine/index.js';
 // JSON → DA wire-format HTML. Prunes empty/null/whitespace leaves before
 // emitting (same shape the engine saves). Pure string builder, no DOM.
 // `convertJsonToHtml({ json, schema? })` returns `{ html } | { error }`.
-// With a schema, media fields are written as images, or as links for
+// With a schema, asset fields are written as images, or as links for
 // non-image files.
 export { convertJsonToHtml } from './html/json2html.js';
 
 // DA wire-format HTML → JSON. Symmetric pair with `convertJsonToHtml`.
-// `convertHtmlToJson({ html, media? })` returns `{ json } | { error }`.
-// With the page URL as `media.base`, media bus images come back as absolute URLs.
+// `convertHtmlToJson({ html, asset? })` returns `{ json } | { error }`.
+// With the page URL as `asset.base`, media bus images come back as absolute URLs.
 export { convertHtmlToJson } from './html/html2json.js';

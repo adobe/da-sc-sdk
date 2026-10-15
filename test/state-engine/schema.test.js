@@ -78,30 +78,30 @@ describe('compileSchema', () => {
       expect(body.semanticType).to.equal('long-text');
     });
 
-    it('captures a media semantic type for a string without changing its value kind', () => {
+    it('captures an asset semantic type for a string without changing its value kind', () => {
       const { definition } = compileSchema({
         type: 'object',
-        properties: { hero: { type: 'string', title: 'Hero', 'x-semantic-type': 'media' } },
+        properties: { hero: { type: 'string', title: 'Hero', 'x-semantic-type': 'asset' } },
       });
       const hero = definition.children[0];
       expect(hero.kind).to.equal('string');
-      expect(hero.semanticType).to.equal('media');
+      expect(hero.semanticType).to.equal('asset');
     });
 
-    it('ignores media semantics on a non-string field', () => {
+    it('ignores asset semantics on a non-string field', () => {
       const { definition } = compileSchema({
         type: 'object',
-        properties: { hero: { type: 'object', 'x-semantic-type': 'media' } },
+        properties: { hero: { type: 'object', 'x-semantic-type': 'asset' } },
       });
       expect(definition.children[0].semanticType).to.equal(undefined);
     });
 
-    it('lets an enum or supported format take precedence over media semantics', () => {
+    it('lets an enum or supported format take precedence over asset semantics', () => {
       const { definition } = compileSchema({
         type: 'object',
         properties: {
-          option: { type: 'string', enum: ['first'], 'x-semantic-type': 'media' },
-          date: { type: 'string', format: 'date', 'x-semantic-type': 'media' },
+          option: { type: 'string', enum: ['first'], 'x-semantic-type': 'asset' },
+          date: { type: 'string', format: 'date', 'x-semantic-type': 'asset' },
         },
       });
       expect(definition.children[0].semanticType).to.equal(undefined);

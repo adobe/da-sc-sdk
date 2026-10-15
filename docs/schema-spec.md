@@ -210,7 +210,7 @@ anything else is ignored.
 
 | Keyword | Type | Applies to | Effect |
 | ------- | ---- | ---------- | ------ |
-| `x-semantic-type` | string | `string` | Declares the semantic kind of a `string` value. Defined values: `long-text` (multi-line text) and `media` (one media reference). |
+| `x-semantic-type` | string | `string` | Declares the semantic kind of a `string` value. Defined values: `long-text` (multi-line text) and `asset` (one asset reference). |
 
 #### `x-semantic-type`
 
@@ -221,18 +221,18 @@ single-line value.
 { "type": "string", "title": "Summary", "maxLength": 2000, "x-semantic-type": "long-text" }
 ```
 
-`media` declares that the string contains a single media reference, such as an image.
-It changes the editor's presentation, not the stored value or validation. The media
+`asset` declares that the string contains a single asset reference, such as an image or a
+PDF. It changes the editor's presentation, not the stored value or validation. The asset
 bytes remain at their source, such as EDS Media Bus or AEM Assets. Editors decide which
-media kinds they accept.
+asset kinds they accept.
 
 ```json
-{ "type": "string", "title": "Hero image", "x-semantic-type": "media" }
+{ "type": "string", "title": "Hero image", "x-semantic-type": "asset" }
 ```
 
 - Valid only on `string`; on any other type it is ignored.
 - If `enum` or a supported `format` is also present, that keyword applies and `x-semantic-type` has no effect (it is vendor glue; the standard keyword wins).
-- `long-text` and `media` are the defined values; any other value is ignored.
+- `long-text` and `asset` are the defined values; any other value is ignored.
 - Does not affect validation — `minLength`, `maxLength`, and `pattern` apply independently.
 
 ---

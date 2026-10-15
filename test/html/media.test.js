@@ -15,7 +15,7 @@ import { convertJsonToHtml } from '../../src/html/json2html.js';
 import { convertHtmlToJson } from '../../src/html/html2json.js';
 import { isMediaImage } from '../../src/html/media.js';
 
-const media = (title) => ({ type: 'string', title, 'x-semantic-type': 'media' });
+const media = (title) => ({ type: 'string', title, 'x-semantic-type': 'asset' });
 
 const schema = {
   type: 'object',
@@ -28,8 +28,8 @@ const schema = {
       type: 'array',
       items: { type: 'object', properties: { slides: { type: 'array', items: media('Slide') } } },
     },
-    fit: { type: 'string', enum: ['cover'], 'x-semantic-type': 'media' },
-    day: { type: 'string', format: 'date', 'x-semantic-type': 'media' },
+    fit: { type: 'string', enum: ['cover'], 'x-semantic-type': 'asset' },
+    day: { type: 'string', format: 'date', 'x-semantic-type': 'asset' },
   },
 };
 
@@ -243,7 +243,7 @@ describe('media fields', () => {
       expect(readHero(cell)).to.equal('about:error');
       const withBase = convertHtmlToJson({
         html: page(cell),
-        media: { base: 'https://main--site--org.aem.page/players/ada' },
+        asset: { base: 'https://main--site--org.aem.page/players/ada' },
       });
       expect(withBase.json.data.hero).to.equal('about:error');
     });
@@ -295,12 +295,12 @@ describe('media fields', () => {
       expect(imageSources(writeHero(legacy, schema))).to.deep.equal([sources.upload]);
     });
 
-    describe('with media.base', () => {
+    describe('with asset.base', () => {
       const origin = 'https://main--site--org.aem.page';
       const pageHref = `${origin}/players/ada`;
       const readWithBase = (cell, base = pageHref) => convertHtmlToJson({
         html: page(cell),
-        media: { base },
+        asset: { base },
       });
 
       it('resolves media bus images against the page like a browser', () => {
@@ -337,7 +337,7 @@ describe('media fields', () => {
       it('returns an error for a base that is not an absolute http or https URL', () => {
         ['site.aem.page', '/players', 'ftp://x.test', ''].forEach((invalid) => {
           expect(readWithBase('<div><p>x</p></div>', invalid).error, invalid)
-            .to.equal('media.base must be an absolute http or https URL.');
+            .to.equal('asset.base must be an absolute http or https URL.');
         });
       });
 

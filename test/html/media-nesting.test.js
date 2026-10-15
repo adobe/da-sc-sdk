@@ -17,7 +17,7 @@ import { convertHtmlToJson } from '../../src/html/html2json.js';
 // A document with media at every nesting level the wire format supports: fields, arrays,
 // objects in arrays, arrays of arrays and objects in objects, with text and files as siblings.
 
-const media = { type: 'string', 'x-semantic-type': 'media' };
+const media = { type: 'string', 'x-semantic-type': 'asset' };
 const text = { type: 'string' };
 
 const schema = {
@@ -197,7 +197,7 @@ describe('deeply nested media', () => {
     const folder = 'https://main--site--org.aem.live/events';
     const { json: delivered } = convertHtmlToJson({
       html: deliverLikeEds(html),
-      media: { base: `${folder}/summit` },
+      asset: { base: `${folder}/summit` },
     });
     expect(delivered).to.deep.equal({
       ...json,

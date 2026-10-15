@@ -151,20 +151,20 @@ convertJsonToHtml({ json, schema? })
   └─ html = json2html({ ...json, data: pruned }, definition)
        ├─ build <body><main><div>…</div></main></body> via template literals
        ├─ recursively emit <div class="<schemaName>"> nodes for nested objects/arrays
-       └─ write `x-semantic-type: media` strings as <img src="…" alt="">, or as
+       └─ write `x-semantic-type: asset` strings as <img src="…" alt="">, or as
           <a href="…">…</a> for non-image files, all else as text
   return { html }
 ```
 
 Pure string builder. No DOM, no async. Symmetric with `convertHtmlToJson`.
 
-### 3.4. `convertHtmlToJson({ html, media? })`
+### 3.4. `convertHtmlToJson({ html, asset? })`
 
 ```txt
-convertHtmlToJson({ html, media? })
+convertHtmlToJson({ html, asset? })
   ├─ shape-check: html is a non-empty string
   │    └─ if not: return { error: '...' }
-  ├─ if media.base is given, check that it is an absolute http(s) URL
+  ├─ if asset.base is given, check that it is an absolute http(s) URL
   │    └─ if invalid: return { error: '...' }
   ├─ parse via hast-util-from-html (parse5 internally)
   ├─ walk the hast tree:

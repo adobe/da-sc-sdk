@@ -261,7 +261,7 @@ export function validateData(options?: {
  * before emitting (same shape the editor saves). Pure string builder,
  * no DOM. Symmetric pair with `convertHtmlToJson`.
  *
- * Pass the document's `schema` to write `x-semantic-type: media` fields as
+ * Pass the document's `schema` to write `x-semantic-type: asset` fields as
  * `<img>`, so EDS ingests them into the media bus. Non-image files, judged by
  * the extension of their path, are written as links that EDS keeps. Only JPEG,
  * PNG, GIF, WebP, AVIF and SVG paths are images. Sources are trimmed,
@@ -278,7 +278,7 @@ export function convertJsonToHtml(options: {
  * A value cell or list item without text but with an `<img>` reads as its
  * trimmed `src`. Text always wins. Media bus paths drop their rendition
  * query and fragment.
- * Pass the page URL as `media.base` (for example
+ * Pass the page URL as `asset.base` (for example
  * `https://main--site--org.aem.page/foo/bar`) when reading a delivered EDS
  * page, so media bus paths come back as absolute URLs, resolved like a browser
  * resolves them on that page. Without it they stay relative to the page, for
@@ -287,7 +287,7 @@ export function convertJsonToHtml(options: {
  */
 export function convertHtmlToJson(options?: {
   html: string;
-  media?: {
+  asset?: {
     base?: string;
   };
 }): { json: Document } | { error: string };

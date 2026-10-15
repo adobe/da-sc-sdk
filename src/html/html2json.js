@@ -227,17 +227,17 @@ export default class HTMLConverter {
 // pair with `convertJsonToHtml`. Returns `{ json } | { error }` so callers
 // see a clear reason on failure instead of a silent null.
 //
-// Pass the URL of a delivered EDS page as `media.base`, for example
+// Pass the URL of a delivered EDS page as `asset.base`, for example
 // `https://main--site--org.aem.page/folder/x`, to return its media bus
 // images as absolute URLs, resolved like a browser resolves them on the page.
 // Without it they stay relative to the page.
-export function convertHtmlToJson({ html, media } = {}) {
+export function convertHtmlToJson({ html, asset } = {}) {
   if (typeof html !== 'string' || !html.trim()) {
     return { error: 'html must be a non-empty string.' };
   }
-  const mediaBase = media?.base !== undefined ? httpHref(media.base) : undefined;
+  const mediaBase = asset?.base !== undefined ? httpHref(asset.base) : undefined;
   if (mediaBase === null) {
-    return { error: 'media.base must be an absolute http or https URL.' };
+    return { error: 'asset.base must be an absolute http or https URL.' };
   }
   try {
     return { json: new HTMLConverter(html, { mediaBase }).json };

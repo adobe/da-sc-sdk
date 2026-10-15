@@ -54,13 +54,13 @@ function block(name, innerHtml) {
   return `<div class="${escapeAttr(name.toLowerCase())}">${innerHtml}</div>`;
 }
 
-function isMedia(definition, value) {
-  return definition?.semanticType === 'media' && typeof value === 'string' && value.trim() !== '';
+function isAsset(definition, value) {
+  return definition?.semanticType === 'asset' && typeof value === 'string' && value.trim() !== '';
 }
 
 // Images are written as `<img>` so EDS ingests them into the media bus. Other
 // files are written as links that EDS keeps.
-function mediaHtml(src) {
+function assetHtml(src) {
   const value = normalizeMediaSource(src);
   if (isMediaImage(value)) {
     return `<img src="${escapeAttr(value)}" alt="">`;
@@ -85,8 +85,8 @@ function arrayItemLi(key, item, nestedBlocks, definition) {
     // eslint-disable-next-line no-use-before-define
     return selfRefLi(key, nestedBlock(key, item, nestedBlocks, definition));
   }
-  if (isMedia(definition, item)) {
-    return `<li>${mediaHtml(item)}</li>`;
+  if (isAsset(definition, item)) {
+    return `<li>${assetHtml(item)}</li>`;
   }
   return `<li>${textContent(item)}</li>`;
 }
@@ -132,8 +132,8 @@ function valueCol(key, value, nestedBlocks, definition) {
     return `<div><p>${textContent(`self://#${key.toLowerCase()}-${objGuid}`)}</p></div>`;
   }
 
-  if (isMedia(definition, value)) {
-    return `<div><p>${mediaHtml(value)}</p></div>`;
+  if (isAsset(definition, value)) {
+    return `<div><p>${assetHtml(value)}</p></div>`;
   }
   return `<div><p>${textContent(value)}</p></div>`;
 }
@@ -164,7 +164,7 @@ function dataBlock(schemaName, data, nestedBlocks, definition) {
 
 // Raw JSON → DA wire-format HTML. Default export; kept for the public
 // `convertJsonToHtml` wrapper below and for tests. No pruning happens here.
-// `definition` is an optional compiled schema node that identifies media fields.
+// `definition` is an optional compiled schema node that identifies asset fields.
 export default function json2html(json, definition) {
   const { metadata, data } = json;
   const { schemaName } = metadata;
@@ -179,7 +179,7 @@ export default function json2html(json, definition) {
 // HTML. Mirrors what the editor saves. Symmetric pair with
 // `convertHtmlToJson` from html2json.js.
 //
-// With an optional `schema`, `x-semantic-type: media` fields are written as
+// With an optional `schema`, `x-semantic-type: asset` fields are written as
 // `<img>` so EDS ingests them, and non-image files as links that EDS keeps.
 // Without a schema, every value is written as text.
 //

@@ -25,8 +25,8 @@ const schema = {
   type: 'object',
   properties: {
     headline: { type: 'string' },
-    hero: { type: 'string', 'x-semantic-type': 'media' },
-    thumbnail: { type: 'string', 'x-semantic-type': 'media' },
+    hero: { type: 'string', 'x-semantic-type': 'asset' },
+    thumbnail: { type: 'string', 'x-semantic-type': 'asset' },
   },
 };
 
@@ -51,7 +51,7 @@ describe('media fields from editor to delivery', () => {
     const html = await readFixture('mediaForm.eds.html');
     const expected = await readJsonFixture('mediaForm.eds.json');
     const base = 'https://main--site--org.aem.live/articles/sample';
-    const { json } = convertHtmlToJson({ html, media: { base } });
+    const { json } = convertHtmlToJson({ html, asset: { base } });
     expect(json).to.deep.equal(expected);
   });
 
@@ -83,7 +83,7 @@ describe('nested media fields from editor to delivery', () => {
         properties: {
           profileImage: {
             type: 'object',
-            properties: { src: { type: 'string', 'x-semantic-type': 'media' } },
+            properties: { src: { type: 'string', 'x-semantic-type': 'asset' } },
           },
         },
       },
@@ -107,7 +107,7 @@ describe('nested media fields from editor to delivery', () => {
     const html = await readFixture('nestedMediaForm.eds.html');
     const expected = await readJsonFixture('nestedMediaForm.eds.json');
     const base = 'https://main--site--org.aem.live/players/ilya-moreau';
-    const { json } = convertHtmlToJson({ html, media: { base } });
+    const { json } = convertHtmlToJson({ html, asset: { base } });
     expect(json).to.deep.equal(expected);
   });
 

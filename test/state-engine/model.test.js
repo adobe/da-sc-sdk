@@ -82,11 +82,11 @@ describe('buildModel', () => {
     expect(nodeAt({ model, pointer: '/data/body' })?.semanticType).to.equal('long-text');
   });
 
-  it('retains a media URL as a string while surfacing media semantics', () => {
+  it('retains an asset URL as a string while surfacing asset semantics', () => {
     const href = './media_example.png';
-    const def = objectDef([stringDef('hero', { semanticType: 'media' })]);
+    const def = objectDef([stringDef('hero', { semanticType: 'asset' })]);
     const model = buildModel({ definition: def, document: { data: { hero: href } } });
-    expect(nodeAt({ model, pointer: '/data/hero' })?.semanticType).to.equal('media');
+    expect(nodeAt({ model, pointer: '/data/hero' })?.semanticType).to.equal('asset');
     expect(nodeAt({ model, pointer: '/data/hero' })?.value).to.equal(href);
   });
 
