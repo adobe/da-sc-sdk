@@ -89,6 +89,9 @@ Every node carries the same base fields, plus kind-specific extras.
   // string with date/time format:
   format:      '…',        // 'date' | 'time' | 'date-time' — editor renders a date/time control
 
+  // string with x-semantic-type:
+  semanticType: '…',       // 'long-text' | 'asset' — editor picks the control; convertJsonToHtml writes assets as images or links
+
   // unsupported:
   unsupported: { reason, feature, compositionKeyword, variants, schemaPath },
 }
@@ -344,6 +347,7 @@ Use `appendPointer`, `unescapePointerSegment`, and friends from [state-engine/po
 | `sidebar.js` — navigation | Recursive walk; only renders nodes where `kind === 'object'` or `kind === 'array'`. Selecting a node emits its `pointer`. |
 | `validation.js` | `traverse(root)` visits every node and adds ajv-style errors (`{ keyword, instancePath, params, message }`) to a pointer-keyed map. The map is exposed as `state.validation.errors`. |
 | DOM ↔ data | `byPointer[pointer]` for `O(1)` lookup. Used by scroll-into-view, error highlighting, and any UI that needs to jump from a click target back to its node. |
+| `convertJsonToHtml` | Reads `semanticType` from `getState().model` to write `asset` fields as images or links (see [lifecycle.md §3.3](./lifecycle.md)). Array items are merged into one entry per array, because pruning empty values shifts item indexes. |
 | `mutate.js` | Mutations operate on the document by pointer (`applySet`, `applyAdd`, etc.). After the mutation, `buildModel` runs again — the new model reflects the new document. |
 
 The model is read-only from a consumer's perspective. Mutations always go through `engine.setField` / `engine.addItem` / etc., which mutate the document and rebuild the model. Never edit nodes in place.

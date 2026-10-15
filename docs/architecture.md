@@ -28,6 +28,7 @@ da-sc-sdk/
     html/             DA wire-format HTML ↔ JSON
       html2json.js      parse DA HTML → JSON; HTMLConverter class + convertHtmlToJson({ html, asset? })
       json2html.js      emit JSON → DA HTML; defines convertJsonToHtml (public) + json2html (internal raw)
+      field-map.js      model → semantic types by key path, for the emit path
       utils.js          prune helper shared by the emit path
   dist/
     index.js          self-contained ESM bundle for vendor / CDN consumers
@@ -97,7 +98,7 @@ The SDK exposes exactly five named exports from `'da-sc-sdk'`. The surface is na
 | `createEngine({ schema, document, onChange })` | [src/state-engine/index.js](../src/state-engine/index.js) | Stateful JSON state engine — initialized synchronously, exposes mutations and validation. Returns `{ getState, setField, addItem, insertItem, removeItem, moveItem }`. Pure state machine: no persistence, no I/O. `onChange` is NOT called at construction; initial state is read via `engine.getState()`. To swap (schema, document), create a new engine. |
 | `validateSchema({ schema })` | [src/state-engine/index.js](../src/state-engine/index.js) | Schema-only validation. Returns `{ valid, schemaIssues }`. Use to check that a schema is well-formed before binding to it. |
 | `validateData({ schema, data })` | [src/state-engine/index.js](../src/state-engine/index.js) | Data-against-schema validation. Returns `{ valid, errors, schemaIssues }`. `errors` is a pointer-keyed map of ajv-style entries. `valid` is `true` iff both `schemaIssues` and `errors` are empty. Symmetric with `validateSchema`: both validators expose `valid` + `schemaIssues`; `validateData` adds `errors`. |
-| `convertJsonToHtml({ json, schema? })` | [src/html/json2html.js](../src/html/json2html.js) | JSON → DA wire-format HTML. Prunes empty/null/whitespace leaves before emitting (same shape the engine would save). With a schema, `x-semantic-type: asset` fields are written as `<img>` so EDS ingests them, and non-image files as links, judged by the extension of their path. Pure string builder, no DOM. Returns `{ html } \| { error }`. |
+| `convertJsonToHtml({ json, model? })` | [src/html/json2html.js](../src/html/json2html.js) | JSON → DA wire-format HTML. Prunes empty/null/whitespace leaves before emitting (same shape the engine would save). With the engine's model, `x-semantic-type: asset` fields are written as `<img>` so EDS ingests them, and non-image files as links, judged by the extension of their path. Pure string builder, no DOM. Returns `{ html } \| { error }`. |
 | `convertHtmlToJson({ html, asset? })` | [src/html/html2json.js](../src/html/html2json.js) | DA wire-format HTML → JSON. A cell without text but with an `<img>` reads as its source. With the page URL as `asset.base`, media bus images come back as absolute URLs, resolved against the page. Returns `{ json } \| { error }` so a malformed input produces a clear reason instead of a silent null. |
 
 ### Everything else is internal — and unreachable

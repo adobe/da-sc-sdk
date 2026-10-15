@@ -12,9 +12,8 @@
 
 import { expect } from '@esm-bundle/chai';
 import { readFile } from '@web/test-runner-commands';
-import { convertJsonToHtml } from '../../src/html/json2html.js';
 import { convertHtmlToJson } from '../../src/html/html2json.js';
-import { cleanHtmlWhitespace, normalizeHtml } from './test-utils.js';
+import { cleanHtmlWhitespace, normalizeHtml, save } from './test-utils.js';
 
 // Fixtures captured from a real document, with anonymized content, hosts and IDs.
 // `mediaForm.da.html` is the DA source the editor saved, with an AEM Assets
@@ -38,7 +37,7 @@ describe('media fields from editor to delivery', () => {
     const json = await readJsonFixture('mediaForm.da.json');
     // The fixture is pretty-printed for reading. The editor saves it on one line.
     const saved = cleanHtmlWhitespace(await readFixture('mediaForm.da.html'));
-    expect(convertJsonToHtml({ json, schema }).html).to.equal(saved);
+    expect(save({ json, schema }).html).to.equal(saved);
   });
 
   it('reads the DA source back to the original image URLs', async () => {
@@ -93,7 +92,7 @@ describe('nested media fields from editor to delivery', () => {
   it('writes the DA source the editor saved', async () => {
     const json = await readJsonFixture('nestedMediaForm.da.json');
     const saved = await readFixture('nestedMediaForm.da.html');
-    const { html } = convertJsonToHtml({ json, schema: nestedSchema });
+    const { html } = save({ json, schema: nestedSchema });
     expect(normalizeHtml(html)).to.equal(normalizeHtml(saved));
   });
 

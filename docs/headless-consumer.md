@@ -64,11 +64,11 @@ engine = createEngine({
   schema,
   document: { metadata: { schemaName: 'project' }, data: {} },
   onChange: () => {
-    const next = engine.getState().document;
+    const { document: next, model } = engine.getState();
     if (next === lastValues) return;     // ignore non-mutation transitions
     lastValues = next;
 
-    const { html, error } = convertJsonToHtml({ json: next, schema });
+    const { html, error } = convertJsonToHtml({ json: next, model });
     if (error) return;
     // ...POST `html` to your storage, write to disk, push to git, etc...
   },

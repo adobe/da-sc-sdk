@@ -24,7 +24,8 @@ const original = {
 
 // JSON → HTML. The metadata block becomes the `<div class="da-form">`,
 // the data block becomes `<div class="project">`, and nested objects/arrays
-// become referenced child blocks.
+// become referenced child blocks. Without a model every value is written as
+// text; see edit.js for passing the engine's model so asset fields become images.
 const { html, error } = convertJsonToHtml({ json: original });
 if (error) {
   console.error('convertJsonToHtml failed:', error);

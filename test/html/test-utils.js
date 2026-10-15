@@ -10,6 +10,18 @@
  * governing permissions and limitations under the License.
  */
 
+import { createEngine } from '../../src/index.js';
+import { convertJsonToHtml } from '../../src/html/json2html.js';
+
+export const modelOf = (schema, json) => createEngine({ schema, document: json }).getState().model;
+
+// Saves `json` the way the editor does: with the model the engine builds for
+// it from `schema`. Without a schema, no model is passed.
+export const save = ({ json, schema }) => convertJsonToHtml({
+  json,
+  model: schema === undefined ? undefined : modelOf(schema, json),
+});
+
 export function cleanHtmlWhitespace(html) {
   return html.replace(/>\s+</g, '><').trim().replace(/\s+/g, ' ').trim();
 }

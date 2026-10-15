@@ -54,7 +54,8 @@ engine.setField("/data/name", "Alice");
 engine.addItem("/data/tags");
 engine.setField("/data/tags/0", "demo");
 
-const { html } = convertJsonToHtml({ json: engine.getState().document, schema });
+const { document, model } = engine.getState();
+const { html } = convertJsonToHtml({ json: document, model });
 // `html` is ready to POST. Persistence is your job.
 ```
 
@@ -125,10 +126,18 @@ const { json } = convertHtmlToJson({ html });
 
 `convertHtmlToJson` returns `{ error: "<reason>" }` on empty or malformed input.
 
-Pass the document's schema to write `x-semantic-type: "asset"` fields as images. EDS then ingests them into the media bus on preview, as it does for images in regular pages. Non-image files such as PDFs or videos are written as links, which EDS keeps, the same way Canvas inserts them. The path decides. Only paths ending in JPEG, PNG, GIF, WebP, AVIF or SVG count as images. Everything else, including values without an extension, counts as a file, because a file saved as an image breaks while an image saved as a link still works. Sources are trimmed, and media bus paths are stored without rendition parameters. A schema that cannot be compiled is treated like no schema.
+Pass the document's model (`engine.getState().model`) to write `x-semantic-type: "asset"` fields as images. EDS then ingests them into the media bus on preview, as it does for images in regular pages. Non-image files such as PDFs or videos are written as links, which EDS keeps, the same way Canvas inserts them. The path decides. Only paths ending in JPEG, PNG, GIF, WebP, AVIF or SVG count as images. Everything else, including values without an extension, counts as a file, because a file saved as an image breaks while an image saved as a link still works. Sources are trimmed, and media bus paths are stored without rendition parameters. The model must be built from the same document. Anything that is not a model, including the model of a schema with issues (`null`), is treated like no model, so every value is written as text.
 
 ```js
-const { html } = convertJsonToHtml({ json, schema });
+const { document, model } = engine.getState();
+const { html } = convertJsonToHtml({ json: document, model });
+```
+
+Without an editor, build the model from the schema:
+
+```js
+const { model } = createEngine({ schema, document: json }).getState();
+const { html } = convertJsonToHtml({ json, model });
 ```
 
 `convertHtmlToJson` reads a cell or list item that holds an image and no text as the image's `src`. Text always wins over an image, and a link reads as its text, which is the URL. On delivered pages, EDS has replaced images with media bus paths relative to the page. Pass the page URL as `asset.base` so consumers get absolute URLs, resolved the way a browser resolves them on that page, without rendition parameters.
@@ -151,10 +160,10 @@ engine = createEngine({
   schema,
   document,
   onChange: () => {
-    const next = engine.getState().document;
+    const { document: next, model } = engine.getState();
     if (next === lastValues) return; // skip non-mutation transitions
     lastValues = next;
-    // convert via convertJsonToHtml({ json: next, schema }), POST, IndexedDB-cache — whatever fits
+    // convert via convertJsonToHtml({ json: next, model }), POST, IndexedDB-cache — whatever fits
   },
 });
 lastValues = engine.getState().document; // onChange does NOT fire at init

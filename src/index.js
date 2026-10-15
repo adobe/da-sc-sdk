@@ -38,9 +38,9 @@ export { validateData } from './state-engine/index.js';
 
 // JSON → DA wire-format HTML. Prunes empty/null/whitespace leaves before
 // emitting (same shape the engine saves). Pure string builder, no DOM.
-// `convertJsonToHtml({ json, schema? })` returns `{ html } | { error }`.
-// With a schema, asset fields are written as images, or as links for
-// non-image files.
+// `convertJsonToHtml({ json, model? })` returns `{ html } | { error }`.
+// With the engine's model, asset fields are written as images, or as links
+// for non-image files.
 export { convertJsonToHtml } from './html/json2html.js';
 
 // DA wire-format HTML → JSON. Symmetric pair with `convertJsonToHtml`.

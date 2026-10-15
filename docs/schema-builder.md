@@ -133,6 +133,9 @@ What `compileNode` produces. This is the shape `buildModel` expects.
   // string with date/time format:
   format:      '…',        // 'date' | 'time' | 'date-time'
 
+  // string with x-semantic-type (ignored when enum or format applies):
+  semanticType: '…',       // 'long-text' | 'asset'
+
   // unsupported:
   unsupported: { reason, feature, compositionKeyword, variants, schemaPath, details },
 }

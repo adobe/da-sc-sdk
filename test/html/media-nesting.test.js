@@ -11,8 +11,8 @@
  */
 
 import { expect } from '@esm-bundle/chai';
-import { convertJsonToHtml } from '../../src/html/json2html.js';
 import { convertHtmlToJson } from '../../src/html/html2json.js';
+import { save } from './test-utils.js';
 
 // A document with media at every nesting level the wire format supports: fields, arrays,
 // objects in arrays, arrays of arrays and objects in objects, with text and files as siblings.
@@ -157,7 +157,7 @@ function mapImages(value, toUrl) {
 }
 
 describe('deeply nested media', () => {
-  const { html } = convertJsonToHtml({ json, schema });
+  const { html } = save({ json, schema });
   const written = parse(html);
 
   it('writes every image as an image, every file as a link and every text as text', () => {
@@ -207,7 +207,7 @@ describe('deeply nested media', () => {
 
   it('writes the read document to the same structure again', () => {
     const { json: read } = convertHtmlToJson({ html });
-    const { html: rewritten } = convertJsonToHtml({ json: read, schema });
+    const { html: rewritten } = save({ json: read, schema });
     expect(convertHtmlToJson({ html: rewritten }).json).to.deep.equal(json);
     expect(rewritten.replace(/-[a-z0-9]{1,6}\b/g, '-ID'))
       .to.equal(html.replace(/-[a-z0-9]{1,6}\b/g, '-ID'));

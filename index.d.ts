@@ -261,16 +261,18 @@ export function validateData(options?: {
  * before emitting (same shape the editor saves). Pure string builder,
  * no DOM. Symmetric pair with `convertHtmlToJson`.
  *
- * Pass the document's `schema` to write `x-semantic-type: asset` fields as
- * `<img>`, so EDS ingests them into the media bus. Non-image files, judged by
- * the extension of their path, are written as links that EDS keeps. Only JPEG,
- * PNG, GIF, WebP, AVIF and SVG paths are images. Sources are trimmed,
- * and media bus paths lose their rendition parameters. Without a schema, or with one that cannot be
- * compiled, every value is written as text.
+ * Pass the document's `model` (`engine.getState().model`) to write
+ * `x-semantic-type: asset` fields as `<img>`, so EDS ingests them into the
+ * media bus. Non-image files, judged by the extension of their path, are
+ * written as links that EDS keeps. Only JPEG, PNG, GIF, WebP, AVIF and SVG
+ * paths are images. Sources are trimmed, and media bus paths lose their
+ * rendition parameters. The model must be built from the same document.
+ * Without a model, or with anything that is not one, every value is written
+ * as text.
  */
 export function convertJsonToHtml(options: {
   json: Document;
-  schema?: unknown;
+  model?: Model | null;
 }): { html: string } | { error: string };
 
 /**

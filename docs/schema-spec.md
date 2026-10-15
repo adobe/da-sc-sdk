@@ -222,9 +222,9 @@ single-line value.
 ```
 
 `asset` declares that the string contains a single asset reference, such as an image or a
-PDF. It changes the editor's presentation, not the stored value or validation. The asset
-bytes remain at their source, such as EDS Media Bus or AEM Assets. Editors decide which
-asset kinds they accept.
+PDF. It does not change the JSON value or validation. The asset bytes remain at their source,
+and the value only references them. Editors decide which asset kinds they accept. How
+`convertJsonToHtml` writes asset values is described in the [README](../README.md).
 
 ```json
 { "type": "string", "title": "Hero image", "x-semantic-type": "asset" }

@@ -25,6 +25,7 @@ const schema = {
     name: { type: 'string', title: 'Name' },
     status: { type: 'string', title: 'Status', enum: ['Draft', 'Active'] },
     tags: { type: 'array', title: 'Tags', items: { type: 'string', title: 'Tag' } },
+    logo: { type: 'string', title: 'Logo', 'x-semantic-type': 'asset' },
   },
 };
 
@@ -33,10 +34,11 @@ const schema = {
 // reference to skip non-mutation transitions (validation refresh, etc).
 const path = '/projects/demo';
 let lastValues;
-const persist = (document) => {
-  const { html, error } = convertJsonToHtml({ json: document, schema });
+const persist = ({ document, model }) => {
+  // The model lets the converter write asset fields as images.
+  const { html, error } = convertJsonToHtml({ json: document, model });
   if (error) { return; }
-  console.log(`[save] ${path} → ${html.length} chars`);
+  console.log(`[save] ${path} → ${html.length} chars, image: ${html.includes('<img ')}`);
 };
 
 let engine;
@@ -48,7 +50,7 @@ const onChange = () => {
   const next = state.document;
   if (next === lastValues) { return; }
   lastValues = next;
-  persist(next);
+  persist(state);
 };
 
 // `metadata.schemaName` is required for convertJsonToHtml() — it becomes the
@@ -72,6 +74,8 @@ engine.setField('/data/name', 'Alice');
 engine.setField('/data/status', 'Active');
 engine.addItem('/data/tags');
 engine.setField('/data/tags/0', 'demo');
+engine.setField('/data/logo', 'https://content.da.live/org/site/logo.png');
+// → [save] … image: true
 
 console.log('---');
 console.log('final  :', JSON.stringify(engine.getState().document, null, 2));
