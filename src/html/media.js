@@ -29,6 +29,20 @@ export function normalizeMediaSource(src) {
   return trimmed.match(MEDIA_BUS_PATH)?.[0] ?? trimmed;
 }
 
+// Whether a normalized media source is safe to write as an image or link: a
+// media bus path or an absolute http(s) URL. Other schemes, such as
+// `javascript:` or `data:`, are rejected.
+export function isAssetSource(src) {
+  if (src.match(MEDIA_BUS_PATH)?.[0] === src) {
+    return true;
+  }
+  try {
+    return ['http:', 'https:'].includes(new URL(src).protocol);
+  } catch {
+    return false;
+  }
+}
+
 // Resolves a media bus path against the URL of the page it was read from, the
 // way a browser does, so `./media_ab12.jpg` on `https://<host>/folder/x`
 // becomes `https://<host>/folder/media_ab12.jpg`. Other sources are returned

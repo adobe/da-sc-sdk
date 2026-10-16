@@ -154,7 +154,8 @@ convertJsonToHtml({ json, model? })
        ├─ build <body><main><div>…</div></main></body> via template literals
        ├─ recursively emit <div class="<schemaName>"> nodes for nested objects/arrays
        └─ write `x-semantic-type: asset` strings as <img src="…" alt="">, or as
-          <a href="…">…</a> for non-image files, all else as text
+          <a href="…">…</a> for non-image files, if the value is a media bus
+          path or an http(s) URL; all else as text
   return { html }
 ```
 

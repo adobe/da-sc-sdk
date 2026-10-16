@@ -129,6 +129,28 @@ describe('media fields', () => {
         .to.include('src="https://x.test/a.png?a=1&amp;b=&quot;2&quot;"');
     });
 
+    it('writes sources that are not media bus paths or http(s) URLs as text', () => {
+      // eslint-disable-next-line no-script-url
+      const scriptUrl = 'javascript:alert(1)';
+      [
+        scriptUrl,
+        ' JavaScript:alert(1).png',
+        'data:image/png;base64,AAAA',
+        'vbscript:msgbox(1)',
+        'file:///etc/passwd.png',
+        '//cdn.example.com/hero.png',
+        '/content/dam/hero.png',
+        'hero.png',
+        './media_ab12.png"><script>',
+      ].forEach((value) => {
+        const html = writeHero(value, schema);
+        expect(html, value).to.not.include('<img');
+        expect(html, value).to.not.include('<a ');
+        expect(parse(html).querySelector('script'), value).to.equal(null);
+      });
+      expect(writeHero(scriptUrl, schema)).to.include(`<p>${scriptUrl}</p>`);
+    });
+
     it('lets enum and date formats take precedence over the media hint', () => {
       const { html } = save({ json: doc({ fit: 'cover', day: '2026-01-01' }), schema });
       expect(html).to.not.include('<img');

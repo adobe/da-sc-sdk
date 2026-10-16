@@ -27,7 +27,7 @@
 // markup is composed from template literals.
 
 import { prune } from './utils.js';
-import { isMediaImage, normalizeMediaSource } from './media.js';
+import { isAssetSource, isMediaImage, normalizeMediaSource } from './media.js';
 import { fieldMap } from './field-map.js';
 
 function escapeText(value) {
@@ -55,7 +55,8 @@ function block(name, innerHtml) {
 }
 
 function isAsset(field, value) {
-  return field?.semanticType === 'asset' && typeof value === 'string' && value.trim() !== '';
+  return field?.semanticType === 'asset' && typeof value === 'string'
+    && isAssetSource(normalizeMediaSource(value));
 }
 
 // Images are written as `<img>` so EDS ingests them into the media bus. Other
