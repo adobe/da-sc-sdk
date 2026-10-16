@@ -27,7 +27,9 @@
 // markup is composed from template literals.
 
 import { prune } from './utils.js';
-import { isAssetSource, isMediaImage, normalizeMediaSource } from './media.js';
+import {
+  isAssetSource, isIngestedImage, isMediaImage, normalizeMediaSource,
+} from './media.js';
 import { fieldMap } from './field-map.js';
 
 function escapeText(value) {
@@ -59,11 +61,14 @@ function isAsset(field, value) {
     && isAssetSource(normalizeMediaSource(value));
 }
 
-// Images are written as `<img>` so EDS ingests them into the media bus. Other
-// files are written as links that EDS keeps.
-function assetHtml(src) {
+// Images are written as `<img>`, which EDS copies into the media bus, and
+// other assets as links. With `externalImagesAsLinks`, only media bus images and
+// images uploaded to DA stay `<img>`; images from other hosts are written as
+// links, so EDS keeps their URL.
+function assetHtml(src, { externalImagesAsLinks }) {
   const value = normalizeMediaSource(src);
-  if (isMediaImage(value)) {
+  const image = externalImagesAsLinks ? isIngestedImage(value) : isMediaImage(value);
+  if (image) {
     return `<img src="${escapeAttr(value)}" alt="">`;
   }
   return `<a href="${escapeAttr(value)}">${escapeText(value)}</a>`;
@@ -83,9 +88,9 @@ function selfRefLi(key, guid, type) {
   return `<li>${selfRef(key, guid, type)}</li>`;
 }
 
-function newBlock(key, innerHtml, nestedBlocks) {
+function newBlock(key, innerHtml, ctx) {
   const guid = Math.random().toString(36).substring(2, 8);
-  nestedBlocks.push(block(`${key} ${key}-${guid}`, innerHtml));
+  ctx.blocks.push(block(`${key} ${key}-${guid}`, innerHtml));
   return guid;
 }
 
@@ -93,45 +98,45 @@ function newBlock(key, innerHtml, nestedBlocks) {
 // so readers know from the reference what the block holds. Like an object
 // block, it has one row per property: `asset` holds the asset, and further
 // properties can be added as rows later.
-function assetBlock(key, src, nestedBlocks) {
-  return newBlock(key, row('asset', `<div><p>${assetHtml(src)}</p></div>`), nestedBlocks);
+function assetBlock(key, src, ctx) {
+  return newBlock(key, row('asset', `<div><p>${assetHtml(src, ctx)}</p></div>`), ctx);
 }
 
-function arrayItemLi(key, item, nestedBlocks, field) {
+function arrayItemLi(key, item, ctx, field) {
   if (Array.isArray(item)) {
     // eslint-disable-next-line no-use-before-define
-    return selfRefLi(key, arrayBlock(key, item, nestedBlocks, field));
+    return selfRefLi(key, arrayBlock(key, item, ctx, field));
   }
   if (typeof item === 'object' && item !== null) {
     // eslint-disable-next-line no-use-before-define
-    return selfRefLi(key, nestedBlock(key, item, nestedBlocks, field));
+    return selfRefLi(key, nestedBlock(key, item, ctx, field));
   }
   if (isAsset(field, item)) {
-    return selfRefLi(key, assetBlock(key, item, nestedBlocks), 'asset');
+    return selfRefLi(key, assetBlock(key, item, ctx), 'asset');
   }
   return `<li>${textContent(item)}</li>`;
 }
 
-function nestedBlock(key, obj, nestedBlocks, field) {
+function nestedBlock(key, obj, ctx, field) {
   const guid = Math.random().toString(36).substring(2, 8);
   const className = `${key} ${key}-${guid}`;
   const rowsHtml = Object.entries(obj).map(([k, v]) => {
     // eslint-disable-next-line no-use-before-define
-    const valColHtml = valueCol(k, v, nestedBlocks, childField(field, k));
+    const valColHtml = valueCol(k, v, ctx, childField(field, k));
     return row(k, valColHtml);
   }).join('');
-  nestedBlocks.push(block(className, rowsHtml));
+  ctx.blocks.push(block(className, rowsHtml));
   return guid;
 }
 
-function arrayBlock(key, arr, nestedBlocks, field) {
+function arrayBlock(key, arr, ctx, field) {
   const itemsHtml = arr
-    .map((item) => arrayItemLi(key, item, nestedBlocks, field?.item))
+    .map((item) => arrayItemLi(key, item, ctx, field?.item))
     .join('');
-  return newBlock(key, row('@items', `<div><ul>${itemsHtml}</ul></div>`), nestedBlocks);
+  return newBlock(key, row('@items', `<div><ul>${itemsHtml}</ul></div>`), ctx);
 }
 
-function valueCol(key, value, nestedBlocks, field) {
+function valueCol(key, value, ctx, field) {
   if (value === null) { return null; }
   if (value === undefined) { return '<div></div>'; }
 
@@ -139,40 +144,40 @@ function valueCol(key, value, nestedBlocks, field) {
     if (Array.isArray(value)) {
       if (!value.length) { return null; }
       const itemsHtml = value
-        .map((item) => arrayItemLi(key, item, nestedBlocks, field?.item))
+        .map((item) => arrayItemLi(key, item, ctx, field?.item))
         .join('');
       return `<div><ul>${itemsHtml}</ul></div>`;
     }
 
     if (Object.keys(value).length === 0) { return null; }
-    const objGuid = nestedBlock(key, value, nestedBlocks, field);
+    const objGuid = nestedBlock(key, value, ctx, field);
     return `<div><p>${selfRef(key, objGuid)}</p></div>`;
   }
 
   if (isAsset(field, value)) {
-    return `<div><p>${selfRef(key, assetBlock(key, value, nestedBlocks), 'asset')}</p></div>`;
+    return `<div><p>${selfRef(key, assetBlock(key, value, ctx), 'asset')}</p></div>`;
   }
   return `<div><p>${textContent(value)}</p></div>`;
 }
 
-function formBlock(metadata, nestedBlocks) {
+function formBlock(metadata, ctx) {
   const rowsHtml = Object.entries(metadata).map(([key, value]) => {
     const xKey = key === 'schemaName' ? 'x-schema-name' : key;
-    const valColHtml = valueCol(key, value, nestedBlocks);
+    const valColHtml = valueCol(key, value, ctx);
     if (valColHtml === null) { return ''; }
     return row(xKey, valColHtml);
   }).join('');
   return block('da-form', rowsHtml);
 }
 
-function dataBlock(schemaName, data, nestedBlocks, field) {
+function dataBlock(schemaName, data, ctx, field) {
   if (Array.isArray(data)) {
-    const valColHtml = valueCol(schemaName, data, nestedBlocks, field);
+    const valColHtml = valueCol(schemaName, data, ctx, field);
     const inner = valColHtml === null ? '' : row('@items', valColHtml);
     return block(schemaName, inner);
   }
   const rowsHtml = Object.entries(data).map(([key, value]) => {
-    const valColHtml = valueCol(key, value, nestedBlocks, childField(field, key));
+    const valColHtml = valueCol(key, value, ctx, childField(field, key));
     if (valColHtml === null) { return ''; }
     return row(key, valColHtml);
   }).join('');
@@ -182,13 +187,14 @@ function dataBlock(schemaName, data, nestedBlocks, field) {
 // Raw JSON → DA wire-format HTML. Default export; kept for the public
 // `convertJsonToHtml` wrapper below and for tests. No pruning happens here.
 // `field` is an optional field map (see field-map.js) that identifies asset fields.
-export default function json2html(json, field) {
+// `ctx` collects the nested blocks and carries the writer options.
+export default function json2html(json, field, { externalImagesAsLinks = false } = {}) {
   const { metadata, data } = json;
   const { schemaName } = metadata;
-  const nestedBlocks = [];
-  const formBlockHtml = formBlock(metadata, nestedBlocks);
-  const dataBlockHtml = dataBlock(schemaName, data, nestedBlocks, field);
-  const mainInner = `${formBlockHtml}${dataBlockHtml}${nestedBlocks.join('')}`;
+  const ctx = { blocks: [], externalImagesAsLinks };
+  const formBlockHtml = formBlock(metadata, ctx);
+  const dataBlockHtml = dataBlock(schemaName, data, ctx, field);
+  const mainInner = `${formBlockHtml}${dataBlockHtml}${ctx.blocks.join('')}`;
   return `<body><header></header><main><div>${mainInner}</div></main><footer></footer></body>`;
 }
 
@@ -197,15 +203,20 @@ export default function json2html(json, field) {
 // `convertHtmlToJson` from html2json.js.
 //
 // With an optional `model` (`engine.getState().model` of the same document),
-// fields whose model node has `semanticType: 'asset'` are written as `<img>`
-// so EDS ingests them, and non-image files as links that EDS keeps. Without a
-// model, every value is written as text.
+// fields whose model node has `semanticType: 'asset'` are written to their
+// own blocks: images as `<img>` and other assets as links. Without a model,
+// every value is written as text.
+//
+// The optional `config` object holds writer settings:
+// - `externalImagesAsLinks` (default `false`): write images from hosts other
+//   than the media bus and DA as links too.
 //
 // `json.metadata.schemaName` is required — it determines the outer data
 // block's class name (the schema identifier in DA's wire format). We check
 // it explicitly so consumers get a clear error instead of a deep TypeError
 // when the metadata is missing or malformed.
-export function convertJsonToHtml({ json, model } = {}) {
+export function convertJsonToHtml({ json, model, config } = {}) {
+  const { externalImagesAsLinks = false } = config ?? {};
   if (!json || typeof json !== 'object' || Array.isArray(json)) {
     return { error: 'Invalid JSON payload.' };
   }
@@ -216,5 +227,10 @@ export function convertJsonToHtml({ json, model } = {}) {
     return { error: 'json.metadata.schemaName is required and must be a non-empty string.' };
   }
   const pruned = prune(json.data);
-  return { html: json2html({ ...json, data: pruned ?? {} }, fieldMap(model)) };
+  const html = json2html(
+    { ...json, data: pruned ?? {} },
+    fieldMap(model),
+    { externalImagesAsLinks },
+  );
+  return { html };
 }

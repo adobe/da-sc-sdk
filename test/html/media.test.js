@@ -13,7 +13,7 @@
 import { expect } from '@esm-bundle/chai';
 import { convertJsonToHtml } from '../../src/html/json2html.js';
 import { convertHtmlToJson } from '../../src/html/html2json.js';
-import { isMediaImage } from '../../src/html/media.js';
+import { isIngestedImage, isMediaImage } from '../../src/html/media.js';
 import { createEngine } from '../../src/index.js';
 import { modelOf, save } from './test-utils.js';
 
@@ -58,6 +58,10 @@ const parse = (html) => new DOMParser().parseFromString(html, 'text/html');
 const imageSources = (html) => [...parse(html).querySelectorAll('img')]
   .map((img) => img.getAttribute('src'));
 
+// Every asset written as an image or a link, in document order.
+const assetSources = (html) => [...parse(html).querySelectorAll('img, a')]
+  .map((el) => el.getAttribute('src') ?? el.getAttribute('href'));
+
 const writeHero = (value, withSchema) => save({
   json: doc({ hero: value }),
   schema: withSchema,
@@ -92,7 +96,7 @@ describe('media fields', () => {
         }),
         schema,
       });
-      expect(imageSources(html)).to.have.members([
+      expect(assetSources(html)).to.have.members([
         sources.publish, sources.hlx6, sources.upload, sources.smartCrop,
       ]);
       expect(html).to.include('<p>Acme</p>');
@@ -112,7 +116,7 @@ describe('media fields', () => {
           properties: { grid: { type: 'array', items: { type: 'array', items: media('Cell') } } },
         },
       }).html;
-      expect(imageSources(nested)).to.deep.equal([sources.publish]);
+      expect(assetSources(nested)).to.deep.equal([sources.publish]);
     });
 
     it('resolves media fields through $ref', () => {
@@ -127,6 +131,54 @@ describe('media fields', () => {
     it('escapes the image source', () => {
       expect(writeHero('https://x.test/a.png?a=1&b="2"', schema))
         .to.include('src="https://x.test/a.png?a=1&amp;b=&quot;2&quot;"');
+    });
+
+    it('keeps images uploaded to DA and media bus images as images with externalImagesAsLinks', () => {
+      const uploads = [
+        sources.upload,
+        'https://stage-content.da.live/org/site/.page/hero.webp',
+        sources.hlx6,
+      ];
+      uploads.forEach((src) => {
+        const config = { externalImagesAsLinks: true };
+        const { html } = save({ json: doc({ hero: src }), schema, config });
+        expect(imageSources(html), src).to.deep.equal([src]);
+        expect(html, src).to.not.include('<a ');
+      });
+    });
+
+    const otherHosts = [
+      sources.publish,
+      sources.smartCrop,
+      'https://images.example.com/hero.png',
+      'http://content.da.live/org/site/hero.png',
+      'https://content.da.live.example.com/hero.png',
+      'https://admin.da.live/source/org/site/hero.png',
+    ];
+
+    it('writes images from any host as images by default', () => {
+      otherHosts.forEach((src) => {
+        const html = writeHero(src, schema);
+        expect(imageSources(html), src).to.deep.equal([src]);
+        expect(html, src).to.not.include('<a ');
+      });
+    });
+
+    it('writes images as images when config is empty or null', () => {
+      [{}, null, { externalImagesAsLinks: false }].forEach((config) => {
+        const { html } = save({ json: doc({ hero: sources.publish }), schema, config });
+        expect(imageSources(html), JSON.stringify(config)).to.deep.equal([sources.publish]);
+      });
+    });
+
+    it('writes images from other hosts as links with externalImagesAsLinks, so EDS keeps their URL', () => {
+      otherHosts.forEach((src) => {
+        const json = doc({ hero: src });
+        const { html } = save({ json, schema, config: { externalImagesAsLinks: true } });
+        expect(imageSources(html), src).to.deep.equal([]);
+        expect(assetSources(html), src).to.deep.equal([src]);
+        expect(convertHtmlToJson({ html }).json.data.hero, src).to.equal(src);
+      });
     });
 
     it('writes sources that are not media bus paths or http(s) URLs as text', () => {
@@ -159,7 +211,7 @@ describe('media fields', () => {
     it('stores media bus paths without rendition parameters and trims sources', () => {
       expect(imageSources(writeHero(' ./media_ab12.png?width=750#width=800 ', schema)))
         .to.deep.equal(['./media_ab12.png']);
-      expect(imageSources(writeHero(` ${sources.smartCrop} `, schema)))
+      expect(assetSources(writeHero(` ${sources.smartCrop} `, schema)))
         .to.deep.equal([sources.smartCrop]);
     });
 
@@ -188,14 +240,14 @@ describe('media fields', () => {
       const json = doc({
         chapters: [{ slides: [''] }, { slides: [sources.publish, sources.upload] }],
       });
-      expect(imageSources(save({ json, schema }).html))
+      expect(assetSources(save({ json, schema }).html))
         .to.deep.equal([sources.publish, sources.upload]);
     });
 
     it('finds media in array items when only a later item has that field', () => {
       // The first chapter has no slides, so only the second one shows they are media.
       const json = doc({ chapters: [{ title: 'Intro', slides: [] }, { slides: [sources.publish] }] });
-      expect(imageSources(save({ json, schema }).html)).to.deep.equal([sources.publish]);
+      expect(assetSources(save({ json, schema }).html)).to.deep.equal([sources.publish]);
     });
 
     it('writes array items as text when the model has no items for that array', () => {
@@ -240,7 +292,7 @@ describe('media fields', () => {
       engine.removeItem('/data/gallery/1');
       const { document, model } = engine.getState();
       const { html } = convertJsonToHtml({ json: document, model });
-      expect(imageSources(html)).to.have.members([sources.upload, sources.publish]);
+      expect(assetSources(html)).to.have.members([sources.upload, sources.publish]);
       expect(convertHtmlToJson({ html }).json.data.gallery).to.deep.equal([sources.upload]);
     });
 
@@ -614,6 +666,25 @@ describe('media files', () => {
     expect(html).to.include('<a href="https://x.test/a.pdf?a=1&amp;b=&quot;<2>&quot;">');
     expect(html).to.include('>https://x.test/a.pdf?a=1&amp;b="&lt;2&gt;"</a>');
     expect(convertHtmlToJson({ html }).json.data.hero).to.equal(href);
+  });
+});
+
+describe('isIngestedImage', () => {
+  it('accepts media bus images and images uploaded to DA', () => {
+    [sources.upload, sources.hlx6, 'media_ab12.png', 'https://stage-content.da.live/o/s/a.JPG']
+      .forEach((src) => expect(isIngestedImage(src), src).to.equal(true));
+  });
+
+  it('rejects images from other hosts and files on DA', () => {
+    [
+      sources.publish,
+      sources.smartCrop,
+      'http://content.da.live/o/s/a.png',
+      'https://content.da.live.example.com/a.png',
+      'https://content.da.live/o/s/a.pdf',
+      './media_ab12.mp4',
+      'https://main--site--org.aem.live/media_ab12.png',
+    ].forEach((src) => expect(isIngestedImage(src), src).to.equal(false));
   });
 });
 

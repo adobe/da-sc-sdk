@@ -61,16 +61,21 @@ const schema = {
   },
 };
 
+// Images uploaded to DA, always written as images so EDS copies them into the media bus.
 const images = {
   hero: 'https://content.da.live/org/site/events/.summit/hero.png',
+  portraitTwo: 'https://content.da.live/org/site/events/.summit/speaker-two.jpeg',
+  slideOne: 'https://content.da.live/org/site/events/.summit/slide-1.png',
+  map: 'https://stage-content.da.live/org/site/events/.summit/map.svg',
+  plan: 'https://content.da.live/org/site/events/.summit/plan.png',
+};
+
+// Images that AEM Assets delivers, written as links with `externalImagesAsLinks`.
+const externalImages = {
   stage: 'https://publish-p1-e1.adobeaemcloud.com/content/dam/site/stage.jpg',
   cover: 'https://delivery-p1-e1.adobeaemcloud.com/adobe/assets/urn:aaid:aem:1/as/cover.avif',
   portraitOne: 'https://publish-p1-e1.adobeaemcloud.com/content/dam/site/speaker-one.webp',
-  portraitTwo: 'https://content.da.live/org/site/events/.summit/speaker-two.jpeg',
-  slideOne: 'https://publish-p1-e1.adobeaemcloud.com/content/dam/site/slide-1.png',
   slideTwo: 'https://publish-p1-e1.adobeaemcloud.com/content/dam/site/slide-2.gif',
-  map: 'https://publish-p1-e1.adobeaemcloud.com/content/dam/site/map.svg',
-  plan: 'https://publish-p1-e1.adobeaemcloud.com/content/dam/site/plan.png',
 };
 
 const files = {
@@ -86,40 +91,41 @@ const website = 'https://speaker-one.example.com/avatar.png';
 const data = {
   title: 'Summit',
   hero: images.hero,
-  downloads: [files.agenda, images.stage],
+  downloads: [files.agenda, externalImages.stage],
   sessions: [
     {
       name: 'Keynote',
-      cover: images.cover,
+      cover: externalImages.cover,
       recording: files.recording,
       speakers: [
         {
           name: 'Speaker one',
           website,
-          portrait: images.portraitOne,
-          gallery: [images.stage, files.bio],
+          portrait: externalImages.portraitOne,
+          gallery: [externalImages.stage, files.bio],
         },
         { name: 'Speaker two', portrait: images.portraitTwo },
       ],
-      slides: [[images.slideOne, images.slideTwo], [files.deck]],
+      slides: [[images.slideOne, externalImages.slideTwo], [files.deck]],
       venue: {
         address: 'Hall 1',
         map: images.map,
         floor: { label: 'Level 2', plan: images.plan },
       },
     },
-    { name: 'Workshop', cover: images.stage },
+    { name: 'Workshop', cover: externalImages.stage },
   ],
 };
 
 const json = { metadata: { schemaName: 'event' }, data };
 
-// Every image value in document order, including repeated ones.
-const imageValues = [
-  images.hero, images.stage, images.cover, images.portraitOne, images.stage,
-  images.portraitTwo, images.slideOne, images.slideTwo, images.map, images.plan, images.stage,
+// Every asset value in document order, including repeated ones.
+const assetValues = [
+  images.hero, files.agenda, externalImages.stage, externalImages.cover, files.recording,
+  externalImages.portraitOne, externalImages.stage, files.bio, images.portraitTwo,
+  images.slideOne, externalImages.slideTwo, files.deck, images.map, images.plan,
+  externalImages.stage,
 ];
-const fileValues = [files.agenda, files.recording, files.bio, files.deck];
 
 const parse = (html) => new DOMParser().parseFromString(html, 'text/html');
 const sorted = (values) => [...values].sort();
@@ -127,7 +133,8 @@ const sorted = (values) => [...values].sort();
 const extensionOf = (href) => new URL(href).pathname.split('.').pop();
 
 // The media bus path EDS gives each distinct image, the same for repeated sources.
-const mediaPaths = new Map(Object.values(images).map((href, index) => [
+const allImages = [...Object.values(images), ...Object.values(externalImages)];
+const mediaPaths = new Map(allImages.map((href, index) => [
   href, `media_${(index + 1).toString(16).padStart(40, '0')}.${extensionOf(href)}`,
 ]));
 
@@ -145,27 +152,37 @@ function deliverLikeEds(html) {
   });
 }
 
-function mapImages(value, toUrl) {
+function mapImages(value, toUrl, written) {
   if (Array.isArray(value)) {
-    return value.map((item) => mapImages(item, toUrl));
+    return value.map((item) => mapImages(item, toUrl, written));
   }
   if (value && typeof value === 'object') {
     return Object.fromEntries(Object.entries(value)
-      .map(([key, item]) => [key, mapImages(item, toUrl)]));
+      .map(([key, item]) => [key, mapImages(item, toUrl, written)]));
   }
-  return mediaPaths.has(value) ? toUrl(mediaPaths.get(value)) : value;
+  return written.includes(value) ? toUrl(mediaPaths.get(value)) : value;
 }
 
-describe('deeply nested media', () => {
-  const { html } = save({ json, schema });
+[
+  { title: 'deeply nested media', config: undefined, imageValues: allImages },
+  {
+    title: 'deeply nested media with externalImagesAsLinks',
+    config: { externalImagesAsLinks: true },
+    imageValues: Object.values(images),
+  },
+].forEach(({ title, config, imageValues }) => describe(title, () => {
+  const { html } = save({ json, schema, config });
   const written = parse(html);
+  const writtenImages = assetValues.filter((value) => imageValues.includes(value));
+  const writtenLinks = assetValues.filter((value) => !imageValues.includes(value));
+  const deliver = (toUrl) => ({ ...json, data: mapImages(data, toUrl, imageValues) });
 
-  it('writes every image as an image, every file as a link and every text as text', () => {
+  it('writes images as images, other assets as links and text as text', () => {
     const sources = [...written.querySelectorAll('img')].map((img) => img.getAttribute('src'));
     const links = [...written.querySelectorAll('a')]
       .map((link) => [link.getAttribute('href'), link.textContent]);
-    expect(sorted(sources)).to.deep.equal(sorted(imageValues));
-    expect(sorted(links)).to.deep.equal(sorted(fileValues.map((href) => [href, href])));
+    expect(sorted(sources)).to.deep.equal(sorted(writtenImages));
+    expect(sorted(links)).to.deep.equal(sorted(writtenLinks.map((href) => [href, href])));
     expect(html).to.include(`<p>${website}</p>`);
   });
 
@@ -193,7 +210,7 @@ describe('deeply nested media', () => {
   it('references every asset as self://asset# to a block with an asset row', () => {
     const ids = html.match(/self:\/\/asset#[a-z0-9-]+/g)
       .map((ref) => ref.slice('self://asset#'.length));
-    expect(ids).to.have.length(imageValues.length + fileValues.length);
+    expect(ids).to.have.length(assetValues.length);
     ids.forEach((id) => {
       const block = written.querySelector(`main > div > div.${id}`);
       const keys = [...block.children].map((row) => row.firstElementChild.textContent.trim());
@@ -207,10 +224,7 @@ describe('deeply nested media', () => {
 
   it('reads the delivered page back to the same document with media bus paths', () => {
     const { json: delivered } = convertHtmlToJson({ html: deliverLikeEds(html) });
-    expect(delivered).to.deep.equal({
-      ...json,
-      data: mapImages(data, (path) => `./${path}`),
-    });
+    expect(delivered).to.deep.equal(deliver((path) => `./${path}`));
   });
 
   it('reads the delivered page with absolute media URLs resolved against the page', () => {
@@ -219,17 +233,14 @@ describe('deeply nested media', () => {
       html: deliverLikeEds(html),
       asset: { base: `${folder}/summit` },
     });
-    expect(delivered).to.deep.equal({
-      ...json,
-      data: mapImages(data, (path) => `${folder}/${path}`),
-    });
+    expect(delivered).to.deep.equal(deliver((path) => `${folder}/${path}`));
   });
 
   it('writes the read document to the same structure again', () => {
     const { json: read } = convertHtmlToJson({ html });
-    const { html: rewritten } = save({ json: read, schema });
+    const { html: rewritten } = save({ json: read, schema, config });
     expect(convertHtmlToJson({ html: rewritten }).json).to.deep.equal(json);
     expect(rewritten.replace(/-[a-z0-9]{1,6}\b/g, '-ID'))
       .to.equal(html.replace(/-[a-z0-9]{1,6}\b/g, '-ID'));
   });
-});
+}));

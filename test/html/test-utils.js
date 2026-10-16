@@ -17,9 +17,10 @@ export const modelOf = (schema, json) => createEngine({ schema, document: json }
 
 // Saves `json` the way the editor does: with the model the engine builds for
 // it from `schema`. Without a schema, no model is passed.
-export const save = ({ json, schema }) => convertJsonToHtml({
+export const save = ({ json, schema, config }) => convertJsonToHtml({
   json,
   model: schema === undefined ? undefined : modelOf(schema, json),
+  config,
 });
 
 export function cleanHtmlWhitespace(html) {

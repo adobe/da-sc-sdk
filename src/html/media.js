@@ -76,3 +76,27 @@ export function isMediaImage(src) {
   }
   return IMAGE_EXTENSIONS.has(extensionOf(pathOf(src)));
 }
+
+// Hosts that serve files uploaded to DA. They need authentication, so a page
+// can only deliver their images after EDS copies them into the media bus.
+const DA_CONTENT_HOSTS = new Set(['content.da.live', 'stage-content.da.live']);
+
+function isDaUpload(src) {
+  try {
+    const url = new URL(src);
+    return url.protocol === 'https:' && DA_CONTENT_HOSTS.has(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+// Whether a normalized media source is an image that must stay `<img>` so EDS
+// can deliver it: an image that is already in the media bus or was uploaded
+// to DA. Images from other hosts, such as AEM Assets, are delivered by that
+// host and can be written as links instead.
+export function isIngestedImage(src) {
+  if (!isMediaImage(src)) {
+    return false;
+  }
+  return src.match(MEDIA_BUS_PATH)?.[0] === src || isDaUpload(src);
+}

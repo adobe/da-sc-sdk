@@ -140,10 +140,10 @@ validateSchema({ schema })
 
 Schema-only. Skips data parsing, model building, and document validation — useful for "is this schema well-formed?" without any data on hand.
 
-### 3.3. `convertJsonToHtml({ json, model? })`
+### 3.3. `convertJsonToHtml({ json, model?, config? })`
 
 ```txt
-convertJsonToHtml({ json, model? })
+convertJsonToHtml({ json, model?, config? })
   ├─ shape-check: json is an object with metadata.schemaName (string)
   │    └─ if not: return { error: '<reason>' }
   ├─ pruned = prune(json.data)                ← drop empty/null/whitespace leaves
@@ -157,7 +157,9 @@ convertJsonToHtml({ json, model? })
           as `self://asset#<key>-<id>`, with one row per property (only `asset`
           for now) holding <img src="…" alt="">,
           or <a href="…">…</a> for non-image files, if the value is a media bus
-          path or an http(s) URL; all else as text in the field's cell
+          path or an http(s) URL; all else as text in the field's cell.
+          With config.externalImagesAsLinks, only media bus images and images uploaded
+          to DA stay <img>; images from other hosts become links
   return { html }
 ```
 
