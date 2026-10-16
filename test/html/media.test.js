@@ -14,10 +14,13 @@ import { expect } from '@esm-bundle/chai';
 import { convertJsonToHtml } from '../../src/html/json2html.js';
 import { convertHtmlToJson } from '../../src/html/html2json.js';
 import { isIngestedImage, isMediaImage } from '../../src/html/media.js';
-import { createEngine } from '../../src/index.js';
+import { IMAGE_SCHEMA_URL, createEngine } from '../../src/index.js';
 import { modelOf, save } from './test-utils.js';
 
-const media = (title) => ({ type: 'string', title, 'x-semantic-type': 'asset' });
+const media = (title) => ({ $ref: IMAGE_SCHEMA_URL, title });
+
+// An asset value as the form stores it.
+const a = (src, altText) => (altText === undefined ? { src } : { src, altText });
 
 const schema = {
   type: 'object',
@@ -33,8 +36,6 @@ const schema = {
         properties: { title: { type: 'string' }, slides: { type: 'array', items: media('Slide') } },
       },
     },
-    fit: { type: 'string', enum: ['cover'], 'x-semantic-type': 'asset' },
-    day: { type: 'string', format: 'date', 'x-semantic-type': 'asset' },
   },
 };
 
@@ -77,9 +78,9 @@ const readHero = (cell) => convertHtmlToJson({ html: page(cell) }).json.data.her
 
 describe('media fields', () => {
   describe('writing', () => {
-    it('writes media fields as images and other strings as text', () => {
+    it('writes the src of asset fields as images and other strings as text', () => {
       const { html } = save({
-        json: doc({ hero: sources.upload, caption: sources.upload }),
+        json: doc({ hero: a(sources.upload), caption: sources.upload }),
         schema,
       });
       expect(imageSources(html)).to.deep.equal([sources.upload]);
@@ -87,12 +88,19 @@ describe('media fields', () => {
       expect(html).to.include(`<p>${sources.upload}</p>`);
     });
 
+    it('writes the alt text of an asset on its image, escaped', () => {
+      const html = writeHero(a(sources.upload, 'A "bold" <hero> & more'), schema);
+      expect(parse(html).querySelector('img').getAttribute('alt'))
+        .to.equal('A "bold" <hero> & more');
+      expect(html).to.include('alt="A &quot;bold&quot; <hero> &amp; more"');
+    });
+
     it('writes media in array items, nested objects and nested arrays', () => {
       const { html } = save({
         json: doc({
-          gallery: [sources.publish, sources.hlx6],
-          sponsor: { logo: sources.upload, name: 'Acme' },
-          chapters: [{ slides: [sources.smartCrop] }],
+          gallery: [a(sources.publish), a(sources.hlx6)],
+          sponsor: { logo: a(sources.upload), name: 'Acme' },
+          chapters: [{ slides: [a(sources.smartCrop)] }],
         }),
         schema,
       });
@@ -104,13 +112,13 @@ describe('media fields', () => {
 
     it('writes media items of a root array and of arrays of arrays', () => {
       const rootArray = save({
-        json: doc([sources.upload]),
+        json: doc([a(sources.upload)]),
         schema: { type: 'array', items: media('Photo') },
       }).html;
       expect(imageSources(rootArray)).to.deep.equal([sources.upload]);
 
       const nested = save({
-        json: doc({ grid: [[sources.publish]] }),
+        json: doc({ grid: [[a(sources.publish)]] }),
         schema: {
           type: 'object',
           properties: { grid: { type: 'array', items: { type: 'array', items: media('Cell') } } },
@@ -120,7 +128,7 @@ describe('media fields', () => {
     });
 
     it('resolves media fields through $ref', () => {
-      const html = writeHero(sources.upload, {
+      const html = writeHero(a(sources.upload), {
         $defs: { image: media('Image') },
         type: 'object',
         properties: { hero: { $ref: '#/$defs/image' } },
@@ -129,7 +137,7 @@ describe('media fields', () => {
     });
 
     it('escapes the image source', () => {
-      expect(writeHero('https://x.test/a.png?a=1&b="2"', schema))
+      expect(writeHero(a('https://x.test/a.png?a=1&b="2"'), schema))
         .to.include('src="https://x.test/a.png?a=1&amp;b=&quot;2&quot;"');
     });
 
@@ -141,7 +149,7 @@ describe('media fields', () => {
       ];
       uploads.forEach((src) => {
         const config = { externalImagesAsLinks: true };
-        const { html } = save({ json: doc({ hero: src }), schema, config });
+        const { html } = save({ json: doc({ hero: a(src) }), schema, config });
         expect(imageSources(html), src).to.deep.equal([src]);
         expect(html, src).to.not.include('<a ');
       });
@@ -158,7 +166,7 @@ describe('media fields', () => {
 
     it('writes images from any host as images by default', () => {
       otherHosts.forEach((src) => {
-        const html = writeHero(src, schema);
+        const html = writeHero(a(src), schema);
         expect(imageSources(html), src).to.deep.equal([src]);
         expect(html, src).to.not.include('<a ');
       });
@@ -166,18 +174,18 @@ describe('media fields', () => {
 
     it('writes images as images when config is empty or null', () => {
       [{}, null, { externalImagesAsLinks: false }].forEach((config) => {
-        const { html } = save({ json: doc({ hero: sources.publish }), schema, config });
+        const { html } = save({ json: doc({ hero: a(sources.publish) }), schema, config });
         expect(imageSources(html), JSON.stringify(config)).to.deep.equal([sources.publish]);
       });
     });
 
     it('writes images from other hosts as links with externalImagesAsLinks, so EDS keeps their URL', () => {
       otherHosts.forEach((src) => {
-        const json = doc({ hero: src });
+        const json = doc({ hero: a(src, 'Hero') });
         const { html } = save({ json, schema, config: { externalImagesAsLinks: true } });
         expect(imageSources(html), src).to.deep.equal([]);
         expect(assetSources(html), src).to.deep.equal([src]);
-        expect(convertHtmlToJson({ html }).json.data.hero, src).to.equal(src);
+        expect(convertHtmlToJson({ html }).json.data.hero, src).to.deep.equal(a(src, 'Hero'));
       });
     });
 
@@ -195,50 +203,53 @@ describe('media fields', () => {
         'hero.png',
         './media_ab12.png"><script>',
       ].forEach((value) => {
-        const html = writeHero(value, schema);
+        const html = writeHero(a(value, 'alt'), schema);
         expect(html, value).to.not.include('<img');
         expect(html, value).to.not.include('<a ');
         expect(parse(html).querySelector('script'), value).to.equal(null);
       });
-      expect(writeHero(scriptUrl, schema)).to.include(`<p>${scriptUrl}</p>`);
-    });
-
-    it('lets enum and date formats take precedence over the media hint', () => {
-      const { html } = save({ json: doc({ fit: 'cover', day: '2026-01-01' }), schema });
-      expect(html).to.not.include('<img');
+      expect(writeHero(a(scriptUrl), schema)).to.include(`<p>${scriptUrl}</p>`);
     });
 
     it('stores media bus paths without rendition parameters and trims sources', () => {
-      expect(imageSources(writeHero(' ./media_ab12.png?width=750#width=800 ', schema)))
+      expect(imageSources(writeHero(a(' ./media_ab12.png?width=750#width=800 '), schema)))
         .to.deep.equal(['./media_ab12.png']);
-      expect(assetSources(writeHero(` ${sources.smartCrop} `, schema)))
+      expect(assetSources(writeHero(a(` ${sources.smartCrop} `), schema)))
         .to.deep.equal([sources.smartCrop]);
     });
 
-    it('writes non-string values of a media field as text', () => {
-      const html = writeHero(5, schema);
+    it('writes non-string sources as text', () => {
+      const html = writeHero(a(5), schema);
       expect(html).to.not.include('<img');
       expect(html).to.include('<p>5</p>');
     });
 
-    it('writes data that does not match the schema as text', () => {
-      const { html } = save({ json: doc({ hero: { url: sources.upload } }), schema });
+    it('writes an asset given as a string as text', () => {
+      const html = writeHero(sources.upload, schema);
       expect(html).to.not.include('<img');
+      expect(html).to.include(`<p>${sources.upload}</p>`);
+    });
+
+    it('writes properties other than src as text', () => {
+      const html = writeHero({ altText: sources.upload, url: sources.publish }, schema);
+      expect(html).to.not.include('<img');
+      expect(html).to.not.include('<a ');
     });
 
     it('falls back to text for anything that is not a model', () => {
-      const json = doc({ hero: sources.upload });
-      const textOnly = convertJsonToHtml({ json }).html;
+      const json = doc({ hero: a(sources.upload) });
+      const write = (model) => convertJsonToHtml({ json, model }).html.replace(/hero-[a-z0-9]+/g, 'hero-id');
+      const textOnly = write(undefined);
       const unusable = modelOf({ oneOf: [media('A'), media('B')] }, json);
-      [undefined, null, 'model', 42, [], {}, { root: null }, schema, unusable].forEach((invalid) => {
-        expect(convertJsonToHtml({ json, model: invalid }).html).to.equal(textOnly);
+      [null, 'model', 42, [], {}, { root: null }, schema, unusable].forEach((invalid) => {
+        expect(write(invalid)).to.equal(textOnly);
       });
     });
 
     it('finds media in array items that pruning moved', () => {
       // The empty first chapter is pruned, so the second one is written at index 0.
       const json = doc({
-        chapters: [{ slides: [''] }, { slides: [sources.publish, sources.upload] }],
+        chapters: [{ slides: [a('')] }, { slides: [a(sources.publish), a(sources.upload)] }],
       });
       expect(assetSources(save({ json, schema }).html))
         .to.deep.equal([sources.publish, sources.upload]);
@@ -246,15 +257,17 @@ describe('media fields', () => {
 
     it('finds media in array items when only a later item has that field', () => {
       // The first chapter has no slides, so only the second one shows they are media.
-      const json = doc({ chapters: [{ title: 'Intro', slides: [] }, { slides: [sources.publish] }] });
+      const json = doc({
+        chapters: [{ title: 'Intro', slides: [] }, { slides: [a(sources.publish)] }],
+      });
       expect(assetSources(save({ json, schema }).html)).to.deep.equal([sources.publish]);
     });
 
     it('writes array items as text when the model has no items for that array', () => {
-      const json = doc({ hero: sources.upload, gallery: [sources.publish] });
+      const json = doc({ hero: a(sources.upload), gallery: [a(sources.publish)] });
       const { html } = convertJsonToHtml({ json, model: modelOf(schema, doc({})) });
       expect(imageSources(html)).to.deep.equal([sources.upload]);
-      expect(html).to.include(`<li>${sources.publish}</li>`);
+      expect(html).to.include(`<p>${sources.publish}</p>`);
     });
 
     it('writes long-text fields as text', () => {
@@ -268,7 +281,7 @@ describe('media fields', () => {
 
     it('writes media of supported fields next to an unsupported composition', () => {
       const { html } = save({
-        json: doc({ hero: sources.upload, choice: sources.publish }),
+        json: doc({ hero: a(sources.upload), choice: a(sources.publish) }),
         schema: {
           type: 'object',
           properties: { hero: media('Hero'), choice: { oneOf: [media('A'), media('B')] } },
@@ -283,143 +296,108 @@ describe('media fields', () => {
       engine.addItem('/data/chapters');
       engine.addItem('/data/chapters');
       engine.addItem('/data/chapters/1/slides');
-      engine.setField('/data/chapters/1/slides/0', sources.publish);
+      engine.setField('/data/chapters/1/slides/0/src', sources.publish);
       engine.addItem('/data/gallery');
-      engine.setField('/data/gallery/0', sources.hlx6);
+      engine.setField('/data/gallery/0', a(sources.hlx6));
       engine.addItem('/data/gallery');
-      engine.setField('/data/gallery/1', sources.upload);
+      engine.setField('/data/gallery/1', a(sources.upload, 'Upload'));
       engine.moveItem('/data/gallery', 1, 0);
       engine.removeItem('/data/gallery/1');
       const { document, model } = engine.getState();
       const { html } = convertJsonToHtml({ json: document, model });
       expect(assetSources(html)).to.have.members([sources.upload, sources.publish]);
-      expect(convertHtmlToJson({ html }).json.data.gallery).to.deep.equal([sources.upload]);
+      expect(convertHtmlToJson({ html }).json.data.gallery)
+        .to.deep.equal([a(sources.upload, 'Upload')]);
     });
 
-    it('writes the same HTML as before when no model is given', () => {
-      const json = doc({ hero: sources.upload, gallery: [sources.publish] });
-      expect(convertJsonToHtml({ json }).html).to.equal('<body><header></header><main><div>'
-        + '<div class="da-form"><div><div><h3>x-schema-name</h3></div><div><p>player</p></div></div></div>'
-        + '<div class="player">'
-        + `<div><div><h3>hero</h3></div><div><p>${sources.upload}</p></div></div>`
-        + `<div><div><h3>gallery</h3></div><div><ul><li>${sources.publish}</li></ul></div></div>`
-        + '</div></div></main><footer></footer></body>');
+    it('writes assets as plain objects when no model is given', () => {
+      const json = doc({ hero: a(sources.upload, 'Hero'), gallery: [a(sources.publish)] });
+      const { html } = convertJsonToHtml({ json });
+      expect(html).to.not.include('<img');
+      expect(html).to.not.include('<a ');
+      expect(html).to.include(`<p>${sources.upload}</p>`);
+      expect(convertHtmlToJson({ html }).json).to.deep.equal(json);
     });
   });
 
-  describe('asset blocks', () => {
+  describe('asset objects', () => {
     const blocks = (html) => [...parse(html).querySelectorAll('main > div > div')];
     const rowKeys = (block) => [...block.children]
       .map((row) => row.firstElementChild.textContent.trim());
-    const refOf = (block) => `self://asset#${block.classList[1].toLowerCase()}`;
+    const refOf = (block) => `self://#${block.classList[1].toLowerCase()}`;
 
     // A delivered page whose `hero` field holds `ref`, followed by a `hero-abc`
     // block with the given rows.
-    const assetPage = (rows, ref = 'self://asset#hero-abc') => `<body><main><div>
+    const assetPage = (rows, ref = 'self://#hero-abc') => `<body><main><div>
       <div class="da-form"><div><div><h3>x-schema-name</h3></div><div><p>player</p></div></div></div>
       <div class="player"><div><div><h3>hero</h3></div><div><p>${ref}</p></div></div></div>
       <div class="hero hero-abc">${rows}</div>
     </div></main></body>`;
     const propRow = (key, cell) => `<div><div><h3>${key}</h3></div>${cell}</div>`;
-    const readAsset = (cell, asset) => convertHtmlToJson({ html: assetPage(propRow('asset', cell)), asset })
+    const readAsset = (rows, asset) => convertHtmlToJson({ html: assetPage(rows), asset })
       .json.data.hero;
 
-    it('writes an asset field as a self://asset# reference to a block with an asset row', () => {
-      const html = writeHero(sources.upload, schema);
+    it('writes an asset field as a reference to an object block with src and altText rows', () => {
+      const html = writeHero(a(sources.upload, 'Hero'), schema);
       const [, root, hero] = blocks(html);
       expect(hero.classList[0]).to.equal('hero');
-      expect(rowKeys(hero)).to.deep.equal(['asset']);
+      expect(rowKeys(hero)).to.deep.equal(['src', 'altText']);
       expect(hero.querySelector('img').getAttribute('src')).to.equal(sources.upload);
+      expect(hero.querySelector('img').getAttribute('alt')).to.equal('Hero');
       expect(root.textContent).to.include(refOf(hero));
       expect(root.querySelector('img')).to.equal(null);
+      expect(html).to.not.include('self://asset#');
     });
 
-    it('writes asset items of arrays as references to asset blocks', () => {
-      const { html } = save({ json: doc({ gallery: [sources.publish, files.pdf] }), schema });
+    it('writes only the rows of the properties that are set', () => {
+      const [, , srcOnly] = blocks(writeHero(a(sources.upload), schema));
+      expect(rowKeys(srcOnly)).to.deep.equal(['src']);
+
+      const altOnly = writeHero({ altText: 'Hero' }, schema);
+      const [, , hero] = blocks(altOnly);
+      expect(rowKeys(hero)).to.deep.equal(['altText']);
+      expect(altOnly).to.not.include('<img');
+    });
+
+    it('writes asset items of arrays as references to object blocks', () => {
+      const { html } = save({ json: doc({ gallery: [a(sources.publish), a(files.pdf)] }), schema });
       const assets = blocks(html).filter((block) => block.classList[0] === 'gallery');
-      expect(assets.map(rowKeys)).to.deep.equal([['asset'], ['asset']]);
+      expect(assets.map(rowKeys)).to.deep.equal([['src'], ['src']]);
       const items = [...parse(html).querySelectorAll('li')].map((li) => li.textContent);
       expect(items).to.deep.equal(assets.map(refOf));
       expect(assets[1].querySelector('a').getAttribute('href')).to.equal(files.pdf);
     });
 
-    it('keeps references to objects untyped', () => {
-      const { html } = save({ json: doc({ sponsor: { logo: sources.upload } }), schema });
-      expect(html).to.match(/self:\/\/#sponsor-[a-z0-9]+/);
-      expect(html).to.match(/self:\/\/asset#logo-[a-z0-9]+/);
+    it('reads an asset block as an object with src and altText', () => {
+      const rows = propRow('src', '<div><p><img src="./media_ab12.png?width=750" alt="Ada"></p></div>')
+        + propRow('altText', '<div><p>Portrait of Ada</p></div>');
+      expect(readAsset(rows)).to.deep.equal({ src: './media_ab12.png', altText: 'Portrait of Ada' });
     });
 
-    it('reads a typeless reference to the same block as an object', () => {
-      const html = assetPage(propRow('name', '<div>Ada</div>'), 'self://#hero-abc');
-      expect(convertHtmlToJson({ html }).json.data.hero).to.deep.equal({ name: 'Ada' });
+    it('reads a src link as its URL', () => {
+      const rows = propRow('src', `<div><p><a href="${files.pdf}">${files.pdf}</a></p></div>`);
+      expect(readAsset(rows)).to.deep.equal({ src: files.pdf });
     });
 
-    it('keeps references of an unknown type or to a missing block as text', () => {
-      const rows = propRow('asset', '<div><p><img src="./media_ab12.png"></p></div>');
-      const read = (ref) => convertHtmlToJson({ html: assetPage(rows, ref) }).json.data.hero;
-      expect(read('self://video#hero-abc')).to.equal('self://video#hero-abc');
-      expect(read('self://asset#hero-zzz')).to.equal('self://asset#hero-zzz');
-    });
-
-    it('reads the asset row of an asset block and skips other properties', () => {
-      const rows = propRow('alt', '<div><p>Portrait of Ada</p></div>')
-        + propRow('asset', '<div><p><img src="./media_ab12.png"></p></div>')
-        + propRow('title', '<div><p>Ada</p></div>');
-      expect(convertHtmlToJson({ html: assetPage(rows) }).json.data.hero).to.equal('./media_ab12.png');
-    });
-
-    it('reads an asset block without an asset row as an empty asset', () => {
-      const rows = propRow('alt', '<div><p>Portrait of Ada</p></div>');
-      expect(convertHtmlToJson({ html: assetPage(rows) }).json.data.hero).to.equal('');
-    });
-
-    it('reads an asset block as its value, not as an object', () => {
-      expect(readAsset('<div><p><img src="./media_ab12.png?width=750"></p></div>'))
-        .to.equal('./media_ab12.png');
-    });
-
-    it('reads a link in an asset block as its target, whatever its text', () => {
-      expect(readAsset(`<div><p><a href="${files.pdf}">Datasheet</a></p></div>`)).to.equal(files.pdf);
-      expect(readAsset(`<div><p><a href=" ${files.video} ">${files.video}</a></p></div>`))
-        .to.equal(files.video);
-    });
-
-    it('reads an image in an asset block even next to text', () => {
-      expect(readAsset('<div><p>caption</p><p><img src="./media_ab12.png"></p></div>'))
-        .to.equal('./media_ab12.png');
-    });
-
-    it('reads an asset block without an image or link as its text', () => {
-      expect(readAsset('<div><p> ./media_ab12.png </p></div>')).to.equal('./media_ab12.png');
-      expect(readAsset('<div></div>')).to.equal('');
-    });
-
-    it('resolves media bus images and links in asset blocks against asset.base', () => {
+    it('resolves media bus images in asset blocks against asset.base', () => {
       const asset = { base: 'https://main--site--org.aem.page/players/ada' };
-      expect(readAsset('<div><picture><img src="./media_ab12.png?width=750"></picture></div>', asset))
-        .to.equal('https://main--site--org.aem.page/players/media_ab12.png');
-      expect(readAsset('<div><p><a href="./media_cd34.mp4">video</a></p></div>', asset))
-        .to.equal('https://main--site--org.aem.page/players/media_cd34.mp4');
-      expect(readAsset(`<div><p><a href="${files.pdf}">pdf</a></p></div>`, asset)).to.equal(files.pdf);
+      const rows = propRow('src', '<div><picture><img src="./media_ab12.png?width=750"></picture></div>');
+      expect(readAsset(rows, asset))
+        .to.deep.equal({ src: 'https://main--site--org.aem.page/players/media_ab12.png' });
     });
 
-    it('reads asset blocks referenced from list items', () => {
-      const html = `<body><main><div>
-        <div class="da-form"><div><div>x-schema-name</div><div>player</div></div></div>
-        <div class="player"><div><div>gallery</div><div><ul><li>self://asset#gallery-a1</li><li>self://asset#gallery-b2</li></ul></div></div></div>
-        <div class="gallery gallery-a1"><div><div>asset</div><div><p><img src="./media_ab12.png"></p></div></div></div>
-        <div class="gallery gallery-b2"><div><div>asset</div><div><p><a href="${files.pdf}">${files.pdf}</a></p></div></div></div>
-      </div></main></body>`;
-      expect(convertHtmlToJson({ html }).json.data.gallery)
-        .to.deep.equal(['./media_ab12.png', files.pdf]);
+    it('keeps typed self:// references as text', () => {
+      const rows = propRow('asset', '<div><p><img src="./media_ab12.png"></p></div>');
+      const html = assetPage(rows, 'self://asset#hero-abc');
+      expect(convertHtmlToJson({ html }).json.data.hero).to.equal('self://asset#hero-abc');
     });
 
     it('reads back every asset it writes', () => {
       const json = doc({
-        hero: sources.smartCrop,
-        gallery: [sources.publish, files.video, sources.hlx6],
-        sponsor: { logo: sources.upload, name: 'Acme' },
-        chapters: [{ title: 'One', slides: [files.audio, sources.upload] }],
+        hero: a(sources.smartCrop, 'Smart crop'),
+        gallery: [a(sources.publish), a(files.video), a(sources.hlx6)],
+        sponsor: { logo: a(sources.upload, 'Logo'), name: 'Acme' },
+        chapters: [{ title: 'One', slides: [a(files.audio), a(sources.upload)] }],
       });
       expect(convertHtmlToJson({ html: save({ json, schema }).html }).json).to.deep.equal(json);
     });
@@ -541,12 +519,6 @@ describe('media fields', () => {
       });
     });
 
-    it('writes a value stored as text by earlier versions as an image on the next save', () => {
-      const legacy = readHero(`<div><p>${sources.upload}</p></div>`);
-      expect(legacy).to.equal(sources.upload);
-      expect(imageSources(writeHero(legacy, schema))).to.deep.equal([sources.upload]);
-    });
-
     describe('with asset.base', () => {
       const origin = 'https://main--site--org.aem.page';
       const pageHref = `${origin}/players/ada`;
@@ -602,7 +574,7 @@ describe('media fields', () => {
   describe('round trip', () => {
     Object.entries(sources).forEach(([name, href]) => {
       it(`returns the stored ${name} URL in fields and array items`, () => {
-        const data = { hero: href, gallery: [href], sponsor: { logo: href } };
+        const data = { hero: a(href, 'Hero'), gallery: [a(href)], sponsor: { logo: a(href) } };
         [schema, undefined].forEach((withSchema) => {
           const { html } = save({ json: doc(data), schema: withSchema });
           const { json } = convertHtmlToJson({ html });
@@ -613,25 +585,25 @@ describe('media fields', () => {
 
     it('trims a padded media value the same way with and without a model', () => {
       [schema, undefined].forEach((withSchema) => {
-        const { html } = save({ json: doc({ hero: `  ${sources.upload} ` }), schema: withSchema });
-        expect(convertHtmlToJson({ html }).json.data.hero).to.equal(sources.upload);
+        const { html } = save({ json: doc({ hero: a(`  ${sources.upload} `) }), schema: withSchema });
+        expect(convertHtmlToJson({ html }).json.data.hero).to.deep.equal(a(sources.upload));
       });
     });
 
     it('stores a media bus value with rendition parameters once, then keeps it stable', () => {
-      const first = save({ json: doc({ hero: './media_ab12.png?width=750' }), schema }).html;
+      const first = save({ json: doc({ hero: a('./media_ab12.png?width=750') }), schema }).html;
       const stored = convertHtmlToJson({ html: first }).json.data.hero;
-      expect(stored).to.equal('./media_ab12.png');
+      expect(stored).to.deep.equal(a('./media_ab12.png'));
 
       const second = save({ json: doc({ hero: stored }), schema }).html;
-      expect(convertHtmlToJson({ html: second }).json.data.hero).to.equal(stored);
+      expect(convertHtmlToJson({ html: second }).json.data.hero).to.deep.equal(stored);
     });
 
     it('returns file URLs unchanged', () => {
       const data = {
-        hero: files.pdf,
-        gallery: [files.video, sources.publish],
-        sponsor: { logo: files.audio },
+        hero: a(files.pdf),
+        gallery: [a(files.video), a(sources.publish)],
+        sponsor: { logo: a(files.audio) },
       };
       const { html } = save({ json: doc(data), schema });
       expect(convertHtmlToJson({ html }).json.data).to.deep.equal(data);
@@ -645,7 +617,7 @@ describe('media files', () => {
 
   it('writes non-image files as links with the URL as text', () => {
     const { html } = save({
-      json: doc({ hero: files.pdf, gallery: [files.video, sources.upload] }),
+      json: doc({ hero: a(files.pdf, 'Datasheet'), gallery: [a(files.video), a(sources.upload)] }),
       schema,
     });
     expect(links(html)).to.deep.equal([[files.pdf, files.pdf], [files.video, files.video]]);
@@ -654,18 +626,18 @@ describe('media files', () => {
 
   it('writes a value without an extension as a link and reads it back unchanged', () => {
     const external = 'https://images.example.com/photo-1609432638531?auto=format&w=750';
-    const { html } = save({ json: doc({ hero: external }), schema });
+    const { html } = save({ json: doc({ hero: a(external) }), schema });
     expect(imageSources(html)).to.deep.equal([]);
     expect(links(html)).to.deep.equal([[external, external]]);
-    expect(convertHtmlToJson({ html }).json.data.hero).to.equal(external);
+    expect(convertHtmlToJson({ html }).json.data.hero).to.deep.equal(a(external));
   });
 
   it('escapes link URLs in the attribute and the text', () => {
     const href = 'https://x.test/a.pdf?a=1&b="<2>"';
-    const { html } = save({ json: doc({ hero: href }), schema });
+    const { html } = save({ json: doc({ hero: a(href) }), schema });
     expect(html).to.include('<a href="https://x.test/a.pdf?a=1&amp;b=&quot;<2>&quot;">');
     expect(html).to.include('>https://x.test/a.pdf?a=1&amp;b="&lt;2&gt;"</a>');
-    expect(convertHtmlToJson({ html }).json.data.hero).to.equal(href);
+    expect(convertHtmlToJson({ html }).json.data.hero).to.deep.equal(a(href));
   });
 });
 
@@ -684,6 +656,8 @@ describe('isIngestedImage', () => {
       'https://content.da.live/o/s/a.pdf',
       './media_ab12.mp4',
       'https://main--site--org.aem.live/media_ab12.png',
+      './hero.png',
+      'hero.png',
     ].forEach((src) => expect(isIngestedImage(src), src).to.equal(false));
   });
 });

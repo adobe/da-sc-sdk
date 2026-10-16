@@ -11,10 +11,10 @@
  */
 
 import { expect } from '@esm-bundle/chai';
-import { createEngine } from '../../src/index.js';
+import { IMAGE_SCHEMA_URL, createEngine } from '../../src/index.js';
 import { fieldMap } from '../../src/html/field-map.js';
 
-const asset = { type: 'string', 'x-semantic-type': 'asset' };
+const asset = { $ref: IMAGE_SCHEMA_URL };
 
 const schema = {
   type: 'object',
@@ -44,12 +44,13 @@ describe('fieldMap', () => {
     const map = fieldMap(modelOf({}));
     expect(map.children.get('title')).to.deep.equal({});
     expect(map.children.get('hero').semanticType).to.equal('asset');
+    expect([...map.children.get('hero').children.keys()]).to.deep.equal(['src', 'altText']);
   });
 
   it('merges all array items into one item field', () => {
     // Only the second slide has images, so the first item alone would miss them.
     const map = fieldMap(modelOf({
-      slides: [{ caption: 'a', images: [] }, { images: ['x.png', 'y.png'] }],
+      slides: [{ caption: 'a', images: [] }, { images: [{ src: 'x.png' }, { src: 'y.png' }] }],
     }));
     const slide = map.children.get('slides').item;
     expect(slide.children.get('caption')).to.deep.equal({});

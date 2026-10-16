@@ -11,6 +11,46 @@
  */
 
 import { deepClone } from './clone.js';
+import {
+  FILE_SCHEMA_URL, IMAGE_SCHEMA_URL, assetDefinition, isAssetRef,
+} from './asset-schema.js';
+
+// Keywords next to an asset `$ref` that describe the field, not the asset.
+const ASSET_ANNOTATIONS = ['title', 'description', 'readOnly', 'readonly', 'default'];
+
+// Keys that never constrain a value: other annotations, `$`-keywords, vendor
+// `x-*` hints and the markers the resolver itself adds.
+const ASSET_IGNORED_KEYS = new Set([
+  ...ASSET_ANNOTATIONS, '$comment', 'examples', 'deprecated', 'writeOnly',
+  'schemaPath', 'assetRef', 'unsupportedRef', 'unsupportedComposition',
+]);
+
+// `required` next to an asset `$ref` may only list the properties the
+// definition lets a schema require (an image's `altText`), each once.
+function isAllowedAssetRequired(required, ref) {
+  const allowed = assetDefinition(ref)?.optionalRequired ?? [];
+  return Array.isArray(required) && required.length > 0
+    && new Set(required).size === required.length
+    && required.every((name) => allowed.includes(name));
+}
+
+// Keywords next to an asset `$ref` that would change the asset. JSON Schema
+// validators apply them on top of the definition, so anything the SDK does not
+// support exactly the same way is reported instead of being dropped silently.
+function assetConstraintKeywords(node, ref) {
+  return Object.keys(node).filter((key) => node[key] !== undefined
+    && !ASSET_IGNORED_KEYS.has(key) && !key.startsWith('$') && !key.startsWith('x-')
+    && !(key === 'required' && isAllowedAssetRequired(node.required, ref)));
+}
+
+function assetKeywordsIssue({ node, ref, keywords, schemaPath }) {
+  return {
+    ...node,
+    $ref: undefined,
+    unsupportedRef: { reason: 'asset-ref-keywords', ref, properties: keywords },
+    schemaPath,
+  };
+}
 
 function unionRequired(base = [], next = []) {
   return Array.from(new Set([...(base ?? []), ...(next ?? [])]));
@@ -81,6 +121,27 @@ function resolveNode({
     const ref = resolved.$ref;
     const isInternal = typeof ref === 'string' && ref.startsWith('#/');
 
+    if (isAssetRef(ref)) {
+      // The asset definitions belong to the SDK, so the shape is always their
+      // own: only annotations and an allowed `required` are kept.
+      const keywords = assetConstraintKeywords(resolved, ref);
+      if (keywords.length) {
+        return assetKeywordsIssue({
+          node: resolved, ref, keywords, schemaPath,
+        });
+      }
+      const annotations = Object.fromEntries(ASSET_ANNOTATIONS
+        .filter((keyword) => resolved[keyword] !== undefined)
+        .map((keyword) => [keyword, resolved[keyword]]));
+      return {
+        ...annotations,
+        ...(resolved.required ? { required: [...resolved.required] } : {}),
+        type: 'object',
+        assetRef: ref,
+        schemaPath,
+      };
+    }
+
     if (!isInternal) {
       // External ref (URL, file path, or malformed). docs/schema-spec.md only
       // permits same-document `#/...` refs.
@@ -112,6 +173,15 @@ function resolveNode({
         node: deepClone(target), rootSchema, seenRefs, schemaPath: effectivePath,
       });
       seenRefs.delete(ref);
+      if (derefTarget?.assetRef) {
+        // Keywords at the usage site apply to the asset too (`$ref` siblings).
+        const keywords = assetConstraintKeywords(resolved, derefTarget.assetRef);
+        if (keywords.length) {
+          return assetKeywordsIssue({
+            node: resolved, ref: derefTarget.assetRef, keywords, schemaPath,
+          });
+        }
+      }
       resolved = mergeSchemas(derefTarget, { ...resolved, $ref: undefined });
     }
   }
@@ -225,7 +295,6 @@ const SUPPORTED_TYPES = new Set([
 // they can't act on.
 const SEMANTIC_TYPES = new Map([
   ['long-text', 'string'],
-  ['asset', 'string'],
 ]);
 
 // Native JSON Schema string `format` values we surface to the UI as date/time
@@ -253,7 +322,7 @@ function inferKind(schema = {}) {
     return unsupportedKind({
       reason: r.reason,
       feature: r.reason,
-      details: { ref: r.ref },
+      details: r.properties ? { ref: r.ref, properties: r.properties } : { ref: r.ref },
     });
   }
 
@@ -317,7 +386,14 @@ function issueMessage({ reason, details }) {
     case 'unsupported-composition':
       return `Composition "${details?.keyword ?? ''}" is not supported.`;
     case 'external-ref':
-      return `External reference "${details?.ref ?? ''}" is not supported; use a local "#/…" reference.`;
+      return `External reference "${details?.ref ?? ''}" is not supported; use a local "#/…" reference, the image definition "${IMAGE_SCHEMA_URL}" or the file definition "${FILE_SCHEMA_URL}".`;
+    case 'asset-ref-keywords': {
+      const optional = assetDefinition(details?.ref)?.optionalRequired ?? [];
+      const allowed = ['title', 'description', 'readOnly', 'default',
+        ...(optional.length ? [`required: ${JSON.stringify(optional)}`] : [])];
+      const list = `${allowed.slice(0, -1).join(', ')} and ${allowed.at(-1)}`;
+      return `Only ${list} can be set next to the asset reference; remove ${(details?.properties ?? []).map((k) => `"${k}"`).join(', ')}.`;
+    }
     case 'unresolved-ref':
       return `Reference "${details?.ref ?? ''}" could not be resolved.`;
     case 'invalid-pattern':
@@ -398,6 +474,29 @@ function compileNode({
         schemaPath,
         details: u.details ?? null,
       },
+    };
+  }
+
+  // A `$ref` to an asset definition. Its properties come from the SDK. `src`
+  // and any property listed in `required` next to the `$ref` are checked by
+  // data validation only once the asset has content.
+  if (schema?.assetRef) {
+    const { assetType, schema: definition } = assetDefinition(schema.assetRef);
+    const requiredSet = new Set(schema.required ?? []);
+    return {
+      ...base,
+      semanticType: 'asset',
+      assetType,
+      children: Object.entries(definition.properties).map(([childKey, childSchema]) => (
+        compileNode({
+          key: childKey,
+          schema: childSchema,
+          required: requiredSet.has(childKey),
+          labelFallback: childKey,
+          pointer: `${pointer}/${childKey}`,
+          issues,
+        })
+      )),
     };
   }
 

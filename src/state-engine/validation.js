@@ -47,6 +47,7 @@
 // surfaces on `schemaIssues`, not here.
 
 import { isDataEmpty } from './empty.js';
+import { ASSET_SRC } from './asset-schema.js';
 
 // First error per pointer wins. Helper makes that rule explicit at every
 // call site instead of buried in the walk.
@@ -254,6 +255,7 @@ function validateArray({ node, errors }) {
 // Word the required message to the control kind: object = section, array =
 // item count (surfaced here since an empty array short-circuits as absent).
 function requiredMessage(child) {
+  if (child.semanticType === 'asset') { return 'This field is required.'; }
   if (child.kind === 'object') { return 'This section is required.'; }
   if (child.kind === 'array') {
     // Share validateArray's wording so both paths read the same.
@@ -262,8 +264,25 @@ function requiredMessage(child) {
   return 'This field is required.';
 }
 
+// An asset with content needs a source (alt text alone describes nothing) and
+// every property the schema requires next to its `$ref`. An empty asset is
+// absent, so none of these fire for it.
+function validateAsset({ node, errors }) {
+  for (const child of node.children ?? []) {
+    if ((child.key === ASSET_SRC || child.required) && isDataEmpty(child.value)) {
+      pushError(errors, child.pointer, {
+        keyword: 'required',
+        params: { missingProperty: child.key },
+        message: 'This field is required.',
+      });
+    }
+  }
+}
+
 function emitRequiredForChildren({ node, errors }) {
   if (node.kind !== 'object' || !Array.isArray(node.children)) { return; }
+  // An asset checks its own properties in validateAsset.
+  if (node.semanticType === 'asset') { return; }
   for (const child of node.children) {
     // Presence is recursive: a required container of only-empty leaves (e.g.
     // `{ title: '' }`) prunes to nothing on save, so flag it as missing.
@@ -296,7 +315,9 @@ function validateNodeValue({ node, errors }) {
   // enforced at the parent, so an empty required field is still flagged.
   if (isDataEmpty(node.value)) { return; }
 
-  if (node.kind === 'string') {
+  if (node.semanticType === 'asset') {
+    validateAsset({ node, errors });
+  } else if (node.kind === 'string') {
     validateString({ node, errors });
   } else if (node.kind === 'number' || node.kind === 'integer') {
     validateNumber({ node, errors });

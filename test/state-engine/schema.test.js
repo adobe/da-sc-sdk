@@ -12,6 +12,7 @@
 
 import { expect } from '@esm-bundle/chai';
 import { compileSchema } from '../../src/state-engine/schema.js';
+import { FILE_SCHEMA_URL, IMAGE_SCHEMA_URL } from '../../src/index.js';
 
 describe('compileSchema', () => {
   describe('basic types', () => {
@@ -78,34 +79,221 @@ describe('compileSchema', () => {
       expect(body.semanticType).to.equal('long-text');
     });
 
-    it('captures an asset semantic type for a string without changing its value kind', () => {
-      const { definition } = compileSchema({
+    it('compiles an image as an object with the SDK-defined src and altText fields', () => {
+      const { definition, issues } = compileSchema({
         type: 'object',
-        properties: { hero: { type: 'string', title: 'Hero', 'x-semantic-type': 'asset' } },
+        required: ['hero'],
+        properties: { hero: { $ref: IMAGE_SCHEMA_URL, title: 'Hero' } },
       });
       const hero = definition.children[0];
-      expect(hero.kind).to.equal('string');
-      expect(hero.semanticType).to.equal('asset');
+      expect(issues).to.deep.equal([]);
+      expect(hero).to.include({
+        kind: 'object', semanticType: 'asset', assetType: 'image', label: 'Hero', required: true,
+      });
+      expect(hero.children.map(({ key, kind, label, required }) => ({
+        key, kind, label, required,
+      }))).to.deep.equal([
+        { key: 'src', kind: 'string', label: 'Source', required: false },
+        { key: 'altText', kind: 'string', label: 'Alt text', required: false },
+      ]);
     });
 
-    it('ignores asset semantics on a non-string field', () => {
+    it('compiles a file as an object with only the SDK-defined src field', () => {
+      const { definition, issues } = compileSchema({
+        type: 'object',
+        properties: { datasheet: { $ref: FILE_SCHEMA_URL, title: 'Datasheet' } },
+      });
+      const datasheet = definition.children[0];
+      expect(issues).to.deep.equal([]);
+      expect(datasheet).to.include({
+        kind: 'object', semanticType: 'asset', assetType: 'file', label: 'Datasheet',
+      });
+      expect(datasheet.children.map((c) => c.key)).to.deep.equal(['src']);
+    });
+
+    it('requires the alt text of an image when required lists it next to the $ref', () => {
+      const { definition, issues } = compileSchema({
+        type: 'object',
+        properties: { hero: { $ref: IMAGE_SCHEMA_URL, required: ['altText'] } },
+      });
+      expect(issues).to.deep.equal([]);
+      expect(definition.children[0].children.map(({ key, required }) => ({ key, required })))
+        .to.deep.equal([
+          { key: 'src', required: false },
+          { key: 'altText', required: true },
+        ]);
+    });
+
+    it('requires the alt text through a $defs entry and at the local reference', () => {
+      const { definition, issues } = compileSchema({
+        type: 'object',
+        $defs: {
+          Logo: { $ref: IMAGE_SCHEMA_URL, title: 'Logo', required: ['altText'] },
+          Photo: { $ref: IMAGE_SCHEMA_URL },
+        },
+        properties: {
+          logo: { $ref: '#/$defs/Logo' },
+          photo: { $ref: '#/$defs/Photo', required: ['altText'] },
+          gallery: { type: 'array', items: { $ref: IMAGE_SCHEMA_URL, required: ['altText'] } },
+        },
+      });
+      expect(issues).to.deep.equal([]);
+      const altRequired = (node) => node.children.find((c) => c.key === 'altText').required;
+      const [logo, photo, gallery] = definition.children;
+      expect(altRequired(logo)).to.equal(true);
+      expect(altRequired(photo)).to.equal(true);
+      expect(altRequired(gallery.item)).to.equal(true);
+    });
+
+    it('keeps annotations next to an asset reference', () => {
+      const { definition, issues } = compileSchema({
+        type: 'object',
+        properties: {
+          hero: {
+            $ref: IMAGE_SCHEMA_URL,
+            title: 'Hero',
+            description: 'The main image',
+            readOnly: true,
+            default: null,
+            $comment: 'note',
+            examples: [],
+            'x-hint': 1,
+          },
+        },
+      });
+      const hero = definition.children[0];
+      expect(issues).to.deep.equal([]);
+      expect(hero).to.include({
+        kind: 'object', semanticType: 'asset', label: 'Hero', description: 'The main image', readonly: true,
+      });
+      expect(hero.children.map((c) => c.key)).to.deep.equal(['src', 'altText']);
+    });
+
+    it('reports keywords next to an image reference that would change the image', () => {
+      const { definition, issues } = compileSchema({
+        type: 'object',
+        properties: {
+          hero: {
+            $ref: IMAGE_SCHEMA_URL,
+            title: 'Hero',
+            type: 'object',
+            properties: { caption: { type: 'string' } },
+          },
+        },
+      });
+      expect(issues).to.deep.equal([{
+        reason: 'asset-ref-keywords',
+        message: 'Only title, description, readOnly, default and required: ["altText"] can be set next to the asset reference; remove "type", "properties".',
+        schemaPath: '/properties/hero',
+        pointer: '/data/hero',
+        details: { ref: IMAGE_SCHEMA_URL, properties: ['type', 'properties'] },
+      }]);
+      expect(definition.children[0]).to.include({ kind: 'unsupported', readonly: true });
+    });
+
+    it('reports a required next to an image that lists anything but altText once', () => {
+      [['src'], ['altText', 'src'], ['altText', 'altText'], [], 'altText'].forEach((required) => {
+        const { issues } = compileSchema({
+          type: 'object',
+          properties: { hero: { $ref: IMAGE_SCHEMA_URL, required } },
+        });
+        expect(issues.map((i) => [i.reason, i.details.properties])).to.deep.equal([
+          ['asset-ref-keywords', ['required']],
+        ]);
+      });
+    });
+
+    it('reports any keyword but annotations next to a file reference', () => {
+      const { issues } = compileSchema({
+        type: 'object',
+        properties: { datasheet: { $ref: FILE_SCHEMA_URL, required: ['altText'], type: 'object' } },
+      });
+      expect(issues).to.deep.equal([{
+        reason: 'asset-ref-keywords',
+        message: 'Only title, description, readOnly and default can be set next to the asset reference; remove "required", "type".',
+        schemaPath: '/properties/datasheet',
+        pointer: '/data/datasheet',
+        details: { ref: FILE_SCHEMA_URL, properties: ['required', 'type'] },
+      }]);
+    });
+
+    it('reports keywords next to an asset reference inside $defs and array items', () => {
+      const { issues } = compileSchema({
+        type: 'object',
+        $defs: { Logo: { $ref: IMAGE_SCHEMA_URL, required: ['src'] } },
+        properties: {
+          logo: { $ref: '#/$defs/Logo' },
+          gallery: { type: 'array', items: { $ref: IMAGE_SCHEMA_URL, additionalProperties: true } },
+        },
+      });
+      expect(issues.map(({ reason, schemaPath, pointer, details }) => ({
+        reason, schemaPath, pointer, properties: details.properties,
+      }))).to.deep.equal([
+        {
+          reason: 'asset-ref-keywords', schemaPath: '/$defs/Logo', pointer: '/data/logo', properties: ['required'],
+        },
+        {
+          reason: 'asset-ref-keywords', schemaPath: '/properties/gallery/items', pointer: '/data/gallery/0', properties: ['additionalProperties'],
+        },
+      ]);
+    });
+
+    it('reports keywords next to a local reference to an asset', () => {
+      const { issues } = compileSchema({
+        type: 'object',
+        $defs: { Datasheet: { $ref: FILE_SCHEMA_URL, title: 'Datasheet' } },
+        properties: { sheet: { $ref: '#/$defs/Datasheet', title: 'Sheet', required: ['altText'] } },
+      });
+      const summary = issues.map(({ reason, schemaPath, details }) => ({
+        reason, schemaPath, details,
+      }));
+      expect(summary).to.deep.equal([{
+        reason: 'asset-ref-keywords',
+        schemaPath: '/properties/sheet',
+        details: { ref: FILE_SCHEMA_URL, properties: ['required'] },
+      }]);
+    });
+
+    it('labels an untitled asset with its key, not the definition title', () => {
       const { definition } = compileSchema({
         type: 'object',
-        properties: { hero: { type: 'object', 'x-semantic-type': 'asset' } },
+        properties: { hero: { $ref: IMAGE_SCHEMA_URL } },
       });
-      expect(definition.children[0].semanticType).to.equal(undefined);
+      expect(definition.children[0].label).to.equal('hero');
     });
 
-    it('lets an enum or supported format take precedence over asset semantics', () => {
+    it('compiles an asset reached through a local $defs reference', () => {
+      const { definition, issues } = compileSchema({
+        type: 'object',
+        $defs: { Logo: { $ref: IMAGE_SCHEMA_URL, title: 'Logo' } },
+        properties: { logo: { $ref: '#/$defs/Logo' } },
+      });
+      expect(issues).to.deep.equal([]);
+      expect(definition.children[0]).to.include({ semanticType: 'asset', assetType: 'image', label: 'Logo' });
+    });
+
+    it('compiles an array of assets', () => {
       const { definition } = compileSchema({
         type: 'object',
         properties: {
-          option: { type: 'string', enum: ['first'], 'x-semantic-type': 'asset' },
-          date: { type: 'string', format: 'date', 'x-semantic-type': 'asset' },
+          gallery: { type: 'array', items: { $ref: IMAGE_SCHEMA_URL } },
+          files: { type: 'array', items: { $ref: FILE_SCHEMA_URL } },
         },
       });
-      expect(definition.children[0].semanticType).to.equal(undefined);
-      expect(definition.children[1].semanticType).to.equal(undefined);
+      const [gallery, files] = definition.children;
+      expect(gallery.item).to.include({ kind: 'object', semanticType: 'asset', assetType: 'image' });
+      expect(gallery.item.children.map((c) => c.key)).to.deep.equal(['src', 'altText']);
+      expect(files.item).to.include({ kind: 'object', semanticType: 'asset', assetType: 'file' });
+      expect(files.item.children.map((c) => c.key)).to.deep.equal(['src']);
+    });
+
+    it('reports external references other than the asset definitions', () => {
+      const { issues } = compileSchema({
+        type: 'object',
+        properties: { hero: { $ref: 'https://example.com/schemas/image.json' } },
+      });
+      expect(issues.map((i) => i.reason)).to.deep.equal(['external-ref']);
+      expect(issues[0].message).to.include(IMAGE_SCHEMA_URL).and.include(FILE_SCHEMA_URL);
     });
 
     it('lets enum win over x-semantic-type', () => {

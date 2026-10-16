@@ -31,6 +31,7 @@ import {
   isAssetSource, isIngestedImage, isMediaImage, normalizeMediaSource,
 } from './media.js';
 import { fieldMap } from './field-map.js';
+import { ASSET_ALT, ASSET_SRC } from '../state-engine/asset-schema.js';
 
 function escapeText(value) {
   return String(value).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
@@ -56,50 +57,45 @@ function block(name, innerHtml) {
   return `<div class="${escapeAttr(name.toLowerCase())}">${innerHtml}</div>`;
 }
 
-function isAsset(field, value) {
-  return field?.semanticType === 'asset' && typeof value === 'string'
-    && isAssetSource(normalizeMediaSource(value));
-}
-
 // Images are written as `<img>`, which EDS copies into the media bus, and
 // other assets as links. With `externalImagesAsLinks`, only media bus images and
 // images uploaded to DA stay `<img>`; images from other hosts are written as
-// links, so EDS keeps their URL.
-function assetHtml(src, { externalImagesAsLinks }) {
+// links, so EDS keeps their URL. An image carries the asset's alt text.
+function assetHtml(src, altText, { externalImagesAsLinks }) {
   const value = normalizeMediaSource(src);
   const image = externalImagesAsLinks ? isIngestedImage(value) : isMediaImage(value);
   if (image) {
-    return `<img src="${escapeAttr(value)}" alt="">`;
+    const alt = typeof altText === 'string' ? altText : '';
+    return `<img src="${escapeAttr(value)}" alt="${escapeAttr(alt)}">`;
   }
   return `<a href="${escapeAttr(value)}">${escapeText(value)}</a>`;
+}
+
+// The `src` row of an asset holds the asset as an image or link. A source that
+// is not a media bus path or an http(s) URL is written as text.
+function assetSrcCol(src, altText, ctx) {
+  if (typeof src !== 'string' || !isAssetSource(normalizeMediaSource(src))) {
+    return `<div><p>${textContent(src)}</p></div>`;
+  }
+  return `<div><p>${assetHtml(src, altText, ctx)}</p></div>`;
 }
 
 function childField(field, key) {
   return field?.children?.get(key);
 }
 
-// A reference to a nested block. The host names what the block holds when it
-// is not an object or array, for example `self://asset#hero-abc123`.
-function selfRef(key, guid, type = '') {
-  return textContent(`self://${type}#${key.toLowerCase()}-${guid}`);
+function selfRef(key, guid) {
+  return textContent(`self://#${key.toLowerCase()}-${guid}`);
 }
 
-function selfRefLi(key, guid, type) {
-  return `<li>${selfRef(key, guid, type)}</li>`;
+function selfRefLi(key, guid) {
+  return `<li>${selfRef(key, guid)}</li>`;
 }
 
 function newBlock(key, innerHtml, ctx) {
   const guid = Math.random().toString(36).substring(2, 8);
   ctx.blocks.push(block(`${key} ${key}-${guid}`, innerHtml));
   return guid;
-}
-
-// Each asset is written to its own block and referenced as `self://asset#…`,
-// so readers know from the reference what the block holds. Like an object
-// block, it has one row per property: `asset` holds the asset, and further
-// properties can be added as rows later.
-function assetBlock(key, src, ctx) {
-  return newBlock(key, row('asset', `<div><p>${assetHtml(src, ctx)}</p></div>`), ctx);
 }
 
 function arrayItemLi(key, item, ctx, field) {
@@ -111,9 +107,6 @@ function arrayItemLi(key, item, ctx, field) {
     // eslint-disable-next-line no-use-before-define
     return selfRefLi(key, nestedBlock(key, item, ctx, field));
   }
-  if (isAsset(field, item)) {
-    return selfRefLi(key, assetBlock(key, item, ctx), 'asset');
-  }
   return `<li>${textContent(item)}</li>`;
 }
 
@@ -121,8 +114,10 @@ function nestedBlock(key, obj, ctx, field) {
   const guid = Math.random().toString(36).substring(2, 8);
   const className = `${key} ${key}-${guid}`;
   const rowsHtml = Object.entries(obj).map(([k, v]) => {
-    // eslint-disable-next-line no-use-before-define
-    const valColHtml = valueCol(k, v, ctx, childField(field, k));
+    const valColHtml = field?.semanticType === 'asset' && k === ASSET_SRC
+      ? assetSrcCol(v, obj[ASSET_ALT], ctx)
+      // eslint-disable-next-line no-use-before-define
+      : valueCol(k, v, ctx, childField(field, k));
     return row(k, valColHtml);
   }).join('');
   ctx.blocks.push(block(className, rowsHtml));
@@ -154,9 +149,6 @@ function valueCol(key, value, ctx, field) {
     return `<div><p>${selfRef(key, objGuid)}</p></div>`;
   }
 
-  if (isAsset(field, value)) {
-    return `<div><p>${selfRef(key, assetBlock(key, value, ctx), 'asset')}</p></div>`;
-  }
   return `<div><p>${textContent(value)}</p></div>`;
 }
 
@@ -203,9 +195,9 @@ export default function json2html(json, field, { externalImagesAsLinks = false }
 // `convertHtmlToJson` from html2json.js.
 //
 // With an optional `model` (`engine.getState().model` of the same document),
-// fields whose model node has `semanticType: 'asset'` are written to their
-// own blocks: images as `<img>` and other assets as links. Without a model,
-// every value is written as text.
+// the `src` of fields whose model node has `semanticType: 'asset'` is written
+// as an image, with the asset's `altText` as its alt text, or as a link for
+// other files. Without a model, every value is written as text.
 //
 // The optional `config` object holds writer settings:
 // - `externalImagesAsLinks` (default `false`): write images from hosts other

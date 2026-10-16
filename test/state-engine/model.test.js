@@ -82,12 +82,27 @@ describe('buildModel', () => {
     expect(nodeAt({ model, pointer: '/data/body' })?.semanticType).to.equal('long-text');
   });
 
-  it('retains an asset URL as a string while surfacing asset semantics', () => {
-    const href = './media_example.png';
-    const def = objectDef([stringDef('hero', { semanticType: 'asset' })]);
-    const model = buildModel({ definition: def, document: { data: { hero: href } } });
+  it('builds an asset as an object of src and altText while surfacing asset semantics', () => {
+    const hero = { src: './media_example.png', altText: 'A hero' };
+    const def = objectDef([{
+      ...objectDef([stringDef('src'), stringDef('altText')]),
+      key: 'hero',
+      semanticType: 'asset',
+      assetType: 'image',
+    }, {
+      ...objectDef([stringDef('src')]),
+      key: 'sheet',
+      semanticType: 'asset',
+      assetType: 'file',
+    }]);
+    const model = buildModel({ definition: def, document: { data: { hero } } });
     expect(nodeAt({ model, pointer: '/data/hero' })?.semanticType).to.equal('asset');
-    expect(nodeAt({ model, pointer: '/data/hero' })?.value).to.equal(href);
+    expect(nodeAt({ model, pointer: '/data/hero' })?.assetType).to.equal('image');
+    expect(nodeAt({ model, pointer: '/data/sheet' })?.assetType).to.equal('file');
+    expect(nodeAt({ model, pointer: '/data/hero/src' })).to.not.have.property('assetType');
+    expect(nodeAt({ model, pointer: '/data/hero' })?.value).to.deep.equal(hero);
+    expect(nodeAt({ model, pointer: '/data/hero/src' })?.value).to.equal(hero.src);
+    expect(nodeAt({ model, pointer: '/data/hero/altText' })?.value).to.equal(hero.altText);
   });
 
   it('exposes itemLabel from the item definition on array nodes', () => {

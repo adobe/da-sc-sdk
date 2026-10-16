@@ -15,7 +15,7 @@
 //
 // Run: node examples/edit.js
 
-import { createEngine, convertJsonToHtml } from '../src/index.js';
+import { IMAGE_SCHEMA_URL, createEngine, convertJsonToHtml } from '../src/index.js';
 
 const schema = {
   type: 'object',
@@ -25,7 +25,7 @@ const schema = {
     name: { type: 'string', title: 'Name' },
     status: { type: 'string', title: 'Status', enum: ['Draft', 'Active'] },
     tags: { type: 'array', title: 'Tags', items: { type: 'string', title: 'Tag' } },
-    logo: { type: 'string', title: 'Logo', 'x-semantic-type': 'asset' },
+    logo: { $ref: IMAGE_SCHEMA_URL, title: 'Logo' },
   },
 };
 
@@ -74,7 +74,8 @@ engine.setField('/data/name', 'Alice');
 engine.setField('/data/status', 'Active');
 engine.addItem('/data/tags');
 engine.setField('/data/tags/0', 'demo');
-engine.setField('/data/logo', 'https://content.da.live/org/site/logo.png');
+engine.setField('/data/logo/src', 'https://content.da.live/org/site/logo.png');
+engine.setField('/data/logo/altText', 'Project logo');
 // → [save] … image: true
 
 console.log('---');

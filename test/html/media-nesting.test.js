@@ -13,11 +13,12 @@
 import { expect } from '@esm-bundle/chai';
 import { convertHtmlToJson } from '../../src/html/html2json.js';
 import { save } from './test-utils.js';
+import { IMAGE_SCHEMA_URL } from '../../src/index.js';
 
 // A document with media at every nesting level the wire format supports: fields, arrays,
 // objects in arrays, arrays of arrays and objects in objects, with text and files as siblings.
 
-const media = { type: 'string', 'x-semantic-type': 'asset' };
+const media = { $ref: IMAGE_SCHEMA_URL };
 const text = { type: 'string' };
 
 const schema = {
@@ -88,32 +89,34 @@ const files = {
 // A text field whose value looks like an image URL must stay text.
 const website = 'https://speaker-one.example.com/avatar.png';
 
+const asset = (src, altText) => (altText === undefined ? { src } : { src, altText });
+
 const data = {
   title: 'Summit',
-  hero: images.hero,
-  downloads: [files.agenda, externalImages.stage],
+  hero: asset(images.hero, 'Summit stage'),
+  downloads: [asset(files.agenda), asset(externalImages.stage)],
   sessions: [
     {
       name: 'Keynote',
-      cover: externalImages.cover,
-      recording: files.recording,
+      cover: asset(externalImages.cover, 'Keynote cover'),
+      recording: asset(files.recording),
       speakers: [
         {
           name: 'Speaker one',
           website,
-          portrait: externalImages.portraitOne,
-          gallery: [externalImages.stage, files.bio],
+          portrait: asset(externalImages.portraitOne),
+          gallery: [asset(externalImages.stage), asset(files.bio)],
         },
-        { name: 'Speaker two', portrait: images.portraitTwo },
+        { name: 'Speaker two', portrait: asset(images.portraitTwo, 'Speaker "two"') },
       ],
-      slides: [[images.slideOne, externalImages.slideTwo], [files.deck]],
+      slides: [[asset(images.slideOne), asset(externalImages.slideTwo)], [asset(files.deck)]],
       venue: {
         address: 'Hall 1',
-        map: images.map,
-        floor: { label: 'Level 2', plan: images.plan },
+        map: asset(images.map),
+        floor: { label: 'Level 2', plan: asset(images.plan) },
       },
     },
-    { name: 'Workshop', cover: externalImages.stage },
+    { name: 'Workshop', cover: asset(externalImages.stage) },
   ],
 };
 
@@ -141,13 +144,13 @@ const mediaPaths = new Map(allImages.map((href, index) => [
 // Rewrites the DA source the way EDS delivers it on preview. Every image moves to the media
 // bus and is wrapped in responsive picture markup. Links and text stay as they are.
 function deliverLikeEds(html) {
-  return html.replace(/<img src="([^"]+)" alt="">/g, (match, src) => {
+  return html.replace(/<img src="([^"]+)" alt="([^"]*)">/g, (match, src, alt) => {
     const path = mediaPaths.get(src.replaceAll('&amp;', '&'));
     const extension = path.split('.').pop();
     return `<picture>
       <source type="image/webp" srcset="./${path}?width=2000&#x26;format=webply&#x26;optimize=medium" media="(min-width: 600px)">
       <source type="image/webp" srcset="./${path}?width=750&#x26;format=webply&#x26;optimize=medium">
-      <img loading="lazy" alt="" src="./${path}?width=750&#x26;format=${extension}&#x26;optimize=medium" width="1200" height="800">
+      <img loading="lazy" alt="${alt}" src="./${path}?width=750&#x26;format=${extension}&#x26;optimize=medium" width="1200" height="800">
     </picture>`;
   });
 }
@@ -186,7 +189,7 @@ function mapImages(value, toUrl, written) {
     expect(html).to.include(`<p>${website}</p>`);
   });
 
-  it('writes one block for every nested object and array, and for every asset', () => {
+  it('writes one block for every nested object, array and asset', () => {
     const blocks = [...written.querySelectorAll('main > div > div')]
       .map((block) => block.classList[0]);
     const assets = [
@@ -207,15 +210,16 @@ function mapImages(value, toUrl, written) {
     ]));
   });
 
-  it('references every asset as self://asset# to a block with an asset row', () => {
-    const ids = html.match(/self:\/\/asset#[a-z0-9-]+/g)
-      .map((ref) => ref.slice('self://asset#'.length));
-    expect(ids).to.have.length(assetValues.length);
-    ids.forEach((id) => {
-      const block = written.querySelector(`main > div > div.${id}`);
-      const keys = [...block.children].map((row) => row.firstElementChild.textContent.trim());
-      expect(keys, id).to.deep.equal(['asset']);
-    });
+  it('references every asset like an object, with its alt text on the image', () => {
+    expect(html).not.to.include('self://asset#');
+    const rows = (block) => [...block.children].map((row) => row.firstElementChild.textContent);
+    const assets = [...written.querySelectorAll('main > div > div')]
+      .filter((block) => rows(block)[0] === 'src');
+    expect(assets).to.have.length(assetValues.length);
+    const hero = assets.find((block) => block.classList[0] === 'hero');
+    expect(rows(hero)).to.deep.equal(['src', 'altText']);
+    expect(hero.querySelector('img').getAttribute('alt')).to.equal('Summit stage');
+    expect(html).to.include('alt="Speaker &quot;two&quot;"');
   });
 
   it('reads the DA source back to the same document', () => {

@@ -19,6 +19,7 @@ import {
 } from '../../src/state-engine/index.js';
 import { compileSchema } from '../../src/state-engine/schema.js';
 import { convertJsonToHtml } from '../../src/html/json2html.js';
+import { FILE_SCHEMA_URL, IMAGE_SCHEMA_URL } from '../../src/index.js';
 
 // Build an editor whose state changes can be observed by the test. The
 // observation is deferred — call `start()` after `load()` to skip the load
@@ -189,6 +190,36 @@ describe('createEngine', () => {
   });
 
   describe('setField', () => {
+    it('sets an asset as a whole object or one property at a time', () => {
+      const schema = {
+        type: 'object',
+        properties: { hero: { $ref: IMAGE_SCHEMA_URL } },
+      };
+      const core = createEngine({ schema, document: { metadata: {}, data: {} } });
+      core.setField('/data/hero', { src: './media_ab12.jpg', altText: 'Before' });
+      core.setField('/data/hero/altText', 'After');
+      const { document, model } = core.getState();
+      expect(document.data.hero).to.deep.equal({ src: './media_ab12.jpg', altText: 'After' });
+      expect(model.byPointer['/data/hero/src'].value).to.equal('./media_ab12.jpg');
+    });
+
+    it('fills an asset from its default and keeps a read-only asset read-only', () => {
+      const hero = { src: './media_ab12.jpg', altText: 'Default' };
+      const schema = {
+        type: 'object',
+        properties: {
+          hero: { $ref: IMAGE_SCHEMA_URL, default: hero },
+          sheet: { $ref: FILE_SCHEMA_URL, readOnly: true },
+        },
+      };
+      const core = createEngine({ schema, document: { metadata: {}, data: {} } });
+      const { document, model } = core.getState();
+      expect(document.data.hero).to.deep.equal(hero);
+      expect(model.byPointer['/data/sheet']).to.include({ assetType: 'file', readonly: true });
+      core.setField('/data/sheet', { src: './sheet.pdf' });
+      expect(core.getState().document.data).to.not.have.property('sheet');
+    });
+
     it('updates state with the new value', async () => {
       const core = createEngine({ schema: baseSchema, document: baseDocument });
       core.setField('/data/name', 'Bob');

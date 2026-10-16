@@ -33,8 +33,9 @@ export type SchemaIssueReason =
   | 'unsupported-type'          // a `type` value the SDK doesn't model
   | 'type-as-array'             // `type: ['string', 'null']` (nullable types not supported)
   | 'missing-type'              // a node with no `type` declared
-  | 'external-ref'              // a `$ref` that isn't a same-document `#/...`
+  | 'external-ref'              // a `$ref` that is neither `#/...` nor an asset definition URL
   | 'unresolved-ref'            // a `#/...` ref that doesn't resolve
+  | 'asset-ref-keywords'        // keywords next to an asset `$ref` beyond annotations (and an image's `required: ["altText"]`)
   | 'invalid-pattern';          // a `pattern` value that isn't a valid regex
 
 export interface SchemaIssue {
@@ -63,6 +64,7 @@ export interface SchemaIssue {
    * `type-as-array`/`unsupported-type` → `{ type }`,
    * `unsupported-composition` → `{ keyword, variants }`,
    * `external-ref`/`unresolved-ref` → `{ ref }`,
+   * `asset-ref-keywords` → `{ ref, properties }` (the keywords to remove),
    * `invalid-pattern` → `{ pattern }`,
    * `missing-type` → `null`.
    */
@@ -72,6 +74,7 @@ export interface SchemaIssue {
     variants?: number;
     ref?: string;
     pattern?: string;
+    properties?: string[];
   } | null;
 }
 
@@ -157,6 +160,8 @@ export interface ModelNode {
   enumValues?: unknown[];
   // String primitives with `x-semantic-type` (vendor presentation hint):
   semanticType?: string;
+  // Asset objects (`semanticType: 'asset'`): which definition the `$ref` names.
+  assetType?: 'image' | 'file';
   // Unsupported-kind extras:
   unsupported?: {
     reason: string;
@@ -261,9 +266,11 @@ export function validateData(options?: {
  * before emitting (same shape the editor saves). Pure string builder,
  * no DOM. Symmetric pair with `convertHtmlToJson`.
  *
- * Pass the document's `model` (`engine.getState().model`) to write
- * `x-semantic-type: asset` fields as `<img>`, so EDS ingests them into the
- * media bus. Non-image files, judged by the extension of their path, are
+ * An asset field (`{ "$ref": IMAGE_SCHEMA_URL }` or `{ "$ref": FILE_SCHEMA_URL }`) is an
+ * object `{ src, altText? }`, written
+ * like any object. Pass the document's `model` (`engine.getState().model`) to
+ * write its `src` as `<img>` with `altText` as the `alt`, so EDS ingests it
+ * into the media bus. Non-image files, judged by the extension of their path, are
  * written as links that EDS keeps. Only JPEG, PNG, GIF, WebP, AVIF and SVG
  * paths are images. Sources are trimmed, and media bus paths lose their
  * rendition parameters. The model must be built from the same document.

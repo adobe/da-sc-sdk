@@ -14,20 +14,22 @@ import { expect } from '@esm-bundle/chai';
 import { readFile } from '@web/test-runner-commands';
 import { convertHtmlToJson } from '../../src/html/html2json.js';
 import { save } from './test-utils.js';
+import { IMAGE_SCHEMA_URL } from '../../src/index.js';
 
 // Fixtures captured from a real document, with anonymized content, hosts and IDs.
 // `mediaForm.da.html` is the DA source the editor saved, with an AEM Assets
 // image and an uploaded image. `mediaForm.eds.html` is the page EDS delivered
 // after preview, with both images in the media bus and wrapped in `<picture>`.
-// Both were captured before assets moved to their own blocks, so they also
-// show that documents with images inline in the field cell still read.
+// Both were captured when assets were plain strings with the image inline in
+// the field cell, so they also show that such documents still read. The write
+// tests save the same content with assets as `{ src, altText }` objects.
 
 const schema = {
   type: 'object',
   properties: {
     headline: { type: 'string' },
-    hero: { type: 'string', 'x-semantic-type': 'asset' },
-    thumbnail: { type: 'string', 'x-semantic-type': 'asset' },
+    hero: { $ref: IMAGE_SCHEMA_URL },
+    thumbnail: { $ref: IMAGE_SCHEMA_URL },
   },
 };
 
@@ -36,20 +38,21 @@ const readJsonFixture = async (name) => JSON.parse(await readFixture(name));
 
 const parse = (html) => new DOMParser().parseFromString(html, 'text/html');
 
-// The class of every block referenced as an asset, in document order.
-const assetBlocks = (html) => {
-  const ids = new Set(html.match(/self:\/\/asset#[a-z0-9-]+/g)
-    .map((ref) => ref.slice('self://asset#'.length)));
-  return [...parse(html).querySelectorAll('main > div > div')]
-    .filter((block) => ids.has(block.classList[1]))
-    .map((block) => block.classList[0]);
-};
+// Every image as the class of its block, its row and its alt text, in document order.
+const images = (html) => [...parse(html).querySelectorAll('main > div > div img')]
+  .map((img) => [
+    img.closest('main > div > div').classList[0],
+    img.closest('main > div > div > div').firstElementChild.textContent,
+    img.getAttribute('alt'),
+  ]);
 
 describe('media fields from editor to delivery', () => {
-  it('writes the document the editor saved with every image in its own asset block', async () => {
+  it('writes every asset as an object block with its image in the src row', async () => {
     const json = await readJsonFixture('mediaForm.da.json');
+    json.data.hero = { src: json.data.hero, altText: 'Hero' };
+    json.data.thumbnail = { src: json.data.thumbnail };
     const { html } = save({ json, schema });
-    expect(assetBlocks(html)).to.deep.equal(['hero', 'thumbnail']);
+    expect(images(html)).to.deep.equal([['hero', 'src', 'Hero'], ['thumbnail', 'src', '']]);
     expect(convertHtmlToJson({ html }).json).to.deep.equal(json);
   });
 
@@ -93,19 +96,18 @@ describe('nested media fields from editor to delivery', () => {
       media: {
         type: 'object',
         properties: {
-          profileImage: {
-            type: 'object',
-            properties: { src: { type: 'string', 'x-semantic-type': 'asset' } },
-          },
+          profileImage: { $ref: IMAGE_SCHEMA_URL },
         },
       },
     },
   };
 
-  it('writes the document the editor saved with the image in its own asset block', async () => {
+  it('writes the nested asset with its alt text and keeps its other properties', async () => {
     const json = await readJsonFixture('nestedMediaForm.da.json');
+    const { alt, ...image } = json.data.media.profileImage;
+    json.data.media.profileImage = { ...image, altText: alt };
     const { html } = save({ json, schema: nestedSchema });
-    expect(assetBlocks(html)).to.deep.equal(['src']);
+    expect(images(html)).to.deep.equal([['profileimage', 'src', alt]]);
     expect(convertHtmlToJson({ html }).json).to.deep.equal(json);
   });
 
