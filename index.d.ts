@@ -269,10 +269,14 @@ export function validateData(options?: {
  * rendition parameters. The model must be built from the same document.
  * Without a model, or with anything that is not one, every value is written
  * as text.
+ *
+ * `config.externalImagesAsLinks` (default `false`) writes images from hosts
+ * other than the media bus and DA as links too.
  */
 export function convertJsonToHtml(options: {
   json: Document;
   model?: Model | null;
+  config?: { externalImagesAsLinks?: boolean };
 }): { html: string } | { error: string };
 
 /**
