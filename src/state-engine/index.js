@@ -45,6 +45,7 @@ function parseDocument(document) {
 // keep the existing import surface (and the isDataEmpty ↔ prune symmetry test).
 export { isDataEmpty };
 
+export { bundleSchema } from './bundle.js';
 export {
   FILE_SCHEMA, FILE_SCHEMA_URL, IMAGE_SCHEMA, IMAGE_SCHEMA_URL,
 } from './asset-schema.js';

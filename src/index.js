@@ -10,7 +10,7 @@
  * governing permissions and limitations under the License.
  */
 
-// All 5 public functions take a single destructured object argument. This
+// All 6 public functions take a single destructured object argument. This
 // is uniform across the SDK so consumers don't have to remember which call
 // is positional and which is named — and so optional parameters can be
 // added later without breaking existing callers.
@@ -47,6 +47,13 @@ export { convertJsonToHtml } from './html/json2html.js';
 // `convertHtmlToJson({ html, asset? })` returns `{ json } | { error }`.
 // With the page URL as `asset.base`, media bus images come back as absolute URLs.
 export { convertHtmlToJson } from './html/html2json.js';
+
+// Self-contained schema — "can another validator use this schema offline?"
+// `bundleSchema({ schema })` returns `{ schema } | { error }`: a copy with the
+// asset definitions embedded under `$defs` when a field references
+// `IMAGE_SCHEMA_URL` or `FILE_SCHEMA_URL`. The SDK resolves those URLs itself
+// and never needs this.
+export { bundleSchema } from './state-engine/index.js';
 
 // The asset definitions a schema references with `{ "$ref": IMAGE_SCHEMA_URL }`
 // (an image with alt text) or `{ "$ref": FILE_SCHEMA_URL }` (any file).

@@ -344,3 +344,16 @@ export const IMAGE_SCHEMA: Readonly<Record<string, unknown>>;
  * Frozen. A published version never changes.
  */
 export const FILE_SCHEMA: Readonly<Record<string, unknown>>;
+
+/**
+ * A copy of `schema` that validators which don't fetch references can use
+ * offline: each asset definition the schema references (`IMAGE_SCHEMA_URL`,
+ * `FILE_SCHEMA_URL`) is embedded under `$defs` (`da-image-v1`, `da-file-v1`)
+ * with its `$id`, so the references resolve to it.
+ * The input is not modified; bundling twice is a no-op. The SDK itself does
+ * not need a bundled schema, and compiles one the same as the original.
+ * Returns `{ error }` when `schema` is not an object.
+ */
+export function bundleSchema(options?: {
+  schema: unknown;
+}): { schema: Record<string, unknown> } | { error: string };
