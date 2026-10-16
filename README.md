@@ -63,7 +63,7 @@ Runnable scripts in [examples/](./examples/).
 
 ## API
 
-The SDK has five top-level functions.
+The SDK has six top-level functions.
 
 | Function            | Purpose                                              | Returns                           |
 | ------------------- | ---------------------------------------------------- | --------------------------------- |
@@ -72,6 +72,7 @@ The SDK has five top-level functions.
 | `validateData`      | Check data against a schema.                         | `{ valid, errors, schemaIssues }` |
 | `convertJsonToHtml` | Convert JSON → DA wire-format HTML.                  | `{ html } \| { error }`           |
 | `convertHtmlToJson` | Convert DA HTML → JSON.                              | `{ json } \| { error }`           |
+| `bundleSchema`      | Embed the asset definitions for other validators.    | `{ schema } \| { error }`         |
 
 `createEngine` compiles a schema + initial document into a stateful, mutable handle.
 
@@ -112,6 +113,22 @@ validateData({ schema, data });
 
 `errors` is a pointer-keyed map; `errors[pointer]?.message` is O(1). Each entry exposes `keyword`, `instancePath`, `params`, and `message` fields. `valid` is `true` only when both `schemaIssues` and `errors` are empty — you can't claim a document is valid against a broken schema.
 
+### Validate with other JSON Schema validators
+
+Asset fields reference the SDK's image and file definitions by URL (see [Assets](docs/schema-spec.md#assets)). The SDK resolves these URLs to its built-in copies and never fetches them. The definitions are exported as `IMAGE_SCHEMA` and `FILE_SCHEMA`, their URLs as `IMAGE_SCHEMA_URL` and `FILE_SCHEMA_URL`, and the JSON files as `@adobe/da-sc-sdk/schemas/image/v1.json` and `@adobe/da-sc-sdk/schemas/file/v1.json`.
+
+Most other validators, such as AJV, don't fetch remote references. `bundleSchema` returns a copy of the schema with each referenced definition embedded under `$defs` (as `da-image-v1` or `da-file-v1`). Each embedded definition keeps its `$id`, so the `$ref`s resolve offline:
+
+```js
+import Ajv2020 from "ajv/dist/2020.js";
+import { bundleSchema } from "@adobe/da-sc-sdk";
+
+const { schema: bundled } = bundleSchema({ schema });
+const validate = new Ajv2020().compile(bundled);
+```
+
+The input schema is not modified, and a definition the schema already embeds is not added again.
+
 ### Convert (JSON ↔ HTML)
 
 ```js
@@ -126,7 +143,7 @@ const { json } = convertHtmlToJson({ html });
 
 `convertHtmlToJson` returns `{ error: "<reason>" }` on empty or malformed input.
 
-Pass the document's model (`engine.getState().model`) to write `x-semantic-type: "asset"` fields as images or links. Each asset goes into its own block, and the field or list item holds a `self://asset#<key>-<id>` reference to it. Like an object block, the asset block has one row per property; today that is only `asset`, which holds the image or link, so properties such as `alt` can be added as rows later. Objects and arrays are referenced the same way without a type (`self://#<key>-<id>`). Readers then know from the reference that the block holds an asset instead of guessing from its markup. EDS ingests them into the media bus on preview, as it does for images in regular pages. Non-image files such as PDFs or videos are written as links, which EDS keeps, the same way Canvas inserts them. Pass `config: { externalImagesAsLinks: true }` to also write images as links when they come from another host, such as AEM Assets, so EDS keeps their URL; this matches Canvas when a site sets `aem.assets.image.type` to `link`. Media bus paths and images uploaded to DA (`content.da.live`, `stage-content.da.live`) stay images, because pages can only deliver them from the media bus. The path decides what is an image. Only paths ending in JPEG, PNG, GIF, WebP, AVIF or SVG count as images. Everything else, including values without an extension, counts as a file, because a file saved as an image breaks while an image saved as a link still works. Sources are trimmed, and media bus paths are stored without rendition parameters. Only media bus paths (`./media_<hash>.<ext>`) and absolute http(s) URLs are written as images or links. Any other value, such as a `javascript:` or `data:` URL, is written as text. The model must be built from the same document. Anything that is not a model, including the model of a schema with issues (`null`), is treated like no model, so every value is written as text.
+An asset field, declared as `{ "$ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/image/v1.json" }` (`IMAGE_SCHEMA_URL`) or `{ "$ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/file/v1.json" }` (`FILE_SCHEMA_URL`), is an object whose properties the SDK defines: `src` (where the asset is) and, for an image, `altText` (its description, which a field can require with `required: ["altText"]`). See [Assets](docs/schema-spec.md#assets). Like any object, it is written to its own block with one row per property and referenced as `self://#<key>-<id>`. Pass the document's model (`engine.getState().model`) to write the `src` row as an image or link, with `altText` as the image's `alt`. EDS ingests them into the media bus on preview, as it does for images in regular pages. Non-image files such as PDFs or videos are written as links, which EDS keeps, the same way Canvas inserts them. Pass `config: { externalImagesAsLinks: true }` to also write images as links when they come from another host, such as AEM Assets, so EDS keeps their URL; this matches Canvas when a site sets `aem.assets.image.type` to `link`. Media bus paths and images uploaded to DA (`content.da.live`, `stage-content.da.live`) stay images, because pages can only deliver them from the media bus. The path decides what is an image. Only paths ending in JPEG, PNG, GIF, WebP, AVIF or SVG count as images. Everything else, including values without an extension, counts as a file, because a file saved as an image breaks while an image saved as a link still works. Sources are trimmed, and media bus paths are stored without rendition parameters. Only media bus paths (`./media_<hash>.<ext>`) and absolute http(s) URLs are written as images or links. Any other value, such as a `javascript:` or `data:` URL, is written as text. The model must be built from the same document. Anything that is not a model, including the model of a schema with issues (`null`), is treated like no model, so every value is written as text.
 
 ```js
 const { document, model } = engine.getState();
@@ -142,7 +159,7 @@ const { model } = createEngine({ schema, document: json }).getState();
 const { html } = convertJsonToHtml({ json, model });
 ```
 
-`convertHtmlToJson` reads the `asset` row of a block referenced as `self://asset#…`: the `src` of its image, else the `href` of its link, else its text. Other rows are skipped, and a block without an `asset` row reads as `''`. A reference of an unknown type, or to a missing block, stays as text. A cell or list item that holds an image directly, as written before asset blocks, still reads as the image's `src` when it holds an image and no text. There, text always wins over an image, and a link reads as its text. On delivered pages, EDS has replaced images with media bus paths relative to the page. Pass the page URL as `asset.base` so consumers get absolute URLs, resolved the way a browser resolves them on that page, without rendition parameters.
+`convertHtmlToJson` reads an asset block like any object block. A cell or list item without text but with an image reads as the image's `src`; text always wins over an image, and a link reads as its text. On delivered pages, EDS has replaced images with media bus paths relative to the page. Pass the page URL as `asset.base` so consumers get absolute URLs, resolved the way a browser resolves them on that page, without rendition parameters.
 
 ```js
 const { json } = convertHtmlToJson({ html, asset: { base: "https://main--site--org.aem.page/players/ada" } });

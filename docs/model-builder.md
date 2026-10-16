@@ -89,8 +89,9 @@ Every node carries the same base fields, plus kind-specific extras.
   // string with date/time format:
   format:      '…',        // 'date' | 'time' | 'date-time' — editor renders a date/time control
 
-  // string with x-semantic-type:
-  semanticType: '…',       // 'long-text' | 'asset' — editor picks the control; convertJsonToHtml writes assets as images or links
+  // string with x-semantic-type, or object with an asset $ref:
+  semanticType: '…',       // 'long-text' (string) | 'asset' (a $ref to the image definition, with src and altText children, or to the file definition, with a src child) — editor picks the control; convertJsonToHtml writes asset src as images or links
+  assetType:    '…',       // 'image' | 'file' (assets only)
 
   // unsupported:
   unsupported: { reason, feature, compositionKeyword, variants, schemaPath },

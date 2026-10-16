@@ -153,11 +153,10 @@ convertJsonToHtml({ json, model?, config? })
   └─ html = json2html({ ...json, data: pruned }, fields)
        ├─ build <body><main><div>…</div></main></body> via template literals
        ├─ recursively emit <div class="<schemaName>"> nodes for nested objects/arrays
-       └─ write `x-semantic-type: asset` strings to their own block, referenced
-          as `self://asset#<key>-<id>`, with one row per property (only `asset`
-          for now) holding <img src="…" alt="">,
-          or <a href="…">…</a> for non-image files, if the value is a media bus
-          path or an http(s) URL; all else as text in the field's cell.
+       └─ write the `src` row of asset objects (`$ref` to the image or file definition) as
+          <img src="…" alt="<altText>">, or <a href="…">…</a> for non-image
+          files, if the value is a media bus path or an http(s) URL; all else
+          as text in the row's cell.
           With config.externalImagesAsLinks, only media bus images and images uploaded
           to DA stay <img>; images from other hosts become links
   return { html }
@@ -179,9 +178,7 @@ convertHtmlToJson({ html, asset? })
   │    ├─ find <div class="<schemaName>"> block → data
   │    ├─ resolve `self://#…` references between blocks; a block with only
   │    │   an `@items` row is an array
-  │    ├─ read the `asset` row of a `self://asset#…` block as its image src,
-  │    │   else link href, else text; other rows are skipped, and references
-  │    │   of an unknown type stay text
+  │    ├─ a cell without text but with an <img> reads as its src
   │    └─ resolve media bus images against the base, if any
   └─ return { json: { metadata, data } }
 ```

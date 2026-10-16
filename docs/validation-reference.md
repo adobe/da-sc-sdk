@@ -86,6 +86,7 @@ matches the control:
 | scalar | `This field is required.` |
 | object | `This section is required.` |
 | array | `Must contain at least one item with content.` (or the `minItems` count) |
+| asset (image or file) | `This field is required.` |
 
 ### 2.5 Arrays: present once they have rows; counted by content
 
@@ -235,6 +236,69 @@ each named child.
 
 A child's `required` error lands on the **child's** pointer, with
 `params.missingProperty` set.
+
+### 4.1 Assets
+
+An asset (`schema-spec.md` §5, Assets) is an object with a `src`, plus an
+`altText` on images. It follows the object rules above, with two differences:
+a required asset that is missing reports `This field is required.`, and its
+properties are checked only once the asset has a value.
+
+**Schema**
+
+```json
+{
+  "type": "object",
+  "required": ["hero"],
+  "properties": {
+    "hero":    { "$ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/image/v1.json", "required": ["altText"] },
+    "sheet":   { "$ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/file/v1.json" },
+    "gallery": { "type": "array", "items": { "$ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/image/v1.json" } }
+  }
+}
+```
+
+**Documents and results**
+
+```text
+{}
+  → /data/hero       This field is required.
+
+{ "hero": { "src": "", "altText": "" } }
+  → /data/hero       This field is required.
+  (every property is blank, so the asset is absent)
+
+{ "hero": { "altText": "A runner" } }
+  → /data/hero/src   This field is required.
+
+{ "hero": { "src": "./hero.jpg" } }
+  → /data/hero/altText   This field is required.
+  (required: ["altText"] makes alt text mandatory once the image has a value)
+
+{ "hero": { "src": "./hero.jpg", "altText": "A runner" }, "sheet": {} }
+  → valid  (the empty optional file is absent; prunes to { "hero": … })
+
+{ "hero": …, "gallery": [ { "altText": "Team" }, { "src": "./b.jpg" } ] }
+  → /data/gallery/0/src   This field is required.
+  (gallery items don't require alt text)
+```
+
+Errors use `keyword: "required"` and `params.missingProperty` (`hero`, `src`, or
+`altText`). The SDK doesn't check the form of `src`.
+
+A schema that breaks the asset rules (an unsupported `$ref`, or a keyword next
+to an asset `$ref` that isn't allowed there) reports a schema issue, and every
+document is invalid with an empty `errors` map:
+
+```json
+{
+  "reason": "asset-ref-keywords",
+  "message": "Only title, description, readOnly, default and required: [\"altText\"] can be set next to the asset reference; remove \"type\".",
+  "schemaPath": "/properties/hero",
+  "pointer": "/data/hero",
+  "details": { "ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/image/v1.json", "properties": ["type"] }
+}
+```
 
 ---
 
@@ -407,6 +471,10 @@ violates it will still be reported valid:
 
 (`format: date | time | date-time` **is** validated — see §3.)
 
+Properties outside an asset's definition (for example a `caption` on an image)
+are not reported. The definitions set `additionalProperties: false`, so a full
+JSON Schema validator rejects them.
+
 The save guarantee (§2.5) therefore holds **within the supported subset**: if a
 schema restricts itself to supported keywords, SDK-valid data conforms to the
 schema (and to AJV). If a schema uses an unsupported constraint keyword, the SDK
@@ -421,6 +489,7 @@ validity against a full JSON Schema validator for that keyword.
 | ------- | ------- |
 | `required` (scalar) | `This field is required.` |
 | `required` (object) | `This section is required.` |
+| `required` (asset, or its `src` / `altText`) | `This field is required.` |
 | `required` / `minItems` (array) | `Must contain at least N items with content.` · singular `…at least one item with content.` |
 | `maxItems` | `Must contain at most N items.` |
 | `minLength` | `Must be at least N characters.` |

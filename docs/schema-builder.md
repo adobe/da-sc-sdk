@@ -74,7 +74,8 @@ Walks the raw schema. At each node:
 
 1. **Deep-clones** the input (the resolved schema owns its own object graph; callers can mutate `rawSchema` later without affecting compiled output).
 2. **Resolves `$ref`.**
-   - External refs (anything not starting with `#/`) become `unsupportedRef: { reason: 'external-ref', ref }`.
+   - A ref to an asset definition (`IMAGE_SCHEMA_URL` or `FILE_SCHEMA_URL`) resolves to `{ type: 'object', assetRef }` plus the field's `title`, `description`, `readOnly` and `default`, and, for an image, `required: ['altText']`. It is never fetched. Any other sibling keyword that could constrain the value (`type`, any other `required`, `properties`, …) becomes `unsupportedRef: { reason: 'asset-ref-keywords', ref, properties }`; other annotations, `$`-keywords and `x-*` hints are ignored. The same check runs on a local `$ref` whose target is an asset.
+   - Other external refs (anything not starting with `#/`) become `unsupportedRef: { reason: 'external-ref', ref }`.
    - Internal refs that don't resolve become `unsupportedRef: { reason: 'unresolved-ref', ref }`.
    - Cycles are broken by tracking refs in `seenRefs`; the cycle root keeps whatever local fields it already had.
    - Successful refs are merged with the local node via `mergeSchemas` — local fields take precedence over the referent's fields. `properties` and `$defs` are merged shallowly; `required` is union-merged.
@@ -133,8 +134,11 @@ What `compileNode` produces. This is the shape `buildModel` expects.
   // string with date/time format:
   format:      '…',        // 'date' | 'time' | 'date-time'
 
-  // string with x-semantic-type (ignored when enum or format applies):
+  // x-semantic-type: 'long-text' on a string (ignored when enum or format
+  // applies), or 'asset' for a $ref to an asset definition (children from
+  // IMAGE_SCHEMA — src, altText — or FILE_SCHEMA — src):
   semanticType: '…',       // 'long-text' | 'asset'
+  assetType:    '…',       // 'image' | 'file' (assets only)
 
   // unsupported:
   unsupported: { reason, feature, compositionKeyword, variants, schemaPath, details },
@@ -391,7 +395,7 @@ The object compiles and the editable subset (`name`) renders. The `allOf` is dro
 }
 ```
 
-Same shape for `unresolved-ref` (an internal `#/` pointer that doesn't resolve). Both flow through the unsupported pathway.
+Same shape for `unresolved-ref` (an internal `#/` pointer that doesn't resolve) and `asset-ref-keywords` (whose `details` also list the offending keywords as `properties`). All flow through the unsupported pathway.
 
 ---
 
@@ -406,7 +410,8 @@ Issues populate `compileSchema(...).issues` and drive both:
 {
   reason,      // machine code: 'unsupported-composition' | 'unsupported-type' |
                //   'type-as-array' | 'missing-type' | 'external-ref' |
-               //   'unresolved-ref' | 'invalid-pattern' — branch on this
+               //   'unresolved-ref' | 'asset-ref-keywords' | 'invalid-pattern'
+               //   — branch on this
   message,     // human-readable summary, derived from reason/details
   schemaPath,  // '/properties/weird' — where to fix it in the *schema* ($refs
                //   re-rooted at their $def); '/' at the root
@@ -415,6 +420,7 @@ Issues populate `compileSchema(...).issues` and drive both:
                //   { type }            — unsupported-type / type-as-array
                //   { keyword, variants }— unsupported-composition
                //   { ref }             — external-ref / unresolved-ref
+               //   { ref, properties } — asset-ref-keywords
                //   { pattern }         — invalid-pattern
 }
 ```
