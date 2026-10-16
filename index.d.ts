@@ -297,3 +297,43 @@ export function convertHtmlToJson(options?: {
     base?: string;
   };
 }): { json: Document } | { error: string };
+
+/**
+ * The URL a schema references to declare an image field:
+ * `{ "$ref": IMAGE_SCHEMA_URL, "title": "Hero image" }`. The SDK resolves it
+ * to `IMAGE_SCHEMA` and never fetches it. Next to the `$ref`, only `title`,
+ * `description`, `readOnly`, `default` and `required: ["altText"]` (to make
+ * the alt text mandatory) are allowed; anything else is a schema issue.
+ */
+export const IMAGE_SCHEMA_URL: 'https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/image/v1.json';
+
+/**
+ * The URL a schema references to declare a file field (a PDF, a document, …):
+ * `{ "$ref": FILE_SCHEMA_URL, "title": "Datasheet" }`. The SDK resolves it to
+ * `FILE_SCHEMA` and never fetches it. Next to the `$ref`, only `title`,
+ * `description`, `readOnly` and `default` are allowed.
+ */
+export const FILE_SCHEMA_URL: 'https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/file/v1.json';
+
+/** An image value: `src` references the image, `altText` describes it. */
+export interface ImageAsset {
+  src: string;
+  altText?: string;
+}
+
+/** A file value: `src` references the file. */
+export interface FileAsset {
+  src: string;
+}
+
+/**
+ * The image definition (JSON Schema 2020-12), with `$id` `IMAGE_SCHEMA_URL`.
+ * Frozen. A published version never changes.
+ */
+export const IMAGE_SCHEMA: Readonly<Record<string, unknown>>;
+
+/**
+ * The file definition (JSON Schema 2020-12), with `$id` `FILE_SCHEMA_URL`.
+ * Frozen. A published version never changes.
+ */
+export const FILE_SCHEMA: Readonly<Record<string, unknown>>;

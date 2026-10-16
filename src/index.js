@@ -47,3 +47,9 @@ export { convertJsonToHtml } from './html/json2html.js';
 // `convertHtmlToJson({ html, asset? })` returns `{ json } | { error }`.
 // With the page URL as `asset.base`, media bus images come back as absolute URLs.
 export { convertHtmlToJson } from './html/html2json.js';
+
+// The asset definitions a schema references with `{ "$ref": IMAGE_SCHEMA_URL }`
+// (an image with alt text) or `{ "$ref": FILE_SCHEMA_URL }` (any file).
+export {
+  FILE_SCHEMA, FILE_SCHEMA_URL, IMAGE_SCHEMA, IMAGE_SCHEMA_URL,
+} from './state-engine/index.js';

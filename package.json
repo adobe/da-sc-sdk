@@ -37,11 +37,14 @@
     ".": {
       "types": "./index.d.ts",
       "default": "./src/index.js"
-    }
+    },
+    "./schemas/image/v1.json": "./schemas/image/v1.json",
+    "./schemas/file/v1.json": "./schemas/file/v1.json"
   },
   "files": [
     "src",
     "dist",
+    "schemas",
     "index.d.ts",
     "LICENSE",
     "README.md"

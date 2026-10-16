@@ -45,6 +45,10 @@ function parseDocument(document) {
 // keep the existing import surface (and the isDataEmpty ↔ prune symmetry test).
 export { isDataEmpty };
 
+export {
+  FILE_SCHEMA, FILE_SCHEMA_URL, IMAGE_SCHEMA, IMAGE_SCHEMA_URL,
+} from './asset-schema.js';
+
 // Walk the compiled definition tree and produce a partial document containing
 // only keys that carry a real schema default (recursively). Fields without
 // defaults stay absent so they get pruned to nothing on save instead of being

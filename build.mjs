@@ -6,7 +6,7 @@
 // that vendor the artifact or load it from a CDN take this single file.
 
 import { build } from 'esbuild';
-import { rm, mkdir } from 'node:fs/promises';
+import { rm, mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
@@ -33,3 +33,13 @@ await build({
 });
 
 console.log('Built dist/index.js');
+
+// The asset definitions, as JSON. The files are committed so the repository
+// serves them at their `$id`; a test fails when one drifts from its source.
+const { ASSET_SCHEMAS } = await import('./src/state-engine/asset-schema.js');
+for (const schema of ASSET_SCHEMAS) {
+  const path = schema.$id.slice(schema.$id.indexOf('schemas/'));
+  await mkdir(resolve(root, dirname(path)), { recursive: true });
+  await writeFile(resolve(root, path), `${JSON.stringify(schema, null, 2)}\n`);
+  console.log(`Built ${path}`);
+}
