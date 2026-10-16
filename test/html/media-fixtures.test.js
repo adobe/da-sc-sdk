@@ -13,12 +13,14 @@
 import { expect } from '@esm-bundle/chai';
 import { readFile } from '@web/test-runner-commands';
 import { convertHtmlToJson } from '../../src/html/html2json.js';
-import { cleanHtmlWhitespace, normalizeHtml, save } from './test-utils.js';
+import { save } from './test-utils.js';
 
 // Fixtures captured from a real document, with anonymized content, hosts and IDs.
 // `mediaForm.da.html` is the DA source the editor saved, with an AEM Assets
 // image and an uploaded image. `mediaForm.eds.html` is the page EDS delivered
 // after preview, with both images in the media bus and wrapped in `<picture>`.
+// Both were captured before assets moved to their own blocks, so they also
+// show that documents with images inline in the field cell still read.
 
 const schema = {
   type: 'object',
@@ -32,12 +34,23 @@ const schema = {
 const readFixture = async (name) => readFile({ path: `./mocks/${name}` });
 const readJsonFixture = async (name) => JSON.parse(await readFixture(name));
 
+const parse = (html) => new DOMParser().parseFromString(html, 'text/html');
+
+// The class of every block referenced as an asset, in document order.
+const assetBlocks = (html) => {
+  const ids = new Set(html.match(/self:\/\/asset#[a-z0-9-]+/g)
+    .map((ref) => ref.slice('self://asset#'.length)));
+  return [...parse(html).querySelectorAll('main > div > div')]
+    .filter((block) => ids.has(block.classList[1]))
+    .map((block) => block.classList[0]);
+};
+
 describe('media fields from editor to delivery', () => {
-  it('writes exactly the DA source the editor saved', async () => {
+  it('writes the document the editor saved with every image in its own asset block', async () => {
     const json = await readJsonFixture('mediaForm.da.json');
-    // The fixture is pretty-printed for reading. The editor saves it on one line.
-    const saved = cleanHtmlWhitespace(await readFixture('mediaForm.da.html'));
-    expect(save({ json, schema }).html).to.equal(saved);
+    const { html } = save({ json, schema });
+    expect(assetBlocks(html)).to.deep.equal(['hero', 'thumbnail']);
+    expect(convertHtmlToJson({ html }).json).to.deep.equal(json);
   });
 
   it('reads the DA source back to the original image URLs', async () => {
@@ -89,11 +102,11 @@ describe('nested media fields from editor to delivery', () => {
     },
   };
 
-  it('writes the DA source the editor saved', async () => {
+  it('writes the document the editor saved with the image in its own asset block', async () => {
     const json = await readJsonFixture('nestedMediaForm.da.json');
-    const saved = await readFixture('nestedMediaForm.da.html');
     const { html } = save({ json, schema: nestedSchema });
-    expect(normalizeHtml(html)).to.equal(normalizeHtml(saved));
+    expect(assetBlocks(html)).to.deep.equal(['src']);
+    expect(convertHtmlToJson({ html }).json).to.deep.equal(json);
   });
 
   it('reads the DA source back to the original image URL', async () => {

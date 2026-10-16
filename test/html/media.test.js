@@ -239,8 +239,9 @@ describe('media fields', () => {
       engine.moveItem('/data/gallery', 1, 0);
       engine.removeItem('/data/gallery/1');
       const { document, model } = engine.getState();
-      expect(imageSources(convertJsonToHtml({ json: document, model }).html))
-        .to.deep.equal([sources.upload, sources.publish]);
+      const { html } = convertJsonToHtml({ json: document, model });
+      expect(imageSources(html)).to.have.members([sources.upload, sources.publish]);
+      expect(convertHtmlToJson({ html }).json.data.gallery).to.deep.equal([sources.upload]);
     });
 
     it('writes the same HTML as before when no model is given', () => {
@@ -251,6 +252,124 @@ describe('media fields', () => {
         + `<div><div><h3>hero</h3></div><div><p>${sources.upload}</p></div></div>`
         + `<div><div><h3>gallery</h3></div><div><ul><li>${sources.publish}</li></ul></div></div>`
         + '</div></div></main><footer></footer></body>');
+    });
+  });
+
+  describe('asset blocks', () => {
+    const blocks = (html) => [...parse(html).querySelectorAll('main > div > div')];
+    const rowKeys = (block) => [...block.children]
+      .map((row) => row.firstElementChild.textContent.trim());
+    const refOf = (block) => `self://asset#${block.classList[1].toLowerCase()}`;
+
+    // A delivered page whose `hero` field holds `ref`, followed by a `hero-abc`
+    // block with the given rows.
+    const assetPage = (rows, ref = 'self://asset#hero-abc') => `<body><main><div>
+      <div class="da-form"><div><div><h3>x-schema-name</h3></div><div><p>player</p></div></div></div>
+      <div class="player"><div><div><h3>hero</h3></div><div><p>${ref}</p></div></div></div>
+      <div class="hero hero-abc">${rows}</div>
+    </div></main></body>`;
+    const propRow = (key, cell) => `<div><div><h3>${key}</h3></div>${cell}</div>`;
+    const readAsset = (cell, asset) => convertHtmlToJson({ html: assetPage(propRow('asset', cell)), asset })
+      .json.data.hero;
+
+    it('writes an asset field as a self://asset# reference to a block with an asset row', () => {
+      const html = writeHero(sources.upload, schema);
+      const [, root, hero] = blocks(html);
+      expect(hero.classList[0]).to.equal('hero');
+      expect(rowKeys(hero)).to.deep.equal(['asset']);
+      expect(hero.querySelector('img').getAttribute('src')).to.equal(sources.upload);
+      expect(root.textContent).to.include(refOf(hero));
+      expect(root.querySelector('img')).to.equal(null);
+    });
+
+    it('writes asset items of arrays as references to asset blocks', () => {
+      const { html } = save({ json: doc({ gallery: [sources.publish, files.pdf] }), schema });
+      const assets = blocks(html).filter((block) => block.classList[0] === 'gallery');
+      expect(assets.map(rowKeys)).to.deep.equal([['asset'], ['asset']]);
+      const items = [...parse(html).querySelectorAll('li')].map((li) => li.textContent);
+      expect(items).to.deep.equal(assets.map(refOf));
+      expect(assets[1].querySelector('a').getAttribute('href')).to.equal(files.pdf);
+    });
+
+    it('keeps references to objects untyped', () => {
+      const { html } = save({ json: doc({ sponsor: { logo: sources.upload } }), schema });
+      expect(html).to.match(/self:\/\/#sponsor-[a-z0-9]+/);
+      expect(html).to.match(/self:\/\/asset#logo-[a-z0-9]+/);
+    });
+
+    it('reads a typeless reference to the same block as an object', () => {
+      const html = assetPage(propRow('name', '<div>Ada</div>'), 'self://#hero-abc');
+      expect(convertHtmlToJson({ html }).json.data.hero).to.deep.equal({ name: 'Ada' });
+    });
+
+    it('keeps references of an unknown type or to a missing block as text', () => {
+      const rows = propRow('asset', '<div><p><img src="./media_ab12.png"></p></div>');
+      const read = (ref) => convertHtmlToJson({ html: assetPage(rows, ref) }).json.data.hero;
+      expect(read('self://video#hero-abc')).to.equal('self://video#hero-abc');
+      expect(read('self://asset#hero-zzz')).to.equal('self://asset#hero-zzz');
+    });
+
+    it('reads the asset row of an asset block and skips other properties', () => {
+      const rows = propRow('alt', '<div><p>Portrait of Ada</p></div>')
+        + propRow('asset', '<div><p><img src="./media_ab12.png"></p></div>')
+        + propRow('title', '<div><p>Ada</p></div>');
+      expect(convertHtmlToJson({ html: assetPage(rows) }).json.data.hero).to.equal('./media_ab12.png');
+    });
+
+    it('reads an asset block without an asset row as an empty asset', () => {
+      const rows = propRow('alt', '<div><p>Portrait of Ada</p></div>');
+      expect(convertHtmlToJson({ html: assetPage(rows) }).json.data.hero).to.equal('');
+    });
+
+    it('reads an asset block as its value, not as an object', () => {
+      expect(readAsset('<div><p><img src="./media_ab12.png?width=750"></p></div>'))
+        .to.equal('./media_ab12.png');
+    });
+
+    it('reads a link in an asset block as its target, whatever its text', () => {
+      expect(readAsset(`<div><p><a href="${files.pdf}">Datasheet</a></p></div>`)).to.equal(files.pdf);
+      expect(readAsset(`<div><p><a href=" ${files.video} ">${files.video}</a></p></div>`))
+        .to.equal(files.video);
+    });
+
+    it('reads an image in an asset block even next to text', () => {
+      expect(readAsset('<div><p>caption</p><p><img src="./media_ab12.png"></p></div>'))
+        .to.equal('./media_ab12.png');
+    });
+
+    it('reads an asset block without an image or link as its text', () => {
+      expect(readAsset('<div><p> ./media_ab12.png </p></div>')).to.equal('./media_ab12.png');
+      expect(readAsset('<div></div>')).to.equal('');
+    });
+
+    it('resolves media bus images and links in asset blocks against asset.base', () => {
+      const asset = { base: 'https://main--site--org.aem.page/players/ada' };
+      expect(readAsset('<div><picture><img src="./media_ab12.png?width=750"></picture></div>', asset))
+        .to.equal('https://main--site--org.aem.page/players/media_ab12.png');
+      expect(readAsset('<div><p><a href="./media_cd34.mp4">video</a></p></div>', asset))
+        .to.equal('https://main--site--org.aem.page/players/media_cd34.mp4');
+      expect(readAsset(`<div><p><a href="${files.pdf}">pdf</a></p></div>`, asset)).to.equal(files.pdf);
+    });
+
+    it('reads asset blocks referenced from list items', () => {
+      const html = `<body><main><div>
+        <div class="da-form"><div><div>x-schema-name</div><div>player</div></div></div>
+        <div class="player"><div><div>gallery</div><div><ul><li>self://asset#gallery-a1</li><li>self://asset#gallery-b2</li></ul></div></div></div>
+        <div class="gallery gallery-a1"><div><div>asset</div><div><p><img src="./media_ab12.png"></p></div></div></div>
+        <div class="gallery gallery-b2"><div><div>asset</div><div><p><a href="${files.pdf}">${files.pdf}</a></p></div></div></div>
+      </div></main></body>`;
+      expect(convertHtmlToJson({ html }).json.data.gallery)
+        .to.deep.equal(['./media_ab12.png', files.pdf]);
+    });
+
+    it('reads back every asset it writes', () => {
+      const json = doc({
+        hero: sources.smartCrop,
+        gallery: [sources.publish, files.video, sources.hlx6],
+        sponsor: { logo: sources.upload, name: 'Acme' },
+        chapters: [{ title: 'One', slides: [files.audio, sources.upload] }],
+      });
+      expect(convertHtmlToJson({ html: save({ json, schema }).html }).json).to.deep.equal(json);
     });
   });
 

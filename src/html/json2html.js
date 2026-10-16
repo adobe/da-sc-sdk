@@ -73,8 +73,28 @@ function childField(field, key) {
   return field?.children?.get(key);
 }
 
-function selfRefLi(key, guid) {
-  return `<li>${textContent(`self://#${key.toLowerCase()}-${guid}`)}</li>`;
+// A reference to a nested block. The host names what the block holds when it
+// is not an object or array, for example `self://asset#hero-abc123`.
+function selfRef(key, guid, type = '') {
+  return textContent(`self://${type}#${key.toLowerCase()}-${guid}`);
+}
+
+function selfRefLi(key, guid, type) {
+  return `<li>${selfRef(key, guid, type)}</li>`;
+}
+
+function newBlock(key, innerHtml, nestedBlocks) {
+  const guid = Math.random().toString(36).substring(2, 8);
+  nestedBlocks.push(block(`${key} ${key}-${guid}`, innerHtml));
+  return guid;
+}
+
+// Each asset is written to its own block and referenced as `self://asset#…`,
+// so readers know from the reference what the block holds. Like an object
+// block, it has one row per property: `asset` holds the asset, and further
+// properties can be added as rows later.
+function assetBlock(key, src, nestedBlocks) {
+  return newBlock(key, row('asset', `<div><p>${assetHtml(src)}</p></div>`), nestedBlocks);
 }
 
 function arrayItemLi(key, item, nestedBlocks, field) {
@@ -87,7 +107,7 @@ function arrayItemLi(key, item, nestedBlocks, field) {
     return selfRefLi(key, nestedBlock(key, item, nestedBlocks, field));
   }
   if (isAsset(field, item)) {
-    return `<li>${assetHtml(item)}</li>`;
+    return selfRefLi(key, assetBlock(key, item, nestedBlocks), 'asset');
   }
   return `<li>${textContent(item)}</li>`;
 }
@@ -105,14 +125,10 @@ function nestedBlock(key, obj, nestedBlocks, field) {
 }
 
 function arrayBlock(key, arr, nestedBlocks, field) {
-  const guid = Math.random().toString(36).substring(2, 8);
-  const className = `${key} ${key}-${guid}`;
   const itemsHtml = arr
     .map((item) => arrayItemLi(key, item, nestedBlocks, field?.item))
     .join('');
-  const valColHtml = `<div><ul>${itemsHtml}</ul></div>`;
-  nestedBlocks.push(block(className, row('@items', valColHtml)));
-  return guid;
+  return newBlock(key, row('@items', `<div><ul>${itemsHtml}</ul></div>`), nestedBlocks);
 }
 
 function valueCol(key, value, nestedBlocks, field) {
@@ -130,11 +146,11 @@ function valueCol(key, value, nestedBlocks, field) {
 
     if (Object.keys(value).length === 0) { return null; }
     const objGuid = nestedBlock(key, value, nestedBlocks, field);
-    return `<div><p>${textContent(`self://#${key.toLowerCase()}-${objGuid}`)}</p></div>`;
+    return `<div><p>${selfRef(key, objGuid)}</p></div>`;
   }
 
   if (isAsset(field, value)) {
-    return `<div><p>${assetHtml(value)}</p></div>`;
+    return `<div><p>${selfRef(key, assetBlock(key, value, nestedBlocks), 'asset')}</p></div>`;
   }
   return `<div><p>${textContent(value)}</p></div>`;
 }

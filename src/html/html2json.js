@@ -14,7 +14,9 @@ import { fromHtml } from 'hast-util-from-html';
 import { normalizeMediaSource, toAbsoluteMediaUrl } from './media.js';
 import { httpHref } from './utils.js';
 
-const SELF_REF = 'self://#';
+// `self://<type>#<id>` references the block with the class `<id>`. Objects and
+// arrays have no type. `asset` marks a block that holds a single asset.
+const SELF_REF = /^self:\/\/([a-z]*)#(.+)$/;
 
 // Equivalent of `selectAll('main > div > div', tree)` without `hast-util-select`.
 // We inline this one selector to avoid extra weight and CJS interop overhead.
@@ -67,6 +69,16 @@ function imageSource(node, assetBase) {
   return null;
 }
 
+// The first non-empty `<a href>` below `node`, trimmed, or null.
+function linkHref(node) {
+  const links = [];
+  collectElements(node, 'a', links);
+  const href = links
+    .map((link) => link.properties?.href)
+    .find((value) => typeof value === 'string' && value.trim() !== '');
+  return href?.trim() ?? null;
+}
+
 // Find a direct list child of a value cell. The wire format uses `<ul>`,
 // but `<ol>` is accepted too — authors and external tools sometimes emit
 // ordered lists, and the SDK should read whatever shape carries the same
@@ -112,6 +124,27 @@ export default class HTMLConverter {
       rdx[key] = this.readValue(valCol);
       return rdx;
     }, {});
+  }
+
+  // Read an asset block: one row per property, of which only `asset` is read
+  // for now. Other rows are skipped, so properties added later don't break
+  // this reader. A block without an `asset` row reads as an empty asset.
+  readAssetBlock(block) {
+    const assetRow = elementChildren(block)
+      .map((row) => elementChildren(row))
+      .find((cols) => cols.length >= 2 && textContent(cols[0]).trim() === 'asset');
+    return assetRow ? this.readAssetValue(assetRow[1]) : '';
+  }
+
+  // Read an asset cell: the image source, else the link target, else the
+  // text. The reference says the block holds an asset, so an image or link
+  // wins over any text next to it.
+  readAssetValue(cell) {
+    const src = imageSource(cell, this.assetBase);
+    if (src !== null) { return src; }
+    const href = linkHref(cell);
+    if (href !== null) { return toAbsoluteMediaUrl(normalizeMediaSource(href), this.assetBase); }
+    return textContent(cell).trim();
   }
 
   // Read a value cell. A `<ul>` or `<ol>` child makes it an array. Otherwise
@@ -197,13 +230,27 @@ export default class HTMLConverter {
     return value;
   }
 
+  // Resolve a `self://` reference, or return null when the text is not one or
+  // its block is missing. References of an unknown type are left as text.
   getReference(text) {
-    if (text.startsWith(SELF_REF)) {
-      const refId = text.split(SELF_REF)[1].replaceAll('/', '-');
-      const reference = this.findAndConvert(refId, true);
-      if (reference) { return reference; }
+    const [, type, id] = text.match(SELF_REF) ?? [];
+    if (id === undefined) { return null; }
+    const refId = id.replaceAll('/', '-');
+    if (type === 'asset') {
+      const block = this.findReferencedBlock(refId);
+      return block ? this.readAssetBlock(block) : null;
     }
+    if (type !== '') { return null; }
+    const reference = this.findAndConvert(refId, true);
+    if (reference) { return reference; }
     return null;
+  }
+
+  // The last block whose variation is `refId`, matching `findAndConvert`.
+  findReferencedBlock(refId) {
+    return this.blocks
+      .filter((block) => block.properties.className[1]?.toLowerCase() === refId.toLowerCase())
+      .at(-1);
   }
 
   getBoolean(text) {

@@ -153,9 +153,11 @@ convertJsonToHtml({ json, model? })
   └─ html = json2html({ ...json, data: pruned }, fields)
        ├─ build <body><main><div>…</div></main></body> via template literals
        ├─ recursively emit <div class="<schemaName>"> nodes for nested objects/arrays
-       └─ write `x-semantic-type: asset` strings as <img src="…" alt="">, or as
-          <a href="…">…</a> for non-image files, if the value is a media bus
-          path or an http(s) URL; all else as text
+       └─ write `x-semantic-type: asset` strings to their own block, referenced
+          as `self://asset#<key>-<id>`, with one row per property (only `asset`
+          for now) holding <img src="…" alt="">,
+          or <a href="…">…</a> for non-image files, if the value is a media bus
+          path or an http(s) URL; all else as text in the field's cell
   return { html }
 ```
 
@@ -173,7 +175,11 @@ convertHtmlToJson({ html, asset? })
   ├─ walk the hast tree:
   │    ├─ find <div class="da-form"> block → metadata (schemaName, …)
   │    ├─ find <div class="<schemaName>"> block → data
-  │    ├─ resolve `self://#…` references between blocks
+  │    ├─ resolve `self://#…` references between blocks; a block with only
+  │    │   an `@items` row is an array
+  │    ├─ read the `asset` row of a `self://asset#…` block as its image src,
+  │    │   else link href, else text; other rows are skipped, and references
+  │    │   of an unknown type stay text
   │    └─ resolve media bus images against the base, if any
   └─ return { json: { metadata, data } }
 ```

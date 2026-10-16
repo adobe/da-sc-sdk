@@ -169,16 +169,36 @@ describe('deeply nested media', () => {
     expect(html).to.include(`<p>${website}</p>`);
   });
 
-  it('writes one block for every nested object and array', () => {
+  it('writes one block for every nested object and array, and for every asset', () => {
     const blocks = [...written.querySelectorAll('main > div > div')]
       .map((block) => block.classList[0]);
+    const assets = [
+      'hero',
+      'downloads', 'downloads',
+      'cover', 'cover', 'recording',
+      'portrait', 'portrait', 'gallery', 'gallery',
+      'slides', 'slides', 'slides',
+      'map', 'plan',
+    ];
     expect(sorted(blocks)).to.deep.equal(sorted([
       'da-form', 'event',
       'sessions', 'sessions',
       'speakers', 'speakers',
       'slides', 'slides',
       'venue', 'floor',
+      ...assets,
     ]));
+  });
+
+  it('references every asset as self://asset# to a block with an asset row', () => {
+    const ids = html.match(/self:\/\/asset#[a-z0-9-]+/g)
+      .map((ref) => ref.slice('self://asset#'.length));
+    expect(ids).to.have.length(imageValues.length + fileValues.length);
+    ids.forEach((id) => {
+      const block = written.querySelector(`main > div > div.${id}`);
+      const keys = [...block.children].map((row) => row.firstElementChild.textContent.trim());
+      expect(keys, id).to.deep.equal(['asset']);
+    });
   });
 
   it('reads the DA source back to the same document', () => {
