@@ -155,22 +155,26 @@ convertJsonToHtml({ json, model? })
        ├─ recursively emit <div class="<schemaName>"> nodes for nested objects/arrays
        └─ look up each value's model node as byPointer[pointer], which picks
           the codec that writes the value.
+          Rich-text strings are written as sanitized markup, without a <p> around them.
   return { html }
 ```
 
 Pure string builder. No DOM, no async. Symmetric with `convertHtmlToJson`.
 
-### 3.4. `convertHtmlToJson({ html })`
+### 3.4. `convertHtmlToJson({ html, schema? })`
 
 ```txt
-convertHtmlToJson({ html })
+convertHtmlToJson({ html, schema? })
   ├─ shape-check: html is a non-empty string
   │    └─ if not: return { error: '...' }
+  ├─ definition = compileSchema(schema)       ← null without a schema that compiles
   ├─ parse via hast-util-from-html (parse5 internally)
   ├─ walk the hast tree:
   │    ├─ find <div class="da-form"> block → metadata (schemaName, …)
   │    ├─ find <div class="<schemaName>"> block → data
-  │    └─ resolve `self://#…` references between blocks
+  │    ├─ resolve `self://#…` references between blocks
+  │    └─ a cell whose codec reads markup (rich text) reads its nodes,
+  │        sanitized, instead of its text or list
   └─ return { json: { metadata, data } }
 ```
 
