@@ -26,11 +26,12 @@ da-sc-sdk/
       pointer.js        RFC 6901 ops + definitionAt
       validation.js     validateDocument, returns { errors } keyed by pointer
     html/             converts between DA wire-format HTML and JSON
-      html2json.js      parses DA HTML into JSON, HTMLConverter and convertHtmlToJson({ html, config? })
+      html2json.js      parses DA HTML into JSON, HTMLConverter and convertHtmlToJson({ html, schema?, config? })
       json2html.js      writes JSON as DA HTML, walking blocks, rows and lists with a codec per value
-      codecs/           how the properties of a typed value are written, text for everything else
+      codecs/           how the properties of a typed value are written, rich text as markup, text for everything else
       markup.js         escaping, rows and blocks shared by json2html.js and the codecs
       media.js          media bus paths and image extensions, shared by both directions
+      rich-text.js      canonical HTML subset for x-semantic-type: rich-text values
       utils.js          httpUrl and httpHref, the http(s) URL checks
     types/            the types a schema references by URL ($ref)
       index.js          registry: every version by URL, the latest by name (TYPES)
@@ -118,8 +119,8 @@ The table lists everything `'da-sc-sdk'` exports. The surface stays narrow on pu
 | `createEngine({ schema, document, onChange })` | [src/state-engine/index.js](../src/state-engine/index.js) | Stateful JSON state engine — initialized synchronously, exposes mutations and validation. Returns `{ getState, setField, addItem, insertItem, removeItem, moveItem }`. Pure state machine: no persistence, no I/O. `onChange` is NOT called at construction; initial state is read via `engine.getState()`. To swap (schema, document), create a new engine. |
 | `validateSchema({ schema })` | [src/state-engine/index.js](../src/state-engine/index.js) | Schema-only validation. Returns `{ valid, schemaIssues }`. Use to check that a schema is well-formed before binding to it. |
 | `validateData({ schema, data })` | [src/state-engine/index.js](../src/state-engine/index.js) | Data-against-schema validation. Returns `{ valid, errors, schemaIssues }`. `errors` is a pointer-keyed map of ajv-style entries. `valid` is `true` iff both `schemaIssues` and `errors` are empty. Symmetric with `validateSchema`: both validators expose `valid` + `schemaIssues`; `validateData` adds `errors`. |
-| `convertJsonToHtml({ json, model?, config? })` | [src/html/json2html.js](../src/html/json2html.js) | JSON to DA wire-format HTML. Skips empty values. With the engine's model, asset `src` values become images or links (see [lifecycle.md §3.3](./lifecycle.md)). Without a model, every value is text. A model not built from `json` is an error. Returns `{ html } \| { error }`. |
-| `convertHtmlToJson({ html, config? })` | [src/html/html2json.js](../src/html/html2json.js) | DA wire-format HTML to JSON. Each value reads as the text of its cell. An asset's `src` cell without text reads as its image source. With the page URL as `config.baseUrl`, media bus paths become absolute URLs. Returns `{ json } \| { error }`. |
+| `convertJsonToHtml({ json, model?, config? })` | [src/html/json2html.js](../src/html/json2html.js) | JSON to DA wire-format HTML. Skips empty values. With the engine's model, asset `src` values become images or links (see [lifecycle.md §3.3](./lifecycle.md)), and rich-text values sanitized markup ([src/html/rich-text.js](../src/html/rich-text.js)). Without a model, every value is text. A model not built from `json` is an error. Returns `{ html } \| { error }`. |
+| `convertHtmlToJson({ html, schema?, config? })` | [src/html/html2json.js](../src/html/html2json.js) | DA wire-format HTML to JSON. Each value reads as the text of its cell. An asset's `src` cell without text reads as its image source. With the schema, rich-text cells read as sanitized markup. With the page URL as `config.baseUrl`, media bus paths become absolute URLs. Returns `{ json } \| { error }`. |
 | `bundleSchema({ schema })` | [src/types/bundle.js](../src/types/bundle.js) | Copy of the schema with each referenced asset type embedded under `$defs` (keeping its `$id`), so validators that don't fetch references can use it offline. The SDK itself never needs it. Returns `{ schema } \| { error }`. |
 | `TYPE_URLS` | [src/types/index.js](../src/types/index.js) | The URL of the latest version of every type by name, for an asset field's `$ref`, such as `TYPE_URLS.image`. Experimental until the types have a production domain. |
 

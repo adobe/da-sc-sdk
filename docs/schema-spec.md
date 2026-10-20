@@ -215,7 +215,7 @@ anything else is ignored.
 
 | Keyword | Type | Applies to | Effect |
 | ------- | ---- | ---------- | ------ |
-| `x-semantic-type` | string | `string` | Declares the semantic kind of a `string` value. Defined value: `long-text` (long-form, multi-line text). |
+| `x-semantic-type` | string | `string` | Declares the semantic kind of a `string` value. Defined values: `long-text` (long-form, multi-line text) and `rich-text` (formatted HTML subset). |
 
 #### `x-semantic-type`
 
@@ -227,8 +227,25 @@ single-line value.
 ```
 
 - If `enum` or a supported `format` is also present, that keyword applies and `x-semantic-type` has no effect (it is vendor glue; the standard keyword wins).
-- `long-text` is the only defined value; any other value is ignored.
-- Does not affect validation — `minLength`, `maxLength`, and `pattern` apply independently.
+- `long-text` and `rich-text` are the defined values; any other value is ignored.
+- Does not affect validation — `minLength`, `maxLength`, and `pattern` apply independently (for `rich-text` they count the stored markup).
+
+`rich-text` declares that the string holds formatted text stored as a canonical HTML subset:
+
+```json
+{ "type": "string", "title": "Body", "x-semantic-type": "rich-text" }
+```
+
+| Allowed markup | Notes |
+| -------------- | ----- |
+| `<p>`, `<h1>`–`<h6>`, `<ul>`, `<ol>`, `<li>` | Block structure. Lists may nest inside `<li>`; headings inside `<li>` are flattened to text. |
+| `<blockquote>` | Holds paragraphs, headings, lists and nested quotes. Loose text inside is wrapped in `<p>`. |
+| `<strong>`, `<em>`, `<u>`, `<s>`, `<code>`, `<sup>`, `<sub>`, `<br>` | Inline formatting. `b`, `i`, `strike`, `del` are normalized. `<pre>` is flattened to paragraphs. |
+| `<a href title>` | Relative, `http(s):`, `mailto:` and `tel:` links only. An optional `title` is kept with whitespace collapsed and trimmed (empty titles are dropped); other attributes are dropped. |
+
+- Values are sanitized to this subset on both write and read: unknown wrappers are unwrapped, active content (`script`, `iframe`, `img`, event handlers, …) is dropped, loose inline content is wrapped in `<p>`, and empty paragraphs, headings, quotes and items are removed. A value with no text content is written as an empty cell.
+- Plain text without markup (e.g. a former `long-text` value) is converted into paragraphs split on blank lines, with single newlines kept as `<br>`.
+- Pass the engine's model to `convertJsonToHtml({ json, model })` and the schema to `convertHtmlToJson({ html, schema })` to keep the markup. Without them, the value is treated as plain text: it is escaped on write, and a cell containing a list is read as an array.
 
 ---
 

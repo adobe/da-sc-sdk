@@ -157,25 +157,29 @@ convertJsonToHtml({ json, model?, config? })
        └─ write each asset's src as <img alt="<altText>"> or <a>, if it is a
           media bus path or an http(s) URL, else as text.
           With config.externalImagesAsLinks, external images become <a>.
+          Rich-text strings are written as sanitized markup, without a <p> around them.
   return { html }
 ```
 
 Pure string builder. No DOM, no async. Symmetric with `convertHtmlToJson`.
 
-### 3.4. `convertHtmlToJson({ html, config? })`
+### 3.4. `convertHtmlToJson({ html, schema?, config? })`
 
 ```txt
-convertHtmlToJson({ html, config? })
+convertHtmlToJson({ html, schema?, config? })
   ├─ shape-check: html is a non-empty string
   │    └─ if not: return { error: '...' }
   ├─ if config.baseUrl is given, check that it is an absolute http(s) URL
   │    └─ if invalid: return { error: '...' }
+  ├─ definition = compileSchema(schema)       ← null without a schema that compiles
   ├─ parse via hast-util-from-html (parse5 internally)
   ├─ walk the hast tree:
   │    ├─ find <div class="da-form"> block, read as metadata (schemaName, …)
   │    ├─ find <div class="<schemaName>"> block, read as data
   │    ├─ resolve `self://#…` references between blocks; a block with only
   │    │   an `@items` row is an array
+  │    ├─ a cell whose codec reads markup (rich text) reads its nodes,
+  │    │   sanitized, instead of its text or list
   │    ├─ a src cell without text but with an <img> reads as its src
   │    └─ resolve media bus images against the base, if any
   └─ return { json: { metadata, data } }

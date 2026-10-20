@@ -182,6 +182,13 @@ const { json } = convertHtmlToJson({ html, config: { baseUrl: "https://main--sit
 
 Without `config.baseUrl`, media bus paths stay relative, such as `./media_<hash>.jpg`.
 
+When the schema uses `x-semantic-type: "rich-text"`, pass the engine's model when writing and the schema when reading, so those values are stored as HTML markup instead of escaped text (see [schema-spec.md](docs/schema-spec.md#x-semantic-type)).
+
+```js
+const { html } = convertJsonToHtml({ json, model: engine.getState().model });
+const { json } = convertHtmlToJson({ html, schema });
+```
+
 ### Edit (with persistence)
 
 The engine has no transport and no save status. Wire your own persistence on top of `onChange`:
