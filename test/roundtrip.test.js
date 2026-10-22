@@ -17,15 +17,13 @@ import { convertHtmlToJson } from '../src/html/html2json.js';
 
 // End-to-end data-integrity tests.
 //
-// Every test in this file exercises the full chain that runs in production:
-//
-//   in-memory document → setField → convertJsonToHtml() → json2html → HTML on disk
-//                                                                ↓
-//                                          html2json → parseDocument → next core.load
+// Every test in this file runs the chain production runs. A document is edited
+// with setField, saved with convertJsonToHtml, read back with convertHtmlToJson
+// and loaded into a new engine.
 //
 // The contract these tests lock in: any value the user can type, save, and
 // reload must come back identical. If a regression hits any link in the chain
-// (prune, json2html, html2json, isDataEmpty, materializeDefaults), one of
+// (json2html, html2json, isDataEmpty, materializeDefaults), one of
 // these tests fails.
 
 // Mirrors what a persistence layer would do in production: keep an engine
@@ -78,7 +76,7 @@ async function flush() {
 
 describe('roundtrip — save and reload preserves user data', () => {
   describe('primitives', () => {
-    it('a typed string survives save → reload', async () => {
+    it('a typed string survives save and reload', async () => {
       const schema = {
         type: 'object',
         properties: { title: { type: 'string' } },
@@ -94,7 +92,7 @@ describe('roundtrip — save and reload preserves user data', () => {
       expect(node.value).to.equal('Hello world');
     });
 
-    it('a typed number survives save → reload', async () => {
+    it('a typed number survives save and reload', async () => {
       const schema = {
         type: 'object',
         properties: { count: { type: 'number' } },
@@ -126,14 +124,14 @@ describe('roundtrip — save and reload preserves user data', () => {
       expect(node.value).to.equal(7);
     });
 
-    it('a true boolean survives save → reload', async () => {
+    it('a true boolean survives save and reload', async () => {
       const schema = {
         type: 'object',
         properties: { flag: { type: 'boolean' } },
       };
       const saver = makeRoundtripHarness();
       const core = saver.load({ schema, document: { metadata: { schemaName: 'x' }, data: {} } });
-      // Materialization wrote `false`. User checks the box → true.
+      // Materialization wrote `false`. The user checks the box, which sets `true`.
       core.setField('/data/flag', true);
       await flush();
 
@@ -142,7 +140,7 @@ describe('roundtrip — save and reload preserves user data', () => {
       expect(node.value).to.equal(true);
     });
 
-    it('a false boolean survives save → reload (the regression case)', async () => {
+    it('a false boolean survives save and reload (the regression case)', async () => {
       // Critical: `false` must round-trip without being treated as "absent"
       // and reset to the schema default of `true`.
       const schema = {
@@ -160,7 +158,7 @@ describe('roundtrip — save and reload preserves user data', () => {
       expect(node.value).to.equal(false);
     });
 
-    it('a selected enum value survives save → reload', async () => {
+    it('a selected enum value survives save and reload', async () => {
       const schema = {
         type: 'object',
         properties: { status: { type: 'string', enum: ['draft', 'published', 'archived'] } },
@@ -179,7 +177,7 @@ describe('roundtrip — save and reload preserves user data', () => {
   });
 
   describe('defaults', () => {
-    it('schema defaults survive save → reload even when the user only edited a sibling', async () => {
+    it('schema defaults survive save and reload even when the user only edited a sibling', async () => {
       // The original bug: defaults shown on fresh load were not persisted
       // when the user typed in a different field.
       const schema = {
@@ -230,7 +228,7 @@ describe('roundtrip — save and reload preserves user data', () => {
   });
 
   describe('nested objects', () => {
-    it('a value buried in a nested object survives save → reload', async () => {
+    it('a value buried in a nested object survives save and reload', async () => {
       const schema = {
         type: 'object',
         properties: {
@@ -255,7 +253,7 @@ describe('roundtrip — save and reload preserves user data', () => {
   });
 
   describe('arrays', () => {
-    it('an added item with a typed value survives save → reload', async () => {
+    it('an added item with a typed value survives save and reload', async () => {
       const schema = {
         type: 'object',
         properties: {
@@ -280,7 +278,7 @@ describe('roundtrip — save and reload preserves user data', () => {
       expect(values).to.deep.equal(['first', 'second']);
     });
 
-    it('an array of objects with mixed primitive fields survives save → reload', async () => {
+    it('an array of objects with mixed primitive fields survives save and reload', async () => {
       const schema = {
         type: 'object',
         properties: {
@@ -321,7 +319,7 @@ describe('roundtrip — save and reload preserves user data', () => {
       expect(bob.children.find((c) => c.key === 'active').value).to.equal(false);
     });
 
-    it('an array of integers survives save → reload as numbers', async () => {
+    it('an array of integers survives save and reload as numbers', async () => {
       const schema = {
         type: 'object',
         properties: {
@@ -348,7 +346,7 @@ describe('roundtrip — save and reload preserves user data', () => {
       expect(state.validation.errors).to.deep.equal({});
     });
 
-    it('reordering survives save → reload', async () => {
+    it('reordering survives save and reload', async () => {
       const schema = {
         type: 'object',
         properties: {

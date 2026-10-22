@@ -11,8 +11,8 @@
  */
 
 import { expect } from '@esm-bundle/chai';
+import { appendPointer } from '../../src/shared/pointer.js';
 import {
-  appendPointer,
   clearValueAt,
   definitionAt,
   getParentPointer,
@@ -42,7 +42,7 @@ describe('pointer', () => {
     });
 
     it('decodes ~01 in the documented order (~0 then ~1)', () => {
-      // RFC 6901: decoding order is ~1 → /, then ~0 → ~
+      // RFC 6901 decodes `~1` to `/` first, then `~0` to `~`.
       expect(parsePointer('/~01')).to.deep.equal(['~1']);
     });
   });
@@ -63,7 +63,7 @@ describe('pointer', () => {
 
     it('escapes both characters together in the canonical order', () => {
       // appendPointer should apply ~0 (for ~) before ~1 (for /) so that
-      // a literal segment "~1" survives encode→decode round-trip.
+      // a literal segment "~1" survives encoding and decoding.
       const encoded = appendPointer({ pointer: '', segment: '~1' });
       expect(parsePointer(encoded)).to.deep.equal(['~1']);
     });
@@ -217,7 +217,7 @@ describe('pointer', () => {
       expect(node?.key).to.equal('name');
     });
 
-    it('finds an array item definition by following array → item', () => {
+    it('finds an array item definition through the item of its array', () => {
       const node = definitionAt({ definition, pointer: '/data/items/0' });
       expect(node?.kind).to.equal('object');
     });

@@ -10,12 +10,8 @@
  * governing permissions and limitations under the License.
  */
 
-// Emit DA Structured Content HTML from a JSON document.
-//
-// Pure string builder — no DOM, no async, no environment dependency. Works
-// identically in browsers, Node, Deno, Bun, Web Workers, and edge runtimes.
-//
-// The output is the same shape `doc.body.outerHTML` produced previously:
+// Emit DA Structured Content HTML from a JSON document. A pure string builder
+// without DOM or async, so it runs in any ESM runtime. The output has this shape.
 //
 //   <body>
 //     <header></header>
@@ -26,142 +22,243 @@
 // Text nodes and attribute values are escaped at the boundary; structural
 // markup is composed from template literals.
 
-import { prune } from './utils.js';
+import { appendPointer } from '../shared/pointer.js';
+import { isDataEmpty } from '../shared/empty.js';
+import { isDeepEqual } from '../shared/equal.js';
+import { block, row, textContent } from './markup.js';
+import { codecFor } from './codecs/index.js';
 
-function escapeText(value) {
-  return String(value).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const EMPTY_CELL = '<div></div>';
+
+// Data values carry their JSON pointer, which finds their model node in
+// `byPointer`. Metadata values have no pointer, no model and keep empty values.
+function isData(pointer) {
+  return pointer !== undefined;
 }
 
-function escapeAttr(value) {
-  return String(value).replace(/[&"]/g, (c) => ({ '&': '&amp;', '"': '&quot;' }[c]));
+function childPointer({ pointer, key }) {
+  return isData(pointer) ? appendPointer({ pointer, segment: key }) : undefined;
 }
 
-// Mirrors `node.textContent = value` coercion: `null` becomes empty; other
-// values stringify via `String(value)`. This preserves the prior DOM
-// behavior for boolean/number/undefined leaves.
-function textContent(value) {
-  if (value === null) { return ''; }
-  return escapeText(value);
+// Data skips empty values, as save leaves them out. Each entry keeps its
+// original key or index, so its pointer matches the model.
+function entriesToWrite({ value, pointer }) {
+  const entries = Object.entries(value);
+  if (!isData(pointer)) {
+    return entries;
+  }
+  return entries.filter(([, entryValue]) => !isDataEmpty(entryValue));
 }
 
-function row(key, valColHtml) {
-  return `<div><div><h3>${textContent(key)}</h3></div>${valColHtml ?? ''}</div>`;
+function referenceText({ key, blockId }) {
+  return textContent(`self://#${key.toLowerCase()}-${blockId}`);
 }
 
-function block(name, innerHtml) {
-  return `<div class="${escapeAttr(name.toLowerCase())}">${innerHtml}</div>`;
+// Blocks are numbered in the order they are written, so the same document is
+// always written the same way and every ID is unique within it.
+function addBlock({ key, innerHtml, writer }) {
+  const blockId = String(writer.blocks.length + 1);
+  writer.blocks.push(block({ className: `${key} ${key}-${blockId}`, innerHtml }));
+  return blockId;
 }
 
-function selfRefLi(key, guid) {
-  return `<li>${textContent(`self://#${key.toLowerCase()}-${guid}`)}</li>`;
+function primitiveHtml({
+  key, value, parentValue, parentPointer, writer,
+}) {
+  const parentNode = writer.byPointer?.[parentPointer];
+  const codec = codecFor({ parentNode, key });
+  return codec.toHtml({ value, parentValue, options: writer.options });
 }
 
-function arrayItemLi(key, item, nestedBlocks) {
+function itemHtml({
+  key, item, pointer, writer,
+}) {
   if (Array.isArray(item)) {
     // eslint-disable-next-line no-use-before-define
-    return selfRefLi(key, arrayBlock(key, item, nestedBlocks));
+    const blockId = listBlock({ key, items: item, pointer, writer });
+    return `<li>${referenceText({ key, blockId })}</li>`;
   }
   if (typeof item === 'object' && item !== null) {
     // eslint-disable-next-line no-use-before-define
-    return selfRefLi(key, nestedBlock(key, item, nestedBlocks));
+    const blockId = objectBlock({ key, object: item, pointer, writer });
+    return `<li>${referenceText({ key, blockId })}</li>`;
   }
-  return `<li>${textContent(item)}</li>`;
+  return `<li>${primitiveHtml({ key, value: item, writer })}</li>`;
 }
 
-function nestedBlock(key, obj, nestedBlocks) {
-  const guid = Math.random().toString(36).substring(2, 8);
-  const className = `${key} ${key}-${guid}`;
-  const rowsHtml = Object.entries(obj).map(([k, v]) => {
-    // eslint-disable-next-line no-use-before-define
-    const valColHtml = valueCol(k, v, nestedBlocks);
-    return row(k, valColHtml);
-  }).join('');
-  nestedBlocks.push(block(className, rowsHtml));
-  return guid;
+function listHtml({
+  key, items, pointer, writer,
+}) {
+  const itemsHtml = entriesToWrite({ value: items, pointer })
+    .map(([index, item]) => itemHtml({
+      key, item, pointer: childPointer({ pointer, key: index }), writer,
+    }))
+    .join('');
+  return `<ul>${itemsHtml}</ul>`;
 }
 
-function arrayBlock(key, arr, nestedBlocks) {
-  const guid = Math.random().toString(36).substring(2, 8);
-  const className = `${key} ${key}-${guid}`;
-  const itemsHtml = arr.map((item) => arrayItemLi(key, item, nestedBlocks)).join('');
-  const valColHtml = `<div><ul>${itemsHtml}</ul></div>`;
-  nestedBlocks.push(block(className, row('@items', valColHtml)));
-  return guid;
+function listBlock({
+  key, items, pointer, writer,
+}) {
+  const cellHtml = `<div>${listHtml({ key, items, pointer, writer })}</div>`;
+  return addBlock({ key, innerHtml: row({ key: '@items', cellHtml }), writer });
 }
 
-function valueCol(key, value, nestedBlocks) {
-  if (value === null) { return null; }
-  if (value === undefined) { return '<div></div>'; }
+function objectBlock({
+  key, object, pointer, writer,
+}) {
+  const rowsHtml = entriesToWrite({ value: object, pointer })
+    .map(([childKey, childValue]) => row({
+      key: childKey,
+      // eslint-disable-next-line no-use-before-define
+      cellHtml: valueCell({
+        key: childKey,
+        value: childValue,
+        pointer: childPointer({ pointer, key: childKey }),
+        parentValue: object,
+        parentPointer: pointer,
+        writer,
+      }),
+    }))
+    .join('');
+  return addBlock({ key, innerHtml: rowsHtml, writer });
+}
 
+function listCell({
+  key, items, pointer, writer,
+}) {
+  if (!entriesToWrite({ value: items, pointer }).length) {
+    return null;
+  }
+  return `<div>${listHtml({ key, items, pointer, writer })}</div>`;
+}
+
+function referenceCell({
+  key, object, pointer, writer,
+}) {
+  if (!entriesToWrite({ value: object, pointer }).length) {
+    return null;
+  }
+
+  const blockId = objectBlock({ key, object, pointer, writer });
+  return `<div><p>${referenceText({ key, blockId })}</p></div>`;
+}
+
+// The value column of a row, or null when the row has no value column.
+function valueCell({
+  key, value, pointer, parentValue, parentPointer, writer,
+}) {
+  if (value === null) {
+    return null;
+  }
+  if (value === undefined) {
+    return EMPTY_CELL;
+  }
+  if (Array.isArray(value)) {
+    return listCell({ key, items: value, pointer, writer });
+  }
   if (typeof value === 'object') {
-    if (Array.isArray(value)) {
-      if (!value.length) { return null; }
-      const itemsHtml = value.map((item) => arrayItemLi(key, item, nestedBlocks)).join('');
-      return `<div><ul>${itemsHtml}</ul></div>`;
-    }
-
-    if (Object.keys(value).length === 0) { return null; }
-    const objGuid = nestedBlock(key, value, nestedBlocks);
-    return `<div><p>${textContent(`self://#${key.toLowerCase()}-${objGuid}`)}</p></div>`;
+    return referenceCell({ key, object: value, pointer, writer });
   }
-
-  return `<div><p>${textContent(value)}</p></div>`;
+  const html = primitiveHtml({
+    key, value, parentValue, parentPointer, writer,
+  });
+  return `<div><p>${html}</p></div>`;
 }
 
-function formBlock(metadata, nestedBlocks) {
-  const rowsHtml = Object.entries(metadata).map(([key, value]) => {
-    const xKey = key === 'schemaName' ? 'x-schema-name' : key;
-    const valColHtml = valueCol(key, value, nestedBlocks);
-    if (valColHtml === null) { return ''; }
-    return row(xKey, valColHtml);
+function entryRowsHtml({ value, pointer, writer }) {
+  return entriesToWrite({ value, pointer }).map(([key, entryValue]) => {
+    const cellHtml = valueCell({
+      key, value: entryValue, pointer: childPointer({ pointer, key }), writer,
+    });
+    return cellHtml === null ? '' : row({ key, cellHtml });
   }).join('');
-  return block('da-form', rowsHtml);
 }
 
-function dataBlock(schemaName, data, nestedBlocks) {
+function formBlock({ metadata, writer }) {
+  const value = Object.fromEntries(Object.entries(metadata)
+    .map(([key, entryValue]) => [key === 'schemaName' ? 'x-schema-name' : key, entryValue]));
+  return block({ className: 'da-form', innerHtml: entryRowsHtml({ value, writer }) });
+}
+
+function dataBlock({ schemaName, data, writer }) {
+  const pointer = '/data';
   if (Array.isArray(data)) {
-    const valColHtml = valueCol(schemaName, data, nestedBlocks);
-    const inner = valColHtml === null ? '' : row('@items', valColHtml);
-    return block(schemaName, inner);
+    const cellHtml = valueCell({
+      key: schemaName, value: data, pointer, writer,
+    });
+    const innerHtml = cellHtml === null ? '' : row({ key: '@items', cellHtml });
+    return block({ className: schemaName, innerHtml });
   }
-  const rowsHtml = Object.entries(data).map(([key, value]) => {
-    const valColHtml = valueCol(key, value, nestedBlocks);
-    if (valColHtml === null) { return ''; }
-    return row(key, valColHtml);
-  }).join('');
-  return block(schemaName, rowsHtml);
+  const innerHtml = entryRowsHtml({ value: data ?? {}, pointer, writer });
+  return block({ className: schemaName, innerHtml });
 }
 
-// Raw JSON → DA wire-format HTML. Default export; kept for the public
-// `convertJsonToHtml` wrapper below and for tests. No pruning happens here.
-export default function json2html(json) {
+// `writer` collects the nested blocks and carries the options codecs read.
+export default function json2html({ json, byPointer, externalImagesAsLinks }) {
   const { metadata, data } = json;
-  const { schemaName } = metadata;
-  const nestedBlocks = [];
-  const formBlockHtml = formBlock(metadata, nestedBlocks);
-  const dataBlockHtml = dataBlock(schemaName, data, nestedBlocks);
-  const mainInner = `${formBlockHtml}${dataBlockHtml}${nestedBlocks.join('')}`;
+  const writer = { blocks: [], byPointer, options: { externalImagesAsLinks } };
+  const formBlockHtml = formBlock({ metadata, writer });
+  const dataBlockHtml = dataBlock({ schemaName: metadata.schemaName, data, writer });
+  const mainInner = `${formBlockHtml}${dataBlockHtml}${writer.blocks.join('')}`;
   return `<body><header></header><main><div>${mainInner}</div></main><footer></footer></body>`;
 }
 
-// Public API: prune empty/null leaves from the document, then convert to
-// HTML. Mirrors what the editor saves. Symmetric pair with
-// `convertHtmlToJson` from html2json.js.
-//
-// `json.metadata.schemaName` is required — it determines the outer data
-// block's class name (the schema identifier in DA's wire format). We check
-// it explicitly so consumers get a clear error instead of a deep TypeError
-// when the metadata is missing or malformed.
-export function convertJsonToHtml({ json } = {}) {
+// `json.metadata.schemaName` names the outer data block in DA's wire format.
+function verifyJson(json) {
   if (!json || typeof json !== 'object' || Array.isArray(json)) {
-    return { error: 'Invalid JSON payload.' };
+    return 'Invalid JSON payload.';
   }
   if (!json.metadata || typeof json.metadata !== 'object' || Array.isArray(json.metadata)) {
-    return { error: 'json.metadata is required and must be an object.' };
+    return 'json.metadata is required and must be an object.';
   }
   if (typeof json.metadata.schemaName !== 'string' || json.metadata.schemaName === '') {
-    return { error: 'json.metadata.schemaName is required and must be a non-empty string.' };
+    return 'json.metadata.schemaName is required and must be a non-empty string.';
   }
-  const pruned = prune(json.data);
-  return { html: json2html({ ...json, data: pruned ?? {} }) };
+  return undefined;
+}
+
+// Without a model every value is written as text, so only a given model is checked.
+function verifyModel({ model, json }) {
+  if (model === undefined || model === null) {
+    return undefined;
+  }
+  if (typeof model !== 'object' || model.root?.pointer !== '/data'
+    || !model.byPointer || typeof model.byPointer !== 'object' || !model.document) {
+    return 'model must be the model of engine.getState().';
+  }
+  if (model.document.metadata?.schemaName !== json.metadata.schemaName) {
+    return 'model was built for another schema than json.metadata.schemaName.';
+  }
+  if (!isDeepEqual(model.document.data, json.data)) {
+    return 'model was built from other data than json.data.';
+  }
+  return undefined;
+}
+
+// Why the input can't be written, or undefined when it can.
+function verifyInput({ json, model }) {
+  const jsonError = verifyJson(json);
+  if (jsonError) {
+    return jsonError;
+  }
+
+  const modelError = verifyModel({ model, json });
+  if (modelError) {
+    return modelError;
+  }
+
+  return undefined;
+}
+
+// See index.d.ts for the public contract.
+export function convertJsonToHtml({ json, model, config } = {}) {
+  const { externalImagesAsLinks = false } = config ?? {};
+  const error = verifyInput({ json, model });
+  if (error) {
+    return { error };
+  }
+
+  const html = json2html({ json, byPointer: model?.byPointer, externalImagesAsLinks });
+  return { html };
 }

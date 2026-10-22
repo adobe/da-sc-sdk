@@ -5,7 +5,7 @@ Reference specification for JSON Schemas consumed by this SDK. Defines the compl
 - **Dialect:** JSON Schema 2020-12 (subset — see rules and supported keywords below)
 - **Audience:** schema authors and code-generation agents
 
-> A conformant schema uses only the constructs documented here. Anything else has no effect.
+> A conformant schema uses only the constructs documented here. See §6 for anything else.
 
 ---
 
@@ -18,11 +18,11 @@ A conformant schema satisfies every rule below.
 | R1 | Every node must declare `type` explicitly. Inference from `properties`, `items`, or `enum` is not relied upon. |
 | R2 | `type` must be exactly one of: `"string"`, `"number"`, `"integer"`, `"boolean"`, `"object"`, `"array"`. |
 | R3 | `type` must not be an array (no `["string", "null"]`). |
-| R4 | Every node must define `title`. |
+| R4 | Every node must define `title`. On an asset field, set it next to the `$ref`. |
 | R5 | Every `object` node defines its fields via `properties`. |
 | R6 | Every `array` node defines its element schema via `items` (a single schema object, not an array). |
 | R7 | Repeated shapes are factored into `$defs` and referenced via `$ref`. |
-| R8 | `$ref` values must be same-document JSON Pointers (`#/...`). |
+| R8 | `$ref` values must be same-document JSON Pointers (`#/...`) that resolve, or exactly one of the two asset definition URLs (see [Assets](#assets)). Any other `$ref` is a schema issue. |
 | R9 | Property keys must begin with a letter (`a–z`, `A–Z`) and contain only letters, digits (`0–9`), and hyphens (`-`). |
 | R10 | The property keys `metadata` and `section-metadata` are reserved. They must not appear in `properties`. |
 | R11 | The root schema may declare `type: "object"` or `type: "array"`. |
@@ -136,9 +136,14 @@ Array of arrays (the inner array must declare its own `items`):
 }
 ```
 
+### Image and file assets
+
+An asset field holds an image, or a file such as a PDF. Declare it with a `$ref` instead of a
+`type`. See [Assets](#assets).
+
 ### Nesting
 
-Any supported type may appear inside `properties` or `items`. Objects can contain objects and arrays; arrays can contain objects, primitives, or other arrays. Nesting depth is not limited by the schema rules — keep nesting shallow for readability (see §8).
+Any supported type, including an asset, may appear inside `properties` or `items`. Objects can contain objects and arrays; arrays can contain objects, primitives, or other arrays. Nesting depth is not limited by the schema rules — keep nesting shallow for readability (see §8).
 
 ```json
 {
@@ -221,7 +226,6 @@ single-line value.
 { "type": "string", "title": "Summary", "maxLength": 2000, "x-semantic-type": "long-text" }
 ```
 
-- Valid only on `string`; on any other type it is ignored.
 - If `enum` or a supported `format` is also present, that keyword applies and `x-semantic-type` has no effect (it is vendor glue; the standard keyword wins).
 - `long-text` is the only defined value; any other value is ignored.
 - Does not affect validation — `minLength`, `maxLength`, and `pattern` apply independently.
@@ -321,7 +325,7 @@ An empty value is absent (§7): an optional date/time field may be left blank, a
 | `type`        | string | Rules R1–R3. |
 | `properties`  | object | Required on every `object`. |
 | `items`       | object | Required on every `array`. A single schema, not an array. |
-| `$ref`        | string | Same-document only (`#/...`). |
+| `$ref`        | string | Same-document (`#/...`), or an asset definition URL (see [Assets](#assets)). |
 | `$defs`       | object | Container for reusable schemas referenced via `$ref`. |
 
 `$ref` and `$defs`:
@@ -348,11 +352,138 @@ An empty value is absent (§7): an optional date/time field may be left blank, a
 }
 ```
 
+### Assets
+
+An asset field holds one reference to an image, or to a file such as a PDF. Declare it with a `$ref`
+to one of the two asset definitions.
+
+| Asset | `$ref` |
+| ----- | ------ |
+| image | `https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/image/v1.0.0.json` |
+| file  | `https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/file/v1.0.0.json` |
+
+> **Experimental.** The type URLs point to this repository on GitHub until the types are served
+> from a production domain. After that move, the SDK keeps accepting these URLs.
+
+The SDK exports the latest URLs by name as `TYPE_URLS`, for example `TYPE_URLS.image`.
+
+```json
+{
+  "type": "object",
+  "title": "Product",
+  "properties": {
+    "heroImage": { "$ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/image/v1.0.0.json", "title": "Hero image", "required": ["altText"] },
+    "datasheet": { "$ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/file/v1.0.0.json", "title": "Datasheet" }
+  }
+}
+```
+
+Use the URLs exactly as shown. Any other URL, including another version or branch, is a schema issue
+(`external-ref`). The definitions are JSON Schema 2020-12 documents published at these URLs. A
+published definition never changes. A new shape gets a new URL with a semantic version, where a new
+major version (`v2.0.0`) signals a breaking change.
+
+#### Value
+
+An asset value is an object with these properties:
+
+| Asset | Property | Type | Meaning |
+| ----- | -------- | ---- | ------- |
+| image | `src` | string | Where the image is, a media bus path such as `./media_1a2b.jpg` or an http(s) URL. Required when the asset has a value. |
+| image | `altText` | string | Text that describes the image, used as its `alt`. Optional unless the field requires it. |
+| file  | `src` | string | Where the file is, a media bus path or an http(s) URL. Required when the asset has a value. |
+
+No other properties are allowed. The type files state the form of `src` as a `pattern`, so the SDK and other validators reject the same values.
+
+```json
+{
+  "heroImage": { "src": "https://example.com/hero.jpg", "altText": "A runner at dawn" },
+  "datasheet": { "src": "https://example.com/specs.pdf" }
+}
+```
+
+#### Keywords next to the `$ref`
+
+The asset's shape belongs to its definition. Next to the `$ref`, only these keywords are allowed:
+
+| Keyword | Image | File | Effect |
+| ------- | ----- | ---- | ------ |
+| `title` | yes | yes | Label of the field. Required (R4); the definition's own title is not used. |
+| `description` | yes | yes | Help text, as on any field (§3). |
+| `readOnly` | yes | yes | The asset cannot be changed. |
+| `default` | yes | yes | An asset value, for example `{ "src": "./media_1a2b.jpg", "altText": "Logo" }`. |
+| `required` | `["altText"]` only | no | Makes the alt text mandatory whenever the image has a value. |
+
+Any other keyword that could change the value, such as `type`, `properties`,
+`additionalProperties`, `enum`, or another `required` (`[]`, `["src"]`, or any `required` on a
+file), is a schema issue (`type-ref-keywords`). This also applies next to a local `$ref` that
+resolves to an asset. `$comment`, `examples`, `deprecated`, `writeOnly`, and `x-*` keywords are
+ignored.
+
+#### Required and empty assets
+
+- To require an asset, list its key in the parent object's `required`.
+- An asset whose properties are all empty (`{}`, `{ "src": "" }`) has no value; see §7.
+- An asset with any value must have a `src`, and an `altText` when the field sets
+  `required: ["altText"]`.
+
+#### Common uses
+
+Reuse an asset declaration through `$defs`:
+
+```json
+{
+  "$defs": {
+    "Logo": { "$ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/image/v1.0.0.json", "title": "Logo", "required": ["altText"] }
+  },
+  "type": "object",
+  "title": "Partners",
+  "properties": {
+    "primaryLogo":   { "$ref": "#/$defs/Logo" },
+    "secondaryLogo": { "$ref": "#/$defs/Logo" }
+  }
+}
+```
+
+List several assets with an `array` whose `items` is an asset:
+
+```json
+{
+  "type": "array",
+  "title": "Gallery",
+  "items": { "$ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/image/v1.0.0.json", "title": "Image" }
+}
+```
+
+Add fields such as a caption by wrapping the asset in an object:
+
+```json
+{
+  "type": "object",
+  "title": "Figure",
+  "properties": {
+    "image":   { "$ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/image/v1.0.0.json", "title": "Image" },
+    "caption": { "type": "string", "title": "Caption" }
+  }
+}
+```
+
+#### Other JSON Schema validators
+
+A validator other than the SDK must resolve the asset URLs like any remote `$ref`. Most validators do
+not fetch references, so embed the definitions with the SDK's `bundleSchema` before validating (see
+the [README](../README.md#validate-with-other-json-schema-validators)).
+
 ---
 
 ## 6. Scope
 
-Any keyword, type, or construct not listed in §2–5 is ignored by the SDK.
+The SDK ignores any keyword, type, or construct not listed in §2–5. These are schema issues instead.
+
+- A `$ref` that is neither a resolvable `#/...` pointer nor an asset URL (`external-ref`, `unresolved-ref`).
+- A keyword next to an asset `$ref` that is not allowed there (`type-ref-keywords`).
+
+A schema with issues has no valid documents until they are fixed.
 
 ---
 
@@ -362,7 +493,7 @@ The SDK treats unfilled values as absent.
 
 - An empty string (`""`), a whitespace-only string, an empty array (`[]` or one whose items are all empty), and an empty object (`{}` or one whose fields are all empty) are considered absent.
 - Constraints (`enum`, `pattern`, `minLength`, etc.) are not enforced on absent optional fields.
-- A `required` value that is absent is flagged. The message matches the control: `"This field is required."` for a field, `"This section is required."` for an object, and the item count for an array.
+- A `required` value that is absent is flagged. The message matches the control: `"This field is required."` for a field or an asset, `"This section is required."` for an object, and the item count for an array.
 - Absent values are stripped from the saved document.
 
 For the schema
@@ -400,13 +531,15 @@ Conventions that produce a usable document and a maintainable schema.
 - **Use `default` to seed the most likely value.** It pre-fills the input and is preserved through the absent-stripping rule because the user does not have to do anything for it to be valid.
 - **Use `readOnly` for fields the user must not modify.** Useful for IDs and audit fields whose value comes from the server.
 - **Reserve `required` for fields whose absence makes the document meaningless.** Do not mark a field required just to force a default — set `default` instead.
+- **Pick the asset definition by content.** Use the image definition for pictures shown on the page, and the file definition for documents people open or download, such as PDFs.
+- **Require alt text on images that carry meaning.** Set `required: ["altText"]` next to the image `$ref`, so every image gets a description for screen readers.
 - **Keep the schema flat.** A flat list of fields is easier to scan than a tree of nested objects.
 
 ---
 
 ## 9. Complete example
 
-A schema exercising every supported keyword, including reusable shapes that reference each other and inline nested structures:
+A schema exercising every supported keyword, including reusable shapes that reference each other, inline nested structures, and image and file assets:
 
 ```json
 {
@@ -528,6 +661,25 @@ A schema exercising every supported keyword, including reusable shapes that refe
       "type": "array",
       "title": "Milestones",
       "items": { "$ref": "#/$defs/Milestone" }
+    },
+    "coverImage": {
+      "$ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/image/v1.0.0.json",
+      "title": "Cover image",
+      "description": "Shown at the top of the project page.",
+      "required": ["altText"]
+    },
+    "brief": {
+      "$ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/file/v1.0.0.json",
+      "title": "Project brief"
+    },
+    "gallery": {
+      "type": "array",
+      "title": "Gallery",
+      "maxItems": 12,
+      "items": {
+        "$ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/image/v1.0.0.json",
+        "title": "Image"
+      }
     },
     "links": {
       "type": "array",

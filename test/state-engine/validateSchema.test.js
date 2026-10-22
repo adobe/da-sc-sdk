@@ -12,6 +12,7 @@
 
 import { expect } from '@esm-bundle/chai';
 import { validateSchema } from '../../src/state-engine/index.js';
+import { TYPES } from '../../src/types/index.js';
 
 describe('validateSchema', () => {
   it('returns valid=true with no issues for a well-formed schema', () => {
@@ -92,6 +93,36 @@ describe('validateSchema', () => {
     const issue = result.schemaIssues.find((i) => i.reason === 'invalid-pattern');
     expect(issue).to.exist;
     expect(issue.details).to.deep.equal({ pattern: '[' });
+  });
+
+  describe('asset types', () => {
+    const withField = (field) => ({
+      type: 'object',
+      $defs: { Logo: field },
+      properties: {
+        logo: { $ref: '#/$defs/Logo' },
+        gallery: { type: 'array', items: { $ref: '#/$defs/Logo' } },
+      },
+    });
+
+    it('accepts a reference to a registered type', () => {
+      const result = validateSchema({
+        schema: withField({ $ref: TYPES.image.url, title: 'Logo' }),
+      });
+      expect(result).to.deep.equal({ valid: true, schemaIssues: [] });
+    });
+
+    it('rejects an external reference that is not a registered type', () => {
+      const result = validateSchema({
+        schema: withField({ $ref: 'https://example.com/asset.json' }),
+      });
+      expect(result.valid).to.equal(false);
+      const issues = result.schemaIssues.map(({ reason, pointer }) => ({ reason, pointer }));
+      expect(issues).to.deep.equal([
+        { reason: 'external-ref', pointer: '/data/logo' },
+        { reason: 'external-ref', pointer: '/data/gallery/0' },
+      ]);
+    });
   });
 
   it('handles null / undefined / non-object input without throwing', () => {

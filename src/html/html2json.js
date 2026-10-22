@@ -11,6 +11,9 @@
  */
 
 import { fromHtml } from 'hast-util-from-html';
+import { normalizeMediaSource, toAbsoluteMediaHref } from './media.js';
+import { httpHref } from './utils.js';
+import { ASSET_SRC } from '../types/asset.js';
 
 const SELF_REF = 'self://#';
 
@@ -50,6 +53,21 @@ function textContent(node) {
   return (node.children ?? []).map(textContent).join('');
 }
 
+// The first non-empty `<img src>` below `node` in its stored form, or null.
+// The writer emits at most one image per value; any further images are ignored.
+// With a `baseHref`, media bus paths become absolute URLs resolved against it.
+function imageSource({ node, baseHref }) {
+  const images = [];
+  collectElements(node, 'img', images);
+  const src = images
+    .map((img) => img.properties?.src)
+    .find((value) => typeof value === 'string' && value.trim() !== '');
+  if (src !== undefined) {
+    return toAbsoluteMediaHref({ src: normalizeMediaSource(src), baseHref });
+  }
+  return null;
+}
+
 // Find a direct list child of a value cell. The wire format uses `<ul>`,
 // but `<ol>` is accepted too — authors and external tools sometimes emit
 // ordered lists, and the SDK should read whatever shape carries the same
@@ -62,7 +80,8 @@ function firstListChild(node) {
 }
 
 export default class HTMLConverter {
-  constructor(html) {
+  constructor({ html, baseHref }) {
+    this.baseHref = baseHref;
     this.tree = fromHtml(html);
     this.blocks = selectBlocks(this.tree);
     this.json = this.convertBlocksToJson();
@@ -91,21 +110,26 @@ export default class HTMLConverter {
       const [keyCol, valCol] = cols;
       const key = textContent(keyCol).trim();
       if (!key) { return rdx; }
-      rdx[key] = this.readValue(valCol);
+      rdx[key] = this.readValue({ valCol, key });
       return rdx;
     }, {});
   }
 
-  // Read a value cell. A `<ul>` or `<ol>` child makes it an array; anything
-  // else (or bare text) makes it a primitive whose value is the cell's text
-  // content.
-  readValue(valCol) {
+  // Read a value cell. A `<ul>` or `<ol>` child makes it an array. Otherwise
+  // the cell's text is the value. Without text, a `src` cell reads as its image,
+  // since the writer puts images only in an asset's `src` row.
+  readValue({ valCol, key }) {
     const list = firstListChild(valCol);
     if (list) { return this.readListValue(list); }
 
     const text = textContent(valCol).trim();
-    if (text === '') { return ''; }
-    return this.getTypedValue(text);
+    if (text !== '') {
+      return this.getTypedValue(text);
+    }
+    if (key !== ASSET_SRC) {
+      return '';
+    }
+    return imageSource({ node: valCol, baseHref: this.baseHref }) ?? '';
   }
 
   // Iterate only `<li>` children. Stray non-`<li>` elements inside the list
@@ -195,23 +219,58 @@ export default class HTMLConverter {
     const num = Number(text);
     if (!Number.isFinite(num)) { return null; }
     // Only coerce when the text is the number's canonical form. `Number()`
-    // accepts forms that don't round-trip (e.g. "710E-3" -> 0.71, "0xFF" ->
-    // 255, "007" -> 7), which would corrupt string codes.
+    // accepts forms that don't round-trip, such as "710E-3" for 0.71, "0xFF" for
+    // 255 or "007" for 7, which would corrupt string codes.
     if (String(num) !== text) { return null; }
     return num;
   }
 }
 
+function verifyHtml(html) {
+  if (typeof html !== 'string' || !html.trim()) {
+    return 'html must be a non-empty string.';
+  }
+  return undefined;
+}
+
+// The href of `config.baseUrl`, undefined without one, or null when it is invalid.
+function baseHrefOf(config) {
+  const baseUrl = config?.baseUrl;
+  return baseUrl === undefined ? undefined : httpHref(baseUrl);
+}
+
+// Why the input can't be read, or undefined when it can.
+function verifyInput({ html, baseHref }) {
+  const htmlError = verifyHtml(html);
+  if (htmlError) {
+    return htmlError;
+  }
+
+  if (baseHref === null) {
+    return 'config.baseUrl must be an absolute http or https URL.';
+  }
+
+  return undefined;
+}
+
 // Convert DA wire-format HTML back to a structured JSON document. Symmetric
 // pair with `convertJsonToHtml`. Returns `{ json } | { error }` so callers
 // see a clear reason on failure instead of a silent null.
-export function convertHtmlToJson({ html } = {}) {
-  if (typeof html !== 'string' || !html.trim()) {
-    return { error: 'html must be a non-empty string.' };
+//
+// Pass the URL of a delivered EDS page as `config.baseUrl`, for example
+// `https://main--site--org.aem.page/folder/x`, to return its media bus
+// images as absolute URLs, resolved like a browser resolves them on the page.
+// Without it they stay relative to the page.
+export function convertHtmlToJson({ html, config } = {}) {
+  const baseHref = baseHrefOf(config);
+  const error = verifyInput({ html, baseHref });
+  if (error) {
+    return { error };
   }
+
   try {
-    return { json: new HTMLConverter(html).json };
-  } catch (e) {
-    return { error: `Failed to parse HTML: ${e?.message ?? e}` };
+    return { json: new HTMLConverter({ html, baseHref }).json };
+  } catch (parseError) {
+    return { error: `Failed to parse HTML: ${parseError?.message ?? parseError}` };
   }
 }
