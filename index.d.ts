@@ -279,22 +279,40 @@ export function validateData(options?: {
  *
  * @param options The conversion input.
  * @param options.json The document to convert.
- * @returns `{ html }`, or `{ error }` for invalid JSON.
+ * @param options.model The model from the same `getState()` as the document.
+ *   With it, an asset's `src` is written as `<img>` with `altText` as `alt`, or
+ *   as a link for files and for paths that are no JPEG, PNG, GIF, WebP, AVIF or
+ *   SVG. Without it, every value is written as text.
+ * @param options.config.externalImagesAsLinks Writes images as links, like
+ *   Canvas does for AEM Assets. Media bus images and DA uploads stay images.
+ *   Defaults to `false`.
+ * @returns `{ html }`, or `{ error }` for invalid JSON or a model of another
+ *   schema or of other data.
  */
 export function convertJsonToHtml(options: {
   json: Document;
+  model?: Model | null;
+  config?: {
+    /** @experimental */
+    externalImagesAsLinks?: boolean;
+  };
 }): { html: string } | { error: string };
 
 /**
  * Converts DA wire-format HTML to JSON. Symmetric pair with `convertJsonToHtml`.
- * Each value reads as the text of its cell.
+ * Each value reads as the text of its cell. An asset's `src` cell without text
+ * reads as its image source, without rendition parameters.
  *
  * @param options The conversion input.
  * @param options.html The DA wire-format HTML.
- * @returns `{ json }`, or `{ error }` for empty or malformed HTML.
+ * @param options.config.baseUrl The URL of a delivered EDS page. Media bus
+ *   paths then come back as absolute URLs, resolved as a browser would.
+ * @returns `{ json }`, or `{ error }` for empty or malformed HTML or a base URL
+ *   that is not an absolute http(s) URL.
  */
 export function convertHtmlToJson(options?: {
   html: string;
+  config?: { baseUrl?: string };
 }): { json: Document } | { error: string };
 
 /**

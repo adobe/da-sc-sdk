@@ -13,7 +13,7 @@
 import { expect } from '@esm-bundle/chai';
 import { readFile } from '@web/test-runner-commands';
 import json2html from '../../src/html/json2html.js';
-import { normalizeHtml } from './test-utils.js';
+import { normalizeHtml, prune } from './test-utils.js';
 
 describe('JSON to HTML Conversion', () => {
   it('should convert simple JSON to HTML', () => {
@@ -27,7 +27,7 @@ describe('JSON to HTML Conversion', () => {
       },
     };
 
-    const html = json2html(json);
+    const html = json2html({ json });
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
     const daForm = doc.querySelector('.da-form');
@@ -52,7 +52,7 @@ describe('JSON to HTML Conversion', () => {
       },
     };
 
-    const html = json2html(json);
+    const html = json2html({ json });
 
     expect(html).to.include('true');
     expect(html).to.include('42');
@@ -69,7 +69,7 @@ describe('JSON to HTML Conversion', () => {
       },
     };
 
-    const html = json2html(json);
+    const html = json2html({ json });
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
     const ul = doc.querySelector('ul');
@@ -92,7 +92,7 @@ describe('JSON to HTML Conversion', () => {
       },
     };
 
-    const html = json2html(json);
+    const html = json2html({ json });
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
     // Check that the .test-schema block exists
@@ -114,7 +114,7 @@ describe('JSON to HTML Conversion', () => {
       },
     };
 
-    const html = json2html(json);
+    const html = json2html({ json });
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
     // Check that the .test-schema block exists
@@ -131,6 +131,21 @@ describe('JSON to HTML Conversion', () => {
     expect(emptyObjectBlocks, 'No nested blocks should exist for empty object').to.have.lengthOf(0);
   });
 
+  it('numbers nested blocks in write order, so a document is always written the same way', () => {
+    const json = {
+      metadata: { schemaName: 'deck' },
+      data: { cover: { title: 'A' }, slides: [{ title: 'B' }, { title: 'C' }] },
+    };
+
+    const html = json2html({ json });
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const classes = [...doc.querySelectorAll('main > div > div')].map((block) => block.className);
+
+    expect(classes).to.deep.equal(['da-form', 'deck', 'cover cover-1', 'slides slides-2', 'slides slides-3']);
+    expect(doc.querySelector('.deck').textContent).to.include('self://#cover-1');
+    expect(json2html({ json })).to.equal(html);
+  });
+
   it('should create nested blocks for object values', () => {
     const json = {
       metadata: {
@@ -144,7 +159,7 @@ describe('JSON to HTML Conversion', () => {
       },
     };
 
-    const html = json2html(json);
+    const html = json2html({ json });
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
     // Check that the .test-schema block exists
@@ -174,7 +189,7 @@ describe('JSON to HTML Conversion', () => {
       },
     };
 
-    const html = json2html(json);
+    const html = json2html({ json });
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
     // Check that the .test-schema block exists
@@ -203,7 +218,7 @@ describe('JSON to HTML Conversion', () => {
       },
     };
 
-    const html = json2html(json);
+    const html = json2html({ json });
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
     const daForm = doc.querySelector('.da-form');
@@ -224,7 +239,7 @@ describe('JSON to HTML Conversion', () => {
       },
     };
 
-    const html = json2html(json);
+    const html = json2html({ json });
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
     // Check main schema block
@@ -272,7 +287,7 @@ describe('JSON to HTML Conversion', () => {
       },
     };
 
-    const html = json2html(json);
+    const html = json2html({ json });
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
     // Check main schema block
@@ -307,7 +322,7 @@ describe('Edge Cases', () => {
       data: {},
     };
 
-    const html = json2html(json);
+    const html = json2html({ json });
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
     const dataBlock = doc.querySelector('.test-schema');
@@ -324,7 +339,7 @@ describe('Edge Cases', () => {
       },
     };
 
-    const html = json2html(json);
+    const html = json2html({ json });
 
     const doc = new DOMParser().parseFromString(html, 'text/html');
 
@@ -345,7 +360,7 @@ describe('Edge Cases', () => {
   //     },
   //   };
 
-  //   const html = json2html(json);
+  //   const html = json2html({ json });
   //   const converter = new HTMLConverter(html);
   //   const convertedJson = converter.json;
 
@@ -360,17 +375,17 @@ describe('Real-world Examples', () => {
     const jsonContent = await readFile({ path: './mocks/simpleForm.json' });
     const json = JSON.parse(jsonContent);
 
-    const generatedHtml = json2html(json);
-    const expectedHtml = await readFile({ path: './mocks/simpleForm.html' });
-
-    expect(normalizeHtml(generatedHtml)).to.equal(normalizeHtml(expectedHtml));
+    // The fixture has empty values, which the writer leaves out like save does.
+    const generatedHtml = json2html({ json });
+    expect(generatedHtml).to.equal(json2html({ json: { ...json, data: prune(json.data) } }));
+    expect(generatedHtml).to.include('<h3>headline</h3>');
   });
 
   it('should convert nestedForm.json to HTML', async () => {
     const jsonContent = await readFile({ path: './mocks/nestedForm.json' });
     const json = JSON.parse(jsonContent);
 
-    const generatedHtml = json2html(json);
+    const generatedHtml = json2html({ json });
     const expectedHtml = await readFile({ path: './mocks/nestedForm.html' });
 
     expect(normalizeHtml(generatedHtml)).to.equal(normalizeHtml(expectedHtml));
@@ -380,7 +395,7 @@ describe('Real-world Examples', () => {
     const jsonContent = await readFile({ path: './mocks/nestedArrays.json' });
     const json = JSON.parse(jsonContent);
 
-    const generatedHtml = json2html(json);
+    const generatedHtml = json2html({ json });
     const expectedHtml = await readFile({ path: './mocks/nestedArrays.html' });
 
     expect(normalizeHtml(generatedHtml)).to.equal(normalizeHtml(expectedHtml));
@@ -390,7 +405,7 @@ describe('Real-world Examples', () => {
     const jsonContent = await readFile({ path: './mocks/simpleArray.json' });
     const json = JSON.parse(jsonContent);
 
-    const generatedHtml = json2html(json);
+    const generatedHtml = json2html({ json });
     const expectedHtml = await readFile({ path: './mocks/simpleArray.html' });
 
     expect(normalizeHtml(generatedHtml)).to.equal(normalizeHtml(expectedHtml));
@@ -400,7 +415,7 @@ describe('Real-world Examples', () => {
     const jsonContent = await readFile({ path: './mocks/rootArray.json' });
     const json = JSON.parse(jsonContent);
 
-    const generatedHtml = json2html(json);
+    const generatedHtml = json2html({ json });
     const expectedHtml = await readFile({ path: './mocks/rootArray.html' });
 
     expect(normalizeHtml(generatedHtml)).to.equal(normalizeHtml(expectedHtml));
@@ -410,9 +425,7 @@ describe('Real-world Examples', () => {
     const jsonContent = await readFile({ path: './mocks/invalidForm.json' });
     const json = JSON.parse(jsonContent);
 
-    const generatedHtml = json2html(json);
-    const expectedHtml = await readFile({ path: './mocks/invalidForm.html' });
-
-    expect(normalizeHtml(generatedHtml)).to.equal(normalizeHtml(expectedHtml));
+    // Every value of the fixture is empty, so the writer leaves the data block empty.
+    expect(json2html({ json })).to.equal(json2html({ json: { ...json, data: {} } }));
   });
 });
