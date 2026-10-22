@@ -25,6 +25,7 @@ const schema = {
     name: { type: 'string', title: 'Name' },
     status: { type: 'string', title: 'Status', enum: ['Draft', 'Active'] },
     tags: { type: 'array', title: 'Tags', items: { type: 'string', title: 'Tag' } },
+    logo: { $ref: 'https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/image/v1.0.0.json', title: 'Logo' },
   },
 };
 
@@ -33,10 +34,11 @@ const schema = {
 // reference to skip non-mutation transitions (validation refresh, etc).
 const path = '/projects/demo';
 let lastValues;
-const persist = (document) => {
-  const { html, error } = convertJsonToHtml({ json: document });
+const persist = ({ document, model }) => {
+  // The model lets the converter write asset fields as images or links.
+  const { html, error } = convertJsonToHtml({ json: document, model });
   if (error) { return; }
-  console.log(`[save] ${path} → ${html.length} chars`);
+  console.log(`[save] ${path}, ${html.length} chars, image: ${html.includes('<img ')}`);
 };
 
 let engine;
@@ -48,7 +50,7 @@ const onChange = () => {
   const next = state.document;
   if (next === lastValues) { return; }
   lastValues = next;
-  persist(next);
+  persist(state);
 };
 
 // `metadata.schemaName` is required for convertJsonToHtml() — it becomes the
@@ -66,13 +68,16 @@ engine = createEngine({
 lastValues = engine.getState().document;
 
 console.log('initial errors:', Object.keys(engine.getState().validation.errors).length);
-// → 1 ('name' is required, doc is empty)
+// Prints 1, because 'name' is required and the document is empty.
 
 engine.setField('/data/name', 'Alice');
 engine.setField('/data/status', 'Active');
 engine.addItem('/data/tags');
 engine.setField('/data/tags/0', 'demo');
+engine.setField('/data/logo/src', 'https://content.da.live/org/site/logo.png');
+engine.setField('/data/logo/altText', 'Project logo');
+// The save handler prints `[save] …, image: true`.
 
 console.log('---');
 console.log('final  :', JSON.stringify(engine.getState().document, null, 2));
-// → { "metadata": { "schemaName": "project" }, "data": { "name": "Alice", ... } }
+// Prints { "metadata": { "schemaName": "project" }, "data": { "name": "Alice", ... } }

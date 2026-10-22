@@ -18,7 +18,7 @@ What runs, in order:
 
 ```txt
 createEngine({ schema, document, onChange })
-  ├─ compileSchema(schema)                    ← schema → definition tree
+  ├─ compileSchema(schema)                    // builds the definition tree
   │    └─ phase 1: resolveSchema
   │    │    ├─ deep-clone, inline $ref, flag composition / invalid patterns
   │    │    └─ collect schemaIssues for unsupported / unresolved nodes
@@ -27,32 +27,32 @@ createEngine({ schema, document, onChange })
   │         ├─ pick supported validation keywords (minLength, pattern, …)
   │         └─ build the definition tree (children / item / enumValues)
   │
-  ├─ parseDocument(document)                  ← shape-check + deep-clone
+  ├─ parseDocument(document)                  // shape-check + deep-clone
   │    ├─ require object with metadata + data; reject otherwise
   │    └─ normalize: { metadata, data } — owned by the engine after this
   │
   ├─ if !definition || !parsed:
   │    └─ commit empty state, return early
   │
-  ├─ coerceData(parsed.data, definition)      ← primitive leaves → schema kinds
-  │    ├─ string→number for kind: 'number' / 'integer'
-  │    ├─ 'true' / 'false' string → boolean for kind: 'boolean'
+  ├─ coerceData(parsed.data, definition)      // coerces primitive leaves to schema kinds
+  │    ├─ string to number for kind: 'number' / 'integer'
+  │    ├─ 'true' / 'false' string to boolean for kind: 'boolean'
   │    └─ leaves unmatched values untouched (validator will flag them)
   │
   ├─ if isDataEmpty(parsed.data):
-  │    └─ materializeDefaults(definition)     ← seed schema-declared defaults
+  │    └─ materializeDefaults(definition)     // seed schema-declared defaults
   │         ├─ walks definition tree once
   │         └─ only fields that carry a real `default` (booleans get `false`)
   │
   └─ rebuildModel(parsed)
-       ├─ buildModel(definition, parsed)      ← tree walk + byPointer index
-       └─ validateDocument(parsed, model)     ← single pass, errors keyed by pointer
+       ├─ buildModel(definition, parsed)      // tree walk + byPointer index
+       └─ validateDocument(parsed, model)     // single pass, errors keyed by pointer
             └─ commitState(next)
                  ├─ state = next
-                 └─ if (initialized) onChange?.()  ← suppressed during init
+                 └─ if (initialized) onChange?.()  // suppressed during init
 ```
 
-After `rebuildModel` returns, the engine sets `initialized = true`. From this point on, every mutation runs through the same `rebuildModel` → `commitState` → `onChange` path — but `onChange` now fires.
+After `rebuildModel` returns, the engine sets `initialized = true`. From this point on, every mutation runs `rebuildModel`, `commitState` and `onChange` in that order, and `onChange` now fires.
 
 **Key invariants:**
 
@@ -71,25 +71,25 @@ All seven mutation paths (`setField`, `addItem`, `insertItem`, `removeItem`, `mo
 
 ```txt
 engine.setField(pointer, value)
-  ├─ canMutate? guard                         ← needs definition + model
-  ├─ nodeAt({ model, pointer })               ← O(1) byPointer lookup
-  ├─ readonly? guard                          ← schema-declared read-only fields
+  ├─ canMutate? guard                         // needs definition + model
+  ├─ nodeAt({ model, pointer })               // O(1) byPointer lookup
+  ├─ readonly? guard                          // schema-declared read-only fields
   └─ commit(applySet({ document, pointer, value, node }))
        ├─ applySet (mutate.js)
-       │    ├─ deepClone(document)            ← single clone per mutation
-       │    ├─ shouldClear?                   ← empty value on a clearable field
+       │    ├─ deepClone(document)            // single clone per mutation
+       │    ├─ shouldClear?                   // empty value on a clearable field
        │    │    ├─ yes: clearValueAt(...)
        │    │    └─ no:  setValueAt(...)
        │    └─ return { document: next, changed }
        │
-       ├─ if !changed: return state           ← reference identity preserved (no-op)
+       ├─ if !changed: return state           // reference identity preserved (no-op)
        │
        └─ rebuildModel(next)
-            ├─ buildModel                     ← O(N) walk
-            ├─ validateDocument               ← O(N) walk, error map updated
+            ├─ buildModel                     // O(N) walk
+            ├─ validateDocument               // O(N) walk, error map updated
             └─ commitState(next)
                  ├─ state = next
-                 └─ onChange?.()              ← consumer-visible notification
+                 └─ onChange?.()              // consumer-visible notification
 ```
 
 **Variants:**
@@ -118,11 +118,11 @@ The other public functions share infrastructure but hold no state between calls.
 
 ```txt
 validateData({ schema, data })
-  ├─ compileSchema(schema)                    ← same as createEngine §1
+  ├─ compileSchema(schema)                    // same as createEngine §1
   ├─ if no definition: return early
   │    └─ { valid: false, errors: {}, schemaIssues }
   ├─ document = { metadata: {}, data: data ?? {} }
-  ├─ buildModel(definition, document)         ← throwaway model
+  ├─ buildModel(definition, document)         // throwaway model
   ├─ validateDocument(document, model)
   └─ return { valid, errors, schemaIssues }
        valid = schemaIssues empty AND errors empty
@@ -140,32 +140,44 @@ validateSchema({ schema })
 
 Schema-only. Skips data parsing, model building, and document validation — useful for "is this schema well-formed?" without any data on hand.
 
-### 3.3. `convertJsonToHtml({ json })`
+### 3.3. `convertJsonToHtml({ json, model?, config? })`
 
 ```txt
-convertJsonToHtml({ json })
+convertJsonToHtml({ json, model?, config? })
   ├─ shape-check: json is an object with metadata.schemaName (string)
   │    └─ if not: return { error: '<reason>' }
-  ├─ pruned = prune(json.data)                ← drop empty/null/whitespace leaves
-  └─ html = json2html({ ...json, data: pruned })
+  ├─ model-check: no model, or one built from json (same schemaName and data)
+  │    └─ if not: return { error: '<reason>' }
+  └─ html = json2html({ json, byPointer: model?.byPointer })
        ├─ build <body><main><div>…</div></main></body> via template literals
-       └─ recursively emit <div class="<schemaName>"> nodes for nested objects/arrays
+       ├─ walk data with each value's JSON pointer, skipping empty values
+       │    (isDataEmpty), so array items keep their original index
+       ├─ recursively emit <div class="<schemaName>"> nodes for nested objects/arrays
+       ├─ look up each value's model node as byPointer[pointer]
+       └─ write each asset's src as <img alt="<altText>"> or <a>, if it is a
+          media bus path or an http(s) URL, else as text.
+          With config.externalImagesAsLinks, external images become <a>.
   return { html }
 ```
 
 Pure string builder. No DOM, no async. Symmetric with `convertHtmlToJson`.
 
-### 3.4. `convertHtmlToJson({ html })`
+### 3.4. `convertHtmlToJson({ html, config? })`
 
 ```txt
-convertHtmlToJson({ html })
+convertHtmlToJson({ html, config? })
   ├─ shape-check: html is a non-empty string
   │    └─ if not: return { error: '...' }
+  ├─ if config.baseUrl is given, check that it is an absolute http(s) URL
+  │    └─ if invalid: return { error: '...' }
   ├─ parse via hast-util-from-html (parse5 internally)
   ├─ walk the hast tree:
-  │    ├─ find <div class="da-form"> block → metadata (schemaName, …)
-  │    ├─ find <div class="<schemaName>"> block → data
-  │    └─ resolve `self://#…` references between blocks
+  │    ├─ find <div class="da-form"> block, read as metadata (schemaName, …)
+  │    ├─ find <div class="<schemaName>"> block, read as data
+  │    ├─ resolve `self://#…` references between blocks; a block with only
+  │    │   an `@items` row is an array
+  │    ├─ a src cell without text but with an <img> reads as its src
+  │    └─ resolve media bus images against the base, if any
   └─ return { json: { metadata, data } }
 ```
 
@@ -238,4 +250,4 @@ For depth on any single phase, follow the link:
 | `buildModel` | `src/state-engine/model.js` | [model-builder.md](./model-builder.md) |
 | `validateDocument` | `src/state-engine/validation.js` | [architecture.md §8](./architecture.md) |
 | `applySet` / `applyAdd` / `applyInsert` / `applyRemove` / `applyMove` | `src/state-engine/mutate.js` | [architecture.md §4](./architecture.md) |
-| `prune` / `json2html` / `HTMLConverter` | `src/html/` | [architecture.md §1 + §2](./architecture.md) |
+| `json2html` / `HTMLConverter` | `src/html/` | [architecture.md §1 + §2](./architecture.md) |
