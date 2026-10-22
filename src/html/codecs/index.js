@@ -10,12 +10,20 @@
  * governing permissions and limitations under the License.
  */
 
-// Codecs write values as DA markup. A semantic type registers a codec for its
-// values here. Everything else is text.
+// Codecs write values as DA markup. A semantic type, such as `rich-text`,
+// registers a codec for its values here. Everything else is text.
+//
+// A codec with `blockContent` writes block markup, so its cell gets no
+// paragraph around it. A codec with `fromHtml` reads its value from the cell's
+// nodes instead of from their text.
 
+import { SEMANTIC_TYPES } from '../../state-engine/schema.js';
+import richText from './rich-text.js';
 import text from './text.js';
 
-const CODECS_BY_SEMANTIC_TYPE = new Map();
+const CODECS_BY_SEMANTIC_TYPE = new Map([
+  [SEMANTIC_TYPES.richText, richText],
+]);
 
 // `node` is the value's model node.
 export function codecFor({ node }) {

@@ -63,8 +63,11 @@ function addBlock({ key, innerHtml, writer }) {
   return blockId;
 }
 
-function primitiveHtml({ value, pointer, writer }) {
-  const codec = codecFor({ node: writer.byPointer?.[pointer] });
+function codecOf({ pointer, writer }) {
+  return codecFor({ node: writer.byPointer?.[pointer] });
+}
+
+function primitiveHtml({ codec, value }) {
   return codec.toHtml({ value });
 }
 
@@ -81,7 +84,8 @@ function itemHtml({
     const blockId = objectBlock({ key, object: item, pointer, writer });
     return `<li>${referenceText({ key, blockId })}</li>`;
   }
-  return `<li>${primitiveHtml({ value: item, pointer, writer })}</li>`;
+  const codec = codecOf({ pointer, writer });
+  return `<li>${primitiveHtml({ codec, value: item })}</li>`;
 }
 
 function listHtml({
@@ -156,7 +160,12 @@ function valueCell({
   if (typeof value === 'object') {
     return referenceCell({ key, object: value, pointer, writer });
   }
-  return `<div><p>${primitiveHtml({ value, pointer, writer })}</p></div>`;
+  const codec = codecOf({ pointer, writer });
+  const html = primitiveHtml({ codec, value });
+  if (codec.blockContent) {
+    return `<div>${html}</div>`;
+  }
+  return `<div><p>${html}</p></div>`;
 }
 
 function entryRowsHtml({ value, pointer, writer }) {
