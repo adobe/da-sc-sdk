@@ -38,6 +38,10 @@ function buildNode({
   }
   if (Array.isArray(definition.enumValues)) { base.enumValues = definition.enumValues; }
   if (definition.semanticType) { base.semanticType = definition.semanticType; }
+  if (definition.typeRef) {
+    base.typeRef = definition.typeRef;
+    base.typeName = definition.typeName;
+  }
   if (definition.format) { base.format = definition.format; }
   if (definition.description !== undefined) { base.description = definition.description; }
 

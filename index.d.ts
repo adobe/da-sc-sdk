@@ -33,8 +33,9 @@ export type SchemaIssueReason =
   | 'unsupported-type'          // a `type` value the SDK doesn't model
   | 'type-as-array'             // `type: ['string', 'null']` (nullable types not supported)
   | 'missing-type'              // a node with no `type` declared
-  | 'external-ref'              // a `$ref` that isn't a same-document `#/...`
+  | 'external-ref'              // a `$ref` that is neither `#/...` nor an asset definition URL
   | 'unresolved-ref'            // a `#/...` ref that doesn't resolve
+  | 'type-ref-keywords'        // keywords next to a type `$ref` beyond annotations (and an image's `required: ["altText"]`)
   | 'invalid-pattern';          // a `pattern` value that isn't a valid regex
 
 export interface SchemaIssue {
@@ -59,12 +60,13 @@ export interface SchemaIssue {
    */
   pointer: string;
   /**
-   * Structured, reason-specific context:
-   * `type-as-array`/`unsupported-type` → `{ type }`,
-   * `unsupported-composition` → `{ keyword, variants }`,
-   * `external-ref`/`unresolved-ref` → `{ ref }`,
-   * `invalid-pattern` → `{ pattern }`,
-   * `missing-type` → `null`.
+   * Structured, reason-specific context.
+   * `{ type }` for `type-as-array` and `unsupported-type`,
+   * `{ keyword, variants }` for `unsupported-composition`,
+   * `{ ref }` for `external-ref` and `unresolved-ref`,
+   * `{ ref, properties }` for `type-ref-keywords`, with the keywords to remove,
+   * `{ pattern }` for `invalid-pattern`,
+   * `null` for `missing-type`.
    */
   details: {
     type?: string | string[];
@@ -72,6 +74,7 @@ export interface SchemaIssue {
     variants?: number;
     ref?: string;
     pattern?: string;
+    properties?: string[];
   } | null;
 }
 
@@ -157,6 +160,17 @@ export interface ModelNode {
   enumValues?: unknown[];
   // String primitives with `x-semantic-type` (vendor presentation hint):
   semanticType?: string;
+  /**
+   * Values of a `$ref` type, rendered by editors as one field. `typeRef` is the
+   * URL of the version the schema references (`…/image/v1.0.0.json`).
+   * @experimental The type URLs change once the types have a production domain.
+   */
+  typeRef?: TypeUrl;
+  /**
+   * The type's name, the same for every version.
+   * @experimental
+   */
+  typeName?: TypeName;
   // Unsupported-kind extras:
   unsupported?: {
     reason: string;
@@ -212,44 +226,47 @@ export interface Engine {
   moveItem(pointer: JsonPointer, fromIndex: number, toIndex: number): EditorState;
 }
 
-// ─── Public API: the 5 exports ─────────────────────────────────────────────
+// ─── Public API ─────────────────────────────────────────────
 
 /**
- * Create a schema-constrained JSON state engine. Compiles the schema,
- * parses the document, builds the initial model and validation — all
- * synchronously, before returning.
+ * Creates a schema-constrained JSON state engine. It compiles the schema,
+ * parses the document and builds the model and validation synchronously.
+ * To start over with another schema or document, create a new engine.
  *
- * `onChange` is NOT called during initialization. Read the initial state via
- * `engine.getState()`; `onChange` only fires for subsequent mutations.
- *
- * To start over with a different (schema, document), create a new engine.
+ * @param options The engine input.
+ * @param options.schema The JSON Schema the document follows.
+ * @param options.document The document to edit, `{ metadata, data }`.
+ * @param options.onChange Called after every mutation, not at creation. Read
+ *   the state with `engine.getState()`.
+ * @returns The engine, with `getState()` and the mutation methods.
  */
 export function createEngine(options?: {
   schema?: unknown;
   document?: Document | null;
-  /** Called after every mutation (not at creation). Read via `engine.getState()`. */
   onChange?: () => void;
 }): Engine;
 
 /**
- * Schema-only validation. Checks whether a schema is well-formed per the
- * SDK's schema dialect — without involving any data.
+ * Checks whether a schema is well-formed in the SDK's schema dialect, without
+ * any data.
  *
- * `valid` is true iff `schemaIssues` is empty.
+ * @param options The validation input.
+ * @param options.schema The JSON Schema to check.
+ * @returns `valid` is true when `schemaIssues` is empty.
  */
 export function validateSchema(options?: {
   schema: unknown;
 }): { valid: boolean; schemaIssues: SchemaIssue[] };
 
 /**
- * Data validation against a schema. Returns ajv-shaped errors (minus
- * `schemaPath`) keyed by pointer, plus any schema issues found while
- * compiling.
+ * Validates data against a schema. Errors are keyed by pointer and shaped like
+ * ajv errors without `schemaPath`. Data is only valid against a schema without
+ * issues.
  *
- * `valid` is true iff BOTH `schemaIssues` AND `errors` are empty — a
- * document can't be valid against a broken schema. Symmetric with
- * `validateSchema`: both validators expose `valid` + `schemaIssues`;
- * `validateData` adds `errors` for data-level failures.
+ * @param options The validation input.
+ * @param options.schema The JSON Schema.
+ * @param options.data The data to validate, the `data` part of a document.
+ * @returns `valid` is true when both `errors` and `schemaIssues` are empty.
  */
 export function validateData(options?: {
   schema: unknown;
@@ -257,18 +274,64 @@ export function validateData(options?: {
 }): { valid: boolean; errors: ErrorsByPointer; schemaIssues: SchemaIssue[] };
 
 /**
- * JSON → DA wire-format HTML. Prunes empty / null / whitespace leaves
- * before emitting (same shape the editor saves). Pure string builder,
- * no DOM. Symmetric pair with `convertHtmlToJson`.
+ * Converts JSON to DA wire-format HTML, without empty values, as the editor
+ * saves it. Symmetric pair with `convertHtmlToJson`.
+ *
+ * @param options The conversion input.
+ * @param options.json The document to convert.
+ * @returns `{ html }`, or `{ error }` for invalid JSON.
  */
 export function convertJsonToHtml(options: {
   json: Document;
 }): { html: string } | { error: string };
 
 /**
- * DA wire-format HTML → JSON. Symmetric pair with `convertJsonToHtml`.
- * Returns `{ error }` on empty / malformed input — never silently null.
+ * Converts DA wire-format HTML to JSON. Symmetric pair with `convertJsonToHtml`.
+ * Each value reads as the text of its cell.
+ *
+ * @param options The conversion input.
+ * @param options.html The DA wire-format HTML.
+ * @returns `{ json }`, or `{ error }` for empty or malformed HTML.
  */
 export function convertHtmlToJson(options?: {
   html: string;
 }): { json: Document } | { error: string };
+
+/**
+ * Embeds each asset type the schema references under `$defs`, as
+ * `da-<name>-<version>` with its `$id`, so validators that don't fetch
+ * references can use the schema offline. The input is not modified, and
+ * bundling twice changes nothing. The SDK itself doesn't need it.
+ *
+ * @param options The bundling input.
+ * @param options.schema The JSON Schema to bundle.
+ * @returns `{ schema }`, or `{ error }` when `schema` is not an object.
+ * @experimental
+ */
+export function bundleSchema(options?: {
+  schema: unknown;
+}): { schema: Record<string, unknown> } | { error: string };
+
+/**
+ * The name of a type a schema can reference by URL.
+ * @experimental
+ */
+export type TypeName = 'image' | 'file';
+
+type TypesBase = 'https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas';
+
+/**
+ * The URL of every registered type version. A test keeps this list in sync with
+ * the registry.
+ * @experimental
+ */
+export type TypeUrl =
+  | `${TypesBase}/image/v1.0.0.json`
+  | `${TypesBase}/file/v1.0.0.json`;
+
+/**
+ * The URL of the latest version of every type by name, to declare an asset
+ * field as `{ "$ref": TYPE_URLS.image }`.
+ * @experimental The URLs change once the types have a production domain.
+ */
+export const TYPE_URLS: Readonly<Record<TypeName, TypeUrl>>;

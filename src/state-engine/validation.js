@@ -251,10 +251,20 @@ function validateArray({ node, errors }) {
   }
 }
 
+// A value of a `$ref` type, such as an image, is one field even though it is an object.
+function isTypedValue(node) {
+  return node.typeRef !== undefined;
+}
+
 // Word the required message to the control kind: object = section, array =
 // item count (surfaced here since an empty array short-circuits as absent).
 function requiredMessage(child) {
-  if (child.kind === 'object') { return 'This section is required.'; }
+  if (isTypedValue(child)) {
+    return 'This field is required.';
+  }
+  if (child.kind === 'object') {
+    return 'This section is required.';
+  }
   if (child.kind === 'array') {
     // Share validateArray's wording so both paths read the same.
     return arrayMinMessage(Math.max(child.minItems ?? 0, 1));
@@ -264,6 +274,10 @@ function requiredMessage(child) {
 
 function emitRequiredForChildren({ node, errors }) {
   if (node.kind !== 'object' || !Array.isArray(node.children)) { return; }
+  // An empty typed value is absent, so its properties are not required yet.
+  if (isTypedValue(node) && isDataEmpty(node.value)) {
+    return;
+  }
   for (const child of node.children) {
     // Presence is recursive: a required container of only-empty leaves (e.g.
     // `{ title: '' }`) prunes to nothing on save, so flag it as missing.

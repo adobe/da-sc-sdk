@@ -10,7 +10,7 @@
  * governing permissions and limitations under the License.
  */
 
-// All 5 public functions take a single destructured object argument. This
+// All 6 public functions take a single destructured object argument. This
 // is uniform across the SDK so consumers don't have to remember which call
 // is positional and which is named — and so optional parameters can be
 // added later without breaking existing callers.
@@ -44,3 +44,12 @@ export { convertJsonToHtml } from './html/json2html.js';
 // DA wire-format HTML → JSON. Symmetric pair with `convertJsonToHtml`.
 // `convertHtmlToJson({ html })` returns `{ json } | { error }`.
 export { convertHtmlToJson } from './html/html2json.js';
+
+// A schema other validators can use offline. `bundleSchema({ schema })` returns
+// `{ schema } | { error }`, a copy with the asset types it references embedded
+// under `$defs`. The SDK resolves those URLs itself and never needs this.
+export { bundleSchema } from './types/bundle.js';
+
+// The URL of the latest version of every type by name, to declare an asset field
+// as `{ "$ref": TYPE_URLS.image }`. Experimental until the types have a production domain.
+export { TYPE_URLS } from './types/index.js';
