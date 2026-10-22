@@ -54,7 +54,8 @@ engine.setField("/data/name", "Alice");
 engine.addItem("/data/tags");
 engine.setField("/data/tags/0", "demo");
 
-const { html } = convertJsonToHtml({ json: engine.getState().document });
+const { document, model } = engine.getState();
+const { html } = convertJsonToHtml({ json: document, model });
 // `html` is ready to POST. Persistence is your job.
 ```
 
@@ -62,15 +63,18 @@ Runnable scripts in [examples/](./examples/).
 
 ## API
 
-Five top-level functions:
+The SDK has six top-level functions.
 
 | Function            | Purpose                                              | Returns                           |
 | ------------------- | ---------------------------------------------------- | --------------------------------- |
 | `createEngine`      | Stateful editing (UI editors, agents holding state). | `Engine`                          |
 | `validateSchema`    | Lint a schema before binding to it.                  | `{ valid, schemaIssues }`         |
 | `validateData`      | Check data against a schema.                         | `{ valid, errors, schemaIssues }` |
-| `convertJsonToHtml` | Convert JSON → DA wire-format HTML.                  | `{ html } \| { error }`           |
-| `convertHtmlToJson` | Convert DA HTML → JSON.                              | `{ json } \| { error }`           |
+| `convertJsonToHtml` | Convert JSON to DA wire-format HTML.                  | `{ html } \| { error }`           |
+| `convertHtmlToJson` | Convert DA HTML to JSON.                              | `{ json } \| { error }`           |
+| `bundleSchema`      | Embed the asset definitions for other validators.    | `{ schema } \| { error }`         |
+
+The constant `TYPE_URLS` holds the URL of the latest version of every type by name, for an asset field's `$ref`, such as `TYPE_URLS.image`.
 
 `createEngine` compiles a schema + initial document into a stateful, mutable handle.
 
@@ -103,15 +107,33 @@ Every real mutation triggers `onChange`; the return value is the engine's curren
 import { validateSchema, validateData } from "@adobe/da-sc-sdk";
 
 validateSchema({ schema });
-// → { valid, schemaIssues }
+// Returns { valid, schemaIssues }
 
 validateData({ schema, data });
-// → { valid, errors, schemaIssues }
+// Returns { valid, errors, schemaIssues }
 ```
 
 `errors` is a pointer-keyed map; `errors[pointer]?.message` is O(1). Each entry exposes `keyword`, `instancePath`, `params`, and `message` fields. `valid` is `true` only when both `schemaIssues` and `errors` are empty — you can't claim a document is valid against a broken schema.
 
-### Convert (JSON ↔ HTML)
+### Validate with other JSON Schema validators
+
+Asset fields reference the SDK's image and file definitions by URL (see [Assets](docs/schema-spec.md#assets)). The SDK resolves these URLs to its built-in copies and never fetches them. Each type's JSON is exported as `@adobe/da-sc-sdk/schemas/<name>/v<version>.json`.
+
+> **Experimental.** The type URLs, `TYPE_URLS` and `bundleSchema` may change until the types are served from a production domain. Schemas that use the current URLs keep working after that move.
+
+Most other validators, such as AJV, don't fetch remote references. `bundleSchema` returns a copy of the schema with each referenced definition embedded under `$defs` (as `da-image-v1.0.0` or `da-file-v1.0.0`). Each embedded definition keeps its `$id`, so the `$ref`s resolve offline:
+
+```js
+import Ajv2020 from "ajv/dist/2020.js";
+import { bundleSchema } from "@adobe/da-sc-sdk";
+
+const { schema: bundled } = bundleSchema({ schema });
+const validate = new Ajv2020().compile(bundled);
+```
+
+The input schema is not modified, and a definition the schema already embeds is not added again.
+
+### Convert between JSON and HTML
 
 ```js
 import { convertJsonToHtml, convertHtmlToJson } from "@adobe/da-sc-sdk";
@@ -125,6 +147,48 @@ const { json } = convertHtmlToJson({ html });
 
 `convertHtmlToJson` returns `{ error: "<reason>" }` on empty or malformed input.
 
+An asset field is an object. An image has `src` and `altText`, a file has `src`. A field can require alt text with `required: ["altText"]`. See [Assets](docs/schema-spec.md#assets). Like any object, an asset is written to its own block, referenced as `self://#<key>-<n>`.
+
+Pass the document's model (`engine.getState().model`) to write `src` as an image or a link.
+
+- An image field whose path ends in JPEG, PNG, GIF, WebP, AVIF or SVG becomes `<img>`, with `altText` as `alt`. EDS ingests it into the media bus on preview.
+- A file field, or an image field with any other path, becomes a link, which EDS keeps.
+- Only media bus paths (`./media_<hash>.<ext>`) and http(s) URLs become images or links. Other values, such as `javascript:` URLs, stay text.
+- `src` is trimmed, and media bus paths lose their rendition parameters.
+- With `config: { externalImagesAsLinks: true }` (experimental), images become links, like Canvas writes AEM Assets with `aem.assets.image.type: link`. Media bus images and DA uploads stay images.
+
+Without a model, every value is written as text. A model of another schema or of other data returns `{ error }`.
+
+```js
+const { document, model } = engine.getState();
+const { html } = convertJsonToHtml({ json: document, model });
+// or, to write images as links:
+convertJsonToHtml({ json: document, model, config: { externalImagesAsLinks: true } });
+```
+
+Without an editor, build the model from the schema:
+
+```js
+const { document, model } = createEngine({ schema, document: json }).getState();
+const { html } = convertJsonToHtml({ json: document, model });
+```
+
+`convertHtmlToJson` reads each value as the text of its cell, and an asset like any object. An asset's `src` cell without text reads as its image source. On delivered pages, EDS replaces images with media bus paths relative to the page. Pass the page URL as `config.baseUrl` to get absolute URLs, resolved as a browser would.
+
+```js
+const { json } = convertHtmlToJson({ html, config: { baseUrl: "https://main--site--org.aem.page/players/ada" } });
+// image value: "https://main--site--org.aem.page/players/media_<hash>.jpg"
+```
+
+Without `config.baseUrl`, media bus paths stay relative, such as `./media_<hash>.jpg`.
+
+When the schema uses `x-semantic-type: "rich-text"`, pass the engine's model when writing and the schema when reading, so those values are stored as HTML markup instead of escaped text (see [schema-spec.md](docs/schema-spec.md#x-semantic-type)).
+
+```js
+const { html } = convertJsonToHtml({ json, model: engine.getState().model });
+const { json } = convertHtmlToJson({ html, schema });
+```
+
 ### Edit (with persistence)
 
 The engine has no transport and no save status. Wire your own persistence on top of `onChange`:
@@ -136,10 +200,10 @@ engine = createEngine({
   schema,
   document,
   onChange: () => {
-    const next = engine.getState().document;
+    const { document: next, model } = engine.getState();
     if (next === lastValues) return; // skip non-mutation transitions
     lastValues = next;
-    // convert via convertJsonToHtml, POST, IndexedDB-cache — whatever fits
+    // convert via convertJsonToHtml({ json: next, model }), POST, IndexedDB-cache — whatever fits
   },
 });
 lastValues = engine.getState().document; // onChange does NOT fire at init
@@ -181,7 +245,7 @@ import type {
 
 - **Headless.** No UI, no DOM, no rendering. UIs subscribe to `onChange`.
 - **No I/O.** No fetch, no file system, no DA endpoints. Callers wire their own transport.
-- **Five named exports.** The `package.json` `exports` map blocks deep imports. The five exports are the entire public API and the intended semver boundary.
+- **Narrow public API.** The `package.json` `exports` map blocks deep imports. The exports listed under [API](#api) are the entire public API and the intended semver boundary.
 - **Strict schema subset.** A strict subset of JSON Schema 2020-12 — see [docs/schema-spec.md](docs/schema-spec.md). Anything outside that contract surfaces in `schemaIssues`.
 - **Not** for general JSON Schema validation.
 

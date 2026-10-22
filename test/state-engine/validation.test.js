@@ -14,7 +14,7 @@ import { expect } from '@esm-bundle/chai';
 import { validateDocument } from '../../src/state-engine/validation.js';
 import { compileSchema } from '../../src/state-engine/schema.js';
 import { buildModel } from '../../src/state-engine/model.js';
-import { prune } from '../../src/html/utils.js';
+import { prune } from '../html/test-utils.js';
 
 function setup(schema, data) {
   const { definition } = compileSchema(schema);
@@ -812,8 +812,8 @@ describe('validateDocument', () => {
   });
 
   // The recursion (emptiness, presence, counting) must hold at any depth, not
-  // just one level. This structure nests array → object → array → object → array
-  // of strings, so errors have to be found and reported at 4-deep pointers.
+  // just one level. This structure nests an array of objects, each with an array
+  // of objects holding an array of strings, so errors appear at 4-deep pointers.
   describe('deep nesting (array of objects containing a nested array of objects)', () => {
     const deepSchema = {
       type: 'object',
@@ -848,9 +848,9 @@ describe('validateDocument', () => {
       const { errors } = setup(deepSchema, {
         chapters: [{ heading: '', sections: [{ label: '', keywords: [''] }] }],
       });
-      // Optional array present-but-short -> minItems; required array recursively
-      // empty -> required (both worded "items with content"); required scalars ->
-      // "This field is required." — each at its own deep pointer.
+      // A short optional array reports minItems, a recursively empty required array
+      // reports required (both worded "items with content"), and a required scalar
+      // reports "This field is required.", each at its own deep pointer.
       expect(errors['/data/chapters']?.keyword).to.equal('minItems');
       expect(errors['/data/chapters/0/heading']?.keyword).to.equal('required');
       expect(errors['/data/chapters/0/sections']?.keyword).to.equal('required');

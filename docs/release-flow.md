@@ -13,7 +13,7 @@ Two workflows, deliberately separated by concern:
 
 ### Why two files?
 
-- **Trigger semantics.** `main` runs on every push; `npm-publish` runs only when semantic-release emits a GitHub Release. Different events → different files.
+- **Trigger semantics.** `main` runs on every push; `npm-publish` runs only when semantic-release emits a GitHub Release. Different events need different files.
 - **Secret scoping.** `ADOBE_BOT_NPM_TOKEN` is only loaded by `npm-publish.yml`. The test job in `main.yaml` runs untrusted user code (dependencies, fixtures) and never sees the npm token.
 - **Tighter permissions.** `main.yaml` needs `contents: write` for semantic-release to commit/tag. `npm-publish.yml` only needs `contents: read`.
 - **Independent re-runs.** If publishing fails (npm outage, expired token), the publish workflow can be re-run without re-running the whole test suite.
@@ -43,7 +43,7 @@ Two workflows, deliberately separated by concern:
 └────────────────────────────────────────┘
         │
         ▼
-   no GitHub Release → npm-publish does NOT fire
+   no GitHub Release, so npm-publish does NOT fire
 ```
 
 The dry-run job prints what *would* be released if this branch were merged to `main` (next version, changelog draft). It never commits or tags.
@@ -53,7 +53,7 @@ The dry-run job prints what *would* be released if this branch were merged to `m
 A commit is releasable if its [Conventional Commits](https://www.conventionalcommits.org/) type is `feat:`, `fix:`, or carries a `BREAKING CHANGE:` footer.
 
 ```
-[PR merged → push to main]
+[PR merged, push to main]
         │
         ▼
 ┌────────────────────────────────────────────┐
@@ -95,7 +95,7 @@ A commit is releasable if its [Conventional Commits](https://www.conventionalcom
 │   │   3. npm install                 │     │
 │   │   4. npm publish                 │     │
 │   │       └─ prepublishOnly:         │     │
-│   │           npm run build → dist/  │     │
+│   │           npm run build (dist/)  │     │
 │   │       └─ uploads tarball to npm  │     │
 │   │          (using ADOBE_BOT_NPM_   │     │
 │   │           TOKEN)                 │     │
@@ -116,7 +116,7 @@ A commit is releasable if its [Conventional Commits](https://www.conventionalcom
 [push to main with only chore/docs/test]
         │
         ▼
-   main.yaml runs → test ✓ → release runs
+   main.yaml runs test (passes), then release runs
         │
         ▼
    semantic-release: "no relevant changes, skipping release"
@@ -132,11 +132,11 @@ A commit is releasable if its [Conventional Commits](https://www.conventionalcom
 
 | Commit prefix | Release impact |
 |---|---|
-| `feat: …` | minor version bump (`X.Y.0` → `X.(Y+1).0`) |
-| `fix: …` | patch version bump (`X.Y.Z` → `X.Y.(Z+1)`) |
+| `feat: …` | minor version bump (`X.Y.0` to `X.(Y+1).0`) |
+| `fix: …` | patch version bump (`X.Y.Z` to `X.Y.(Z+1)`) |
 | `perf: …` | patch version bump |
 | Revert commits (`git revert` style: `Revert "…"`) | patch version bump |
-| `feat!: …` or footer `BREAKING CHANGE: …` | major version bump (`X.Y.Z` → `(X+1).0.0`) |
+| `feat!: …` or footer `BREAKING CHANGE: …` | major version bump (`X.Y.Z` to `(X+1).0.0`) |
 | `chore:`, `docs:`, `test:`, `refactor:`, `style:`, `ci:` | no release |
 
 The first release ever cut by semantic-release starts at `1.0.0` regardless of the current `package.json` version.

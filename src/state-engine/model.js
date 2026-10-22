@@ -10,7 +10,7 @@
  * governing permissions and limitations under the License.
  */
 
-import { appendPointer } from './pointer.js';
+import { appendPointer } from '../shared/pointer.js';
 
 function objectValue(value) {
   if (value && typeof value === 'object' && !Array.isArray(value)) { return value; }
@@ -38,6 +38,10 @@ function buildNode({
   }
   if (Array.isArray(definition.enumValues)) { base.enumValues = definition.enumValues; }
   if (definition.semanticType) { base.semanticType = definition.semanticType; }
+  if (definition.typeRef) {
+    base.typeRef = definition.typeRef;
+    base.typeName = definition.typeName;
+  }
   if (definition.format) { base.format = definition.format; }
   if (definition.description !== undefined) { base.description = definition.description; }
 

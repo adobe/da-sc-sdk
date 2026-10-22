@@ -39,7 +39,7 @@ engine = createEngine({
 });
 // onChange does NOT fire at init. Read the initial state directly:
 console.log('initial errors:', Object.keys(engine.getState().validation.errors).length);
-// → 1 (name is required, document is empty)
+// Prints 1, because name is required and the document is empty.
 
 engine.setField('/data/name', 'Alice');             // satisfies `required`
 engine.setField('/data/status', 'Active');          // satisfies `enum`
@@ -47,7 +47,7 @@ engine.addItem('/data/tags');                       // append an array slot
 engine.setField('/data/tags/0', 'demo');            // fill the slot
 
 console.log(JSON.stringify(engine.getState().document, null, 2));
-// → {"metadata":{},"data":{"name":"Alice","status":"Active","tags":["demo"]}}
+// Prints {"metadata":{},"data":{"name":"Alice","status":"Active","tags":["demo"]}}
 ```
 
 ## With save-on-change
@@ -64,11 +64,11 @@ engine = createEngine({
   schema,
   document: { metadata: { schemaName: 'project' }, data: {} },
   onChange: () => {
-    const next = engine.getState().document;
+    const { document: next, model } = engine.getState();
     if (next === lastValues) return;     // ignore non-mutation transitions
     lastValues = next;
 
-    const { html, error } = convertJsonToHtml({ json: next });
+    const { html, error } = convertJsonToHtml({ json: next, model });
     if (error) return;
     // ...POST `html` to your storage, write to disk, push to git, etc...
   },
@@ -76,7 +76,7 @@ engine = createEngine({
 // onChange doesn't fire at init — capture the initial reference manually.
 lastValues = engine.getState().document;
 
-engine.setField('/data/name', 'Alice');     // → onChange fires → you save
+engine.setField('/data/name', 'Alice');     // onChange fires, and you save
 ```
 
 This is simple "save after every mutation." For production semantics — single-flight save with re-queue, status tracking — wrap the above pattern in ~40 lines of orchestration. The SDK intentionally leaves persistence to the consumer so each can pick its own semantics (single-flight, bulk, offline-queue, optimistic).
@@ -91,7 +91,7 @@ const { errors } = engine.getState().validation;
 
 // Look up by pointer (UI rendering): O(1).
 const err = errors['/data/status'];
-// → {
+// err is {
 //     keyword: 'enum',
 //     instancePath: '/data/status',
 //     params: { allowedValues: ['Draft', 'Active'] },
@@ -110,7 +110,7 @@ for (const e of Object.values(errors)) {
 
 ```js
 const result = validateData({ schema, data: { name: '', status: 'Unknown' } });
-// → result.errors = {
+// result.errors is {
 //     '/data/name': {
 //       keyword: 'required',
 //       instancePath: '/data/name',               // directly actionable
@@ -134,7 +134,7 @@ Why the data `errors` omit `schemaPath`: ajv's full shape includes a pointer int
 
 - **Mutations are pointer-based.** Every change is identified by an RFC 6901 pointer (`/data/tags/0`). This maps directly to MCP tool parameters or agent action descriptions — no opaque handles, no field IDs.
 - **Errors are structured data, not events.** `state.validation.errors` is a pointer-keyed map of `{ keyword, instancePath, params, message }` — UIs look up by pointer, agents iterate via `Object.values()`. Per-entry shape uses the standard JSON Schema vocabulary any agent already recognizes.
-- **Schema issues are structured.** `state.schemaIssues` is an array of `{ reason, message, schemaPath, pointer, details }` where `reason` is one of `unsupported-composition` / `unsupported-type` / `type-as-array` / `missing-type` / `external-ref` / `unresolved-ref` / `invalid-pattern`. `message` is a human summary; `schemaPath` is the location in the schema source (`/$defs/…`, `$ref`s re-rooted at their target) — the spot to fix; `pointer` is the data-instance path (`/data/timeline/0/…`); `details` is a reason-specific blob (`{ type }`, `{ keyword, variants }`, `{ ref }`, `{ pattern }`, or `null`). An agent that built the schema can branch on `reason` and jump to `schemaPath` to fix it on the next attempt.
+- **Schema issues are structured.** `state.schemaIssues` is an array of `{ reason, message, schemaPath, pointer, details }` where `reason` is one of `unsupported-composition` / `unsupported-type` / `type-as-array` / `missing-type` / `external-ref` / `unresolved-ref` / `type-ref-keywords` / `invalid-pattern`. `message` is a human summary; `schemaPath` is the location in the schema source (`/$defs/…`, `$ref`s re-rooted at their target) — the spot to fix; `pointer` is the data-instance path (`/data/timeline/0/…`); `details` is a reason-specific blob (`{ type }`, `{ keyword, variants }`, `{ ref }`, `{ ref, properties }`, `{ pattern }`, or `null`). An agent that built the schema can branch on `reason` and jump to `schemaPath` to fix it on the next attempt.
 
 ## What schemas to write
 

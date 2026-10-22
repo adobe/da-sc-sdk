@@ -69,6 +69,16 @@ export default defineConfig([
   source,
   test,
 
+  // The package entry points at src/, so runtimes may load these files without a
+  // build step. Keep them to ES2022, the syntax the SDK promises. Cloudflare
+  // Workers reject import attributes (`with { type: 'json' }`) with "Unrecognized
+  // import attributes specified". Only the experimental `new_module_registry`
+  // flag allows them, and deployed Workers can't use experimental flags.
+  {
+    files: ['src/**/*.js'],
+    languageOptions: { ecmaVersion: 2022 },
+  },
+
   // editor/ boundary — must stay headless. No DOM, no HTML codec, no I/O.
   // The whole point of this layer is that it runs in any ESM runtime; pulling
   // in anything from html/ or external transports breaks that invariant.

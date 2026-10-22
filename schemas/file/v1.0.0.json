@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/file/v1.0.0.json",
+  "title": "File",
+  "description": "A file, such as a PDF, referenced by its source.",
+  "type": "object",
+  "properties": {
+    "src": {
+      "type": "string",
+      "title": "Source",
+      "description": "The http(s) URL or media bus path of the asset.",
+      "pattern": "^\\s*(?:(?:\\./)?media_[0-9a-fA-F]+\\.[A-Za-z0-9]+(?:[?#]\\S*)?|https?://(?:[A-Za-z0-9-]+\\.)*[A-Za-z][A-Za-z0-9-]*(?::[0-9]{1,4})?(?:[/?#]\\S*)?)\\s*$"
+    }
+  },
+  "required": [
+    "src"
+  ],
+  "additionalProperties": false
+}

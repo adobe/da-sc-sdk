@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/image/v1.0.0.json",
+  "title": "Image",
+  "description": "An image, referenced by its source, with a text alternative.",
+  "type": "object",
+  "properties": {
+    "src": {
+      "type": "string",
+      "title": "Source",
+      "description": "The http(s) URL or media bus path of the asset.",
+      "pattern": "^\\s*(?:(?:\\./)?media_[0-9a-fA-F]+\\.[A-Za-z0-9]+(?:[?#]\\S*)?|https?://(?:[A-Za-z0-9-]+\\.)*[A-Za-z][A-Za-z0-9-]*(?::[0-9]{1,4})?(?:[/?#]\\S*)?)\\s*$"
+    },
+    "altText": {
+      "type": "string",
+      "title": "Alt text",
+      "description": "A text alternative for the image."
+    }
+  },
+  "required": [
+    "src"
+  ],
+  "additionalProperties": false
+}

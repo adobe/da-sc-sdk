@@ -11,6 +11,11 @@
  */
 
 import { fromHtml } from 'hast-util-from-html';
+import { normalizeMediaSource, toAbsoluteMediaHref } from './media.js';
+import { httpHref } from './utils.js';
+import { ASSET_SRC } from '../types/asset.js';
+import { compileSchema } from '../state-engine/schema.js';
+import { codecFor } from './codecs/index.js';
 
 const SELF_REF = 'self://#';
 
@@ -50,6 +55,21 @@ function textContent(node) {
   return (node.children ?? []).map(textContent).join('');
 }
 
+// The first non-empty `<img src>` below `node` in its stored form, or null.
+// The writer emits at most one image per value; any further images are ignored.
+// With a `baseHref`, media bus paths become absolute URLs resolved against it.
+function imageSource({ node, baseHref }) {
+  const images = [];
+  collectElements(node, 'img', images);
+  const src = images
+    .map((img) => img.properties?.src)
+    .find((value) => typeof value === 'string' && value.trim() !== '');
+  if (src !== undefined) {
+    return toAbsoluteMediaHref({ src: normalizeMediaSource(src), baseHref });
+  }
+  return null;
+}
+
 // Find a direct list child of a value cell. The wire format uses `<ul>`,
 // but `<ol>` is accepted too — authors and external tools sometimes emit
 // ordered lists, and the SDK should read whatever shape carries the same
@@ -61,8 +81,20 @@ function firstListChild(node) {
   ) ?? null;
 }
 
+// The compiled schema node of `key` below `node`. `@items` rows carry the array itself.
+function childNode({ node, key }) {
+  if (key === '@items') {
+    return node;
+  }
+  return node?.children?.find((child) => child.key === key);
+}
+
+// `definition` is the compiled schema of the document, or null without one.
+// It selects a codec per value, the same way the writer does with the model.
 export default class HTMLConverter {
-  constructor(html) {
+  constructor({ html, baseHref, definition }) {
+    this.baseHref = baseHref;
+    this.definition = definition;
     this.tree = fromHtml(html);
     this.blocks = selectBlocks(this.tree);
     this.json = this.convertBlocksToJson();
@@ -70,7 +102,7 @@ export default class HTMLConverter {
 
   convertBlocksToJson() {
     const metadata = this.getMetadata();
-    const data = this.findAndConvert(metadata.schemaName);
+    const data = this.findAndConvert(metadata.schemaName, false, this.definition);
     return { metadata, data };
   }
 
@@ -80,7 +112,7 @@ export default class HTMLConverter {
     return { schemaName, ...rest };
   }
 
-  getProperties(block) {
+  getProperties(block, node) {
     // Tolerant tree walk: skips whitespace text nodes between cells and
     // accepts value cells with or without an element wrapper. See the
     // "EDS-formatted HTML" tests in html2json.test.js for the shapes this
@@ -91,34 +123,54 @@ export default class HTMLConverter {
       const [keyCol, valCol] = cols;
       const key = textContent(keyCol).trim();
       if (!key) { return rdx; }
-      rdx[key] = this.readValue(valCol);
+      const valueNode = childNode({ node, key });
+      const codec = codecFor({ node: valueNode, parentNode: node, key });
+      rdx[key] = this.readValue({
+        valCol, key, node: valueNode, codec,
+      });
       return rdx;
     }, {});
   }
 
-  // Read a value cell. A `<ul>` or `<ol>` child makes it an array; anything
-  // else (or bare text) makes it a primitive whose value is the cell's text
-  // content.
-  readValue(valCol) {
+  // Read a value cell. A codec that reads markup reads the cell's nodes.
+  // Otherwise a `<ul>` or `<ol>` child makes it an array, and the cell's text
+  // is the value. Without text, a `src` cell reads as its image, since the
+  // writer puts images only in an asset's `src` row.
+  readValue({
+    valCol, key, node, codec,
+  }) {
+    if (codec.fromHtml) {
+      return codec.fromHtml({ nodes: valCol.children });
+    }
+
     const list = firstListChild(valCol);
-    if (list) { return this.readListValue(list); }
+    if (list) { return this.readListValue(list, node?.item); }
 
     const text = textContent(valCol).trim();
-    if (text === '') { return ''; }
-    return this.getTypedValue(text);
+    if (text !== '') {
+      return this.getTypedValue(text, node);
+    }
+    if (key !== ASSET_SRC) {
+      return '';
+    }
+    return imageSource({ node: valCol, baseHref: this.baseHref }) ?? '';
   }
 
   // Iterate only `<li>` children. Stray non-`<li>` elements inside the list
   // (whitespace text is already filtered by `elementChildren`) are ignored
   // rather than silently treated as items — they were never list entries.
-  readListValue(list) {
+  readListValue(list, itemNode) {
+    const codec = codecFor({ node: itemNode });
     return elementChildren(list)
       .filter((c) => c.tagName === 'li')
       .map((li) => {
+        if (codec.fromHtml) {
+          return codec.fromHtml({ nodes: li.children });
+        }
         const text = textContent(li).trim();
-        const ref = this.getReference(text);
+        const ref = this.getReference(text, itemNode);
         if (ref !== null) { return ref; }
-        return this.getTypedValue(text);
+        return this.getTypedValue(text, itemNode);
       });
   }
 
@@ -126,9 +178,10 @@ export default class HTMLConverter {
    * Find and convert a block to its basic JSON data
    * @param {String} searchTerm the block name or variation
    * @param {Boolean} searchRef if the variation should be used for search
+   * @param {Object} [node] the compiled schema node of the block's value
    * @returns {Object|Array} the JSON Object or Array representing the block
    */
-  findAndConvert(searchTerm, searchRef) {
+  findAndConvert(searchTerm, searchRef, node) {
     return this.blocks.reduce((acc, block) => {
       // If we are looking for a reference,
       // use the variation, not the block name
@@ -139,7 +192,7 @@ export default class HTMLConverter {
       // so we require no second class to pick the root.
       const isRootBlock = !searchRef && !block.properties.className[1];
       if (matches && (searchRef || isRootBlock)) {
-        const properties = this.getProperties(block);
+        const properties = this.getProperties(block, node);
         // If the block contains only @items, it represents an array
         // Return the array value directly instead of the object wrapper
         const keys = Object.keys(properties);
@@ -155,7 +208,7 @@ export default class HTMLConverter {
   // We will always try to convert to a strong type.
   // The schema is responsible for knowing if it
   // is correct and converting back if necessary.
-  getTypedValue(value) {
+  getTypedValue(value, node) {
     // It it doesn't exist, resolve to undefined
     if (!value) {
       return '';
@@ -166,7 +219,7 @@ export default class HTMLConverter {
     if (boolean !== null) { return boolean; }
 
     // Attempt reference
-    const reference = this.getReference(value);
+    const reference = this.getReference(value, node);
     if (reference !== null) { return reference; }
 
     // Attempt number
@@ -176,10 +229,10 @@ export default class HTMLConverter {
     return value;
   }
 
-  getReference(text) {
+  getReference(text, node) {
     if (text.startsWith(SELF_REF)) {
       const refId = text.split(SELF_REF)[1].replaceAll('/', '-');
-      const reference = this.findAndConvert(refId, true);
+      const reference = this.findAndConvert(refId, true, node);
       if (reference) { return reference; }
     }
     return null;
@@ -195,23 +248,63 @@ export default class HTMLConverter {
     const num = Number(text);
     if (!Number.isFinite(num)) { return null; }
     // Only coerce when the text is the number's canonical form. `Number()`
-    // accepts forms that don't round-trip (e.g. "710E-3" -> 0.71, "0xFF" ->
-    // 255, "007" -> 7), which would corrupt string codes.
+    // accepts forms that don't round-trip, such as "710E-3" for 0.71, "0xFF" for
+    // 255 or "007" for 7, which would corrupt string codes.
     if (String(num) !== text) { return null; }
     return num;
   }
 }
 
+function verifyHtml(html) {
+  if (typeof html !== 'string' || !html.trim()) {
+    return 'html must be a non-empty string.';
+  }
+  return undefined;
+}
+
+// The href of `config.baseUrl`, undefined without one, or null when it is invalid.
+function baseHrefOf(config) {
+  const baseUrl = config?.baseUrl;
+  return baseUrl === undefined ? undefined : httpHref(baseUrl);
+}
+
+// Why the input can't be read, or undefined when it can.
+function verifyInput({ html, baseHref }) {
+  const htmlError = verifyHtml(html);
+  if (htmlError) {
+    return htmlError;
+  }
+
+  if (baseHref === null) {
+    return 'config.baseUrl must be an absolute http or https URL.';
+  }
+
+  return undefined;
+}
+
 // Convert DA wire-format HTML back to a structured JSON document. Symmetric
 // pair with `convertJsonToHtml`. Returns `{ json } | { error }` so callers
 // see a clear reason on failure instead of a silent null.
-export function convertHtmlToJson({ html } = {}) {
-  if (typeof html !== 'string' || !html.trim()) {
-    return { error: 'html must be a non-empty string.' };
+//
+// Pass the URL of a delivered EDS page as `config.baseUrl`, for example
+// `https://main--site--org.aem.page/folder/x`, to return its media bus
+// images as absolute URLs, resolved like a browser resolves them on the page.
+// Without it they stay relative to the page.
+//
+// With the document's `schema`, values of a semantic type such as `rich-text`
+// are read from their cell markup instead of their text. Without a schema, or
+// with one that cannot be compiled, every value is read as text.
+export function convertHtmlToJson({ html, schema, config } = {}) {
+  const baseHref = baseHrefOf(config);
+  const error = verifyInput({ html, baseHref });
+  if (error) {
+    return { error };
   }
+
   try {
-    return { json: new HTMLConverter(html).json };
-  } catch (e) {
-    return { error: `Failed to parse HTML: ${e?.message ?? e}` };
+    const definition = schema ? compileSchema(schema).definition : null;
+    return { json: new HTMLConverter({ html, baseHref, definition }).json };
+  } catch (parseError) {
+    return { error: `Failed to parse HTML: ${parseError?.message ?? parseError}` };
   }
 }
