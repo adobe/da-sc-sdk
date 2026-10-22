@@ -11,8 +11,8 @@
  */
 
 import { expect } from '@esm-bundle/chai';
+import { appendPointer } from '../../src/shared/pointer.js';
 import {
-  appendPointer,
   clearValueAt,
   definitionAt,
   getParentPointer,

@@ -10,7 +10,7 @@
  * governing permissions and limitations under the License.
  */
 
-import { appendPointer } from './pointer.js';
+import { appendPointer } from '../shared/pointer.js';
 
 function objectValue(value) {
   if (value && typeof value === 'object' && !Array.isArray(value)) { return value; }

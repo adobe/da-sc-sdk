@@ -10,15 +10,15 @@
  * governing permissions and limitations under the License.
  */
 
+import { appendPointer } from '../shared/pointer.js';
 import {
-  appendPointer,
   clearValueAt,
   insertValueAt,
   removeValueAt,
   setValueAt,
   valueAt,
 } from './pointer.js';
-import { deepClone } from './clone.js';
+import { deepClone } from '../shared/clone.js';
 
 function fallbackEmpty(node) {
   if (!node) { return undefined; }
