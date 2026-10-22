@@ -11,10 +11,17 @@
  */
 
 // Codecs write the properties of a typed value, such as an image's `src`, as
-// DA markup. A new type adds its property codecs here. Everything else is text.
+// DA markup. A new type adds its property codecs here. A semantic type, such as
+// `rich-text`, registers a codec for the whole value. Everything else is text.
+//
+// A codec with `blockContent` writes block markup, so its cell gets no
+// paragraph around it. A codec with `fromHtml` reads its value from the cell's
+// nodes instead of from their text.
 
 import { TYPES } from '../../types/index.js';
+import { SEMANTIC_TYPES } from '../../state-engine/schema.js';
 import { fileCodecs, imageCodecs } from './asset.js';
+import richText from './rich-text.js';
 import text from './text.js';
 
 const CODECS_BY_TYPE = new Map([
@@ -22,10 +29,15 @@ const CODECS_BY_TYPE = new Map([
   [TYPES.file.name, fileCodecs],
 ]);
 
-export function codecFor({ parentNode, key }) {
+const CODECS_BY_SEMANTIC_TYPE = new Map([
+  [SEMANTIC_TYPES.richText, richText],
+]);
+
+// `node` is the value's model node, `parentNode` the node of the object holding it.
+export function codecFor({ node, parentNode, key }) {
   const codecs = CODECS_BY_TYPE.get(parentNode?.typeName);
-  if (!codecs || !Object.hasOwn(codecs, key)) {
-    return text;
+  if (codecs && Object.hasOwn(codecs, key)) {
+    return codecs[key];
   }
-  return codecs[key];
+  return CODECS_BY_SEMANTIC_TYPE.get(node?.semanticType) ?? text;
 }

@@ -235,9 +235,14 @@ const SUPPORTED_TYPES = new Set([
 // A value is surfaced to consumers only when the field's kind matches; any
 // other value (or type mismatch) is dropped so consumers never receive a hint
 // they can't act on.
-const SEMANTIC_TYPES = new Map([
-  ['long-text', 'string'],
-  ['rich-text', 'string'],
+export const SEMANTIC_TYPES = Object.freeze({
+  longText: 'long-text',
+  richText: 'rich-text',
+});
+
+const SEMANTIC_KINDS = new Map([
+  [SEMANTIC_TYPES.longText, 'string'],
+  [SEMANTIC_TYPES.richText, 'string'],
 ]);
 
 // Native JSON Schema string `format` values we surface to the UI as date/time
@@ -505,7 +510,7 @@ function compileNode({
   }
 
   // Vendor hint; `enum` and the standard `format` keyword take precedence above.
-  if (SEMANTIC_TYPES.get(schema?.['x-semantic-type']) === kind) {
+  if (SEMANTIC_KINDS.get(schema?.['x-semantic-type']) === kind) {
     return { ...base, semanticType: schema['x-semantic-type'] };
   }
 

@@ -62,11 +62,16 @@ function addBlock({ key, innerHtml, writer }) {
   return blockId;
 }
 
-function primitiveHtml({
-  key, value, parentValue, parentPointer, writer,
+function codecOf({
+  key, pointer, parentPointer, writer,
 }) {
-  const parentNode = writer.byPointer?.[parentPointer];
-  const codec = codecFor({ parentNode, key });
+  const { byPointer } = writer;
+  return codecFor({ node: byPointer?.[pointer], parentNode: byPointer?.[parentPointer], key });
+}
+
+function primitiveHtml({
+  codec, value, parentValue, writer,
+}) {
   return codec.toHtml({ value, parentValue, options: writer.options });
 }
 
@@ -83,7 +88,8 @@ function itemHtml({
     const blockId = objectBlock({ key, object: item, pointer, writer });
     return `<li>${referenceText({ key, blockId })}</li>`;
   }
-  return `<li>${primitiveHtml({ key, value: item, writer })}</li>`;
+  const codec = codecOf({ key, pointer, writer });
+  return `<li>${primitiveHtml({ codec, value: item, writer })}</li>`;
 }
 
 function listHtml({
@@ -160,9 +166,15 @@ function valueCell({
   if (typeof value === 'object') {
     return referenceCell({ key, object: value, pointer, writer });
   }
-  const html = primitiveHtml({
-    key, value, parentValue, parentPointer, writer,
+  const codec = codecOf({
+    key, pointer, parentPointer, writer,
   });
+  const html = primitiveHtml({
+    codec, value, parentValue, writer,
+  });
+  if (codec.blockContent) {
+    return `<div>${html}</div>`;
+  }
   return `<div><p>${html}</p></div>`;
 }
 

@@ -159,7 +159,7 @@ export interface ModelNode {
   // Primitives with `enum`:
   enumValues?: unknown[];
   // String primitives with `x-semantic-type` (vendor presentation hint):
-  semanticType?: string;
+  semanticType?: 'long-text' | 'rich-text';
   /**
    * Values of a `$ref` type, rendered by editors as one field. `typeRef` is the
    * URL of the version the schema references (`…/image/v1.0.0.json`).
@@ -282,7 +282,8 @@ export function validateData(options?: {
  * @param options.model The model from the same `getState()` as the document.
  *   With it, an asset's `src` is written as `<img>` with `altText` as `alt`, or
  *   as a link for files and for paths that are no JPEG, PNG, GIF, WebP, AVIF or
- *   SVG. Without it, every value is written as text.
+ *   SVG. A `rich-text` string is sanitized and written as markup, see
+ *   schema-spec.md. Without it, every value is written as text.
  * @param options.config.externalImagesAsLinks Writes images as links, like
  *   Canvas does for AEM Assets. Media bus images and DA uploads stay images.
  *   Defaults to `false`.
@@ -305,6 +306,9 @@ export function convertJsonToHtml(options: {
  *
  * @param options The conversion input.
  * @param options.html The DA wire-format HTML.
+ * @param options.schema The document's JSON Schema. With it, a `rich-text`
+ *   string is read as sanitized markup instead of text. Without it, or with a
+ *   schema that cannot be compiled, every value is read as text.
  * @param options.config.baseUrl The URL of a delivered EDS page. Media bus
  *   paths then come back as absolute URLs, resolved as a browser would.
  * @returns `{ json }`, or `{ error }` for empty or malformed HTML or a base URL
@@ -312,6 +316,7 @@ export function convertJsonToHtml(options: {
  */
 export function convertHtmlToJson(options?: {
   html: string;
+  schema?: unknown;
   config?: { baseUrl?: string };
 }): { json: Document } | { error: string };
 
