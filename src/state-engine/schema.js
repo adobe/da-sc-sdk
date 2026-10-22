@@ -10,7 +10,7 @@
  * governing permissions and limitations under the License.
  */
 
-import { deepClone } from './clone.js';
+import { deepClone } from '../shared/clone.js';
 
 function unionRequired(base = [], next = []) {
   return Array.from(new Set([...(base ?? []), ...(next ?? [])]));

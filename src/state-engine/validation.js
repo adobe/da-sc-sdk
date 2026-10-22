@@ -46,7 +46,7 @@
 // Invalid `pattern` is caught at schema-compile time (schema.js) and
 // surfaces on `schemaIssues`, not here.
 
-import { isDataEmpty } from './empty.js';
+import { isDataEmpty } from '../shared/empty.js';
 
 // First error per pointer wins. Helper makes that rule explicit at every
 // call site instead of buried in the walk.

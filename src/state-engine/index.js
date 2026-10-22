@@ -14,7 +14,7 @@ import { compileSchema } from './schema.js';
 import { buildModel, nodeAt } from './model.js';
 import { validateDocument } from './validation.js';
 import { definitionAt, getParentPointer } from './pointer.js';
-import { isDataEmpty } from './empty.js';
+import { isDataEmpty } from '../shared/empty.js';
 import {
   addItem as applyAdd,
   insertItem as applyInsert,
@@ -22,7 +22,7 @@ import {
   removeItem as applyRemove,
   setField as applySet,
 } from './mutate.js';
-import { deepClone } from './clone.js';
+import { deepClone } from '../shared/clone.js';
 
 function parseDocument(document) {
   if (!document || typeof document !== 'object' || Array.isArray(document)) { return null; }
@@ -40,7 +40,7 @@ function parseDocument(document) {
   return next;
 }
 
-// The canonical "form-empty" predicate lives in ./empty.js so validation,
+// The canonical "form-empty" predicate lives in ../shared/empty.js so validation,
 // defaults, and save all decide presence the same way. Re-exported here to
 // keep the existing import surface (and the isDataEmpty ↔ prune symmetry test).
 export { isDataEmpty };
