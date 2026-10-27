@@ -13,7 +13,6 @@
 import { richTextFromNodes, sanitizeRichText } from '../rich-text.js';
 
 export default {
-  blockContent: true,
   toHtml: ({ value }) => sanitizeRichText(value),
   fromHtml: ({ nodes }) => richTextFromNodes(nodes),
 };

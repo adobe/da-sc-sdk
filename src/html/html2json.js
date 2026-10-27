@@ -11,10 +11,14 @@
  */
 
 import { fromHtml } from 'hast-util-from-html';
-import { compileSchema } from '../state-engine/schema.js';
-import { codecFor } from './codecs/index.js';
+import { markupCodecFor } from './codecs/index.js';
 
-const SELF_REF = 'self://#';
+const SELF_REFERENCE_PATTERN = /^self:\/\/([a-z-]*)#(.*)$/;
+
+// A referenced block's second class is its reference ID.
+function blockReferenceId(block) {
+  return block.properties.className[1]?.toLowerCase();
+}
 
 // Equivalent of `selectAll('main > div > div', tree)` without `hast-util-select`.
 // We inline this one selector to avoid extra weight and CJS interop overhead.
@@ -63,19 +67,8 @@ function firstListChild(node) {
   ) ?? null;
 }
 
-// The compiled schema node of `key` below `node`. `@items` rows carry the array itself.
-function childNode({ node, key }) {
-  if (key === '@items') {
-    return node;
-  }
-  return node?.children?.find((child) => child.key === key);
-}
-
-// `definition` is the compiled schema of the document, or null without one.
-// It selects a codec per value, the same way the writer does with the model.
 export default class HTMLConverter {
-  constructor({ html, definition }) {
-    this.definition = definition;
+  constructor({ html }) {
     this.tree = fromHtml(html);
     this.blocks = selectBlocks(this.tree);
     this.json = this.convertBlocksToJson();
@@ -83,7 +76,7 @@ export default class HTMLConverter {
 
   convertBlocksToJson() {
     const metadata = this.getMetadata();
-    const data = this.findAndConvert(metadata.schemaName, false, this.definition);
+    const data = this.findAndConvert(metadata.schemaName);
     return { metadata, data };
   }
 
@@ -93,7 +86,7 @@ export default class HTMLConverter {
     return { schemaName, ...rest };
   }
 
-  getProperties(block, node) {
+  getProperties(block) {
     // Tolerant tree walk: skips whitespace text nodes between cells and
     // accepts value cells with or without an element wrapper. See the
     // "EDS-formatted HTML" tests in html2json.test.js for the shapes this
@@ -110,48 +103,40 @@ export default class HTMLConverter {
         return properties;
       }
 
-      const valueNode = childNode({ node, key });
-      const codec = codecFor({ node: valueNode });
-      properties[key] = this.readValue({ valueCell, node: valueNode, codec });
+      properties[key] = this.readValue({ valueCell });
       return properties;
     }, {});
   }
 
-  // Read a value cell. A codec that reads markup reads the cell's nodes.
-  // Otherwise a `<ul>` or `<ol>` child makes it an array, and the cell's text
-  // is the value.
-  readValue({ valueCell, node, codec }) {
-    if (codec.fromHtml) {
-      return codec.fromHtml({ nodes: valueCell.children });
-    }
-
+  // Read a value cell. A `<ul>` or `<ol>` child makes it an array. Otherwise
+  // the cell's text is the value.
+  readValue({ valueCell }) {
     const list = firstListChild(valueCell);
     if (list) {
-      return this.readListValue(list, node?.item);
+      return this.readListValue(list);
     }
 
     const text = textContent(valueCell).trim();
     if (text === '') {
       return '';
     }
-    return this.getTypedValue(text, node);
+    return this.getTypedValue(text);
   }
 
   // Iterate only `<li>` children. Stray non-`<li>` elements inside the list
   // (whitespace text is already filtered by `elementChildren`) are ignored
   // rather than silently treated as items — they were never list entries.
-  readListValue(list, itemNode) {
-    const codec = codecFor({ node: itemNode });
+  readListValue(list) {
     return elementChildren(list)
-      .filter((c) => c.tagName === 'li')
+      .filter((child) => child.tagName === 'li')
       .map((li) => {
-        if (codec.fromHtml) {
-          return codec.fromHtml({ nodes: li.children });
-        }
         const text = textContent(li).trim();
-        const ref = this.getReference(text, itemNode);
-        if (ref !== null) { return ref; }
-        return this.getTypedValue(text, itemNode);
+        const reference = this.getReference(text);
+        if (reference !== null) {
+          return reference;
+        }
+
+        return this.getTypedValue(text);
       });
   }
 
@@ -159,10 +144,9 @@ export default class HTMLConverter {
    * Find and convert a block to its basic JSON data
    * @param {String} searchTerm the block name or variation
    * @param {Boolean} byReferenceId if the variation should be used for search
-   * @param {Object} [node] the compiled schema node of the block's value
    * @returns {Object|Array} the JSON Object or Array representing the block
    */
-  findAndConvert(searchTerm, byReferenceId, node) {
+  findAndConvert(searchTerm, byReferenceId) {
     return this.blocks.reduce((lastMatch, block) => {
       // If we are looking for a reference,
       // use the variation, not the block name
@@ -174,7 +158,7 @@ export default class HTMLConverter {
       // so we require no second class to pick the root.
       const isRootBlock = !byReferenceId && !block.properties.className[1];
       if (matches && (byReferenceId || isRootBlock)) {
-        const properties = this.getProperties(block, node);
+        const properties = this.getProperties(block);
         // If the block contains only @items, it represents an array
         // Return the array value directly instead of the object wrapper
         const keys = Object.keys(properties);
@@ -190,7 +174,7 @@ export default class HTMLConverter {
   // We will always try to convert to a strong type.
   // The schema is responsible for knowing if it
   // is correct and converting back if necessary.
-  getTypedValue(value, node) {
+  getTypedValue(value) {
     // It it doesn't exist, resolve to undefined
     if (!value) {
       return '';
@@ -201,7 +185,7 @@ export default class HTMLConverter {
     if (boolean !== null) { return boolean; }
 
     // Attempt reference
-    const reference = this.getReference(value, node);
+    const reference = this.getReference(value);
     if (reference !== null) { return reference; }
 
     // Attempt number
@@ -211,13 +195,42 @@ export default class HTMLConverter {
     return value;
   }
 
-  getReference(text, node) {
-    if (text.startsWith(SELF_REF)) {
-      const refId = text.split(SELF_REF)[1].replaceAll('/', '-');
-      const reference = this.findAndConvert(refId, true, node);
-      if (reference) { return reference; }
+  // Resolve a `self://` reference, or return null when the text is not one.
+  // A typed reference, `self://<semantic-type>#…`, reads its block's cell with
+  // the codec of that type. References of an unknown type stay text.
+  getReference(text) {
+    const [, semanticType, fragment] = text.match(SELF_REFERENCE_PATTERN) ?? [];
+    if (fragment === undefined) {
+      return null;
+    }
+
+    const referenceId = fragment.replaceAll('/', '-');
+    if (semanticType) {
+      return this.readMarkupBlock({ semanticType, referenceId });
+    }
+
+    const reference = this.findAndConvert(referenceId, true);
+    if (reference) {
+      return reference;
     }
     return null;
+  }
+
+  // The markup in the cell of the referenced block, read with the codec of
+  // `semanticType`, or null without such a codec or block.
+  readMarkupBlock({ semanticType, referenceId }) {
+    const codec = markupCodecFor(semanticType);
+    if (!codec) {
+      return null;
+    }
+
+    // Like findAndConvert, the last block with the reference ID wins.
+    const block = this.blocks.findLast(
+      (candidate) => blockReferenceId(candidate) === referenceId.toLowerCase(),
+    );
+    const [row] = elementChildren(block);
+    const [cell] = elementChildren(row);
+    return cell ? codec.fromHtml({ nodes: cell.children }) : null;
   }
 
   getBoolean(text) {
@@ -240,17 +253,12 @@ export default class HTMLConverter {
 // Convert DA wire-format HTML back to a structured JSON document. Symmetric
 // pair with `convertJsonToHtml`. Returns `{ json } | { error }` so callers
 // see a clear reason on failure instead of a silent null.
-//
-// With the document's `schema`, values of a semantic type such as `rich-text`
-// are read from their cell markup instead of their text. Without a schema, or
-// with one that cannot be compiled, every value is read as text.
-export function convertHtmlToJson({ html, schema } = {}) {
+export function convertHtmlToJson({ html } = {}) {
   if (typeof html !== 'string' || !html.trim()) {
     return { error: 'html must be a non-empty string.' };
   }
   try {
-    const definition = schema ? compileSchema(schema).definition : null;
-    return { json: new HTMLConverter({ html, definition }).json };
+    return { json: new HTMLConverter({ html }).json };
   } catch (e) {
     return { error: `Failed to parse HTML: ${e?.message ?? e}` };
   }

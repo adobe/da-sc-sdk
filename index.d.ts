@@ -263,9 +263,9 @@ export function validateData(options?: {
  * @param options The conversion input.
  * @param options.json The document to convert.
  * @param options.model The model from the same `getState()` as the document.
- *   Its nodes pick how each value is written. A `rich-text` string is
- *   sanitized and written as markup, see schema-spec.md. Without it, every
- *   value is written as text.
+ *   Its nodes pick how each value is written. Values of a semantic type are
+ *   written in their stored form, see schema-spec.md. Without it, every value
+ *   is written as text.
  * @returns `{ html }`, or `{ error }` for invalid JSON or a model of another
  *   schema or of other data.
  */
@@ -276,16 +276,13 @@ export function convertJsonToHtml(options: {
 
 /**
  * Converts DA wire-format HTML to JSON. Symmetric pair with `convertJsonToHtml`.
- * Each value reads as the text of its cell.
+ * Each value reads as the text of its cell. A `self://<semantic-type>#…`
+ * reference reads with the codec of that type, see schema-spec.md.
  *
  * @param options The conversion input.
  * @param options.html The DA wire-format HTML.
- * @param options.schema The document's JSON Schema. With it, a `rich-text`
- *   string is read as sanitized markup instead of text. Without it, or with a
- *   schema that cannot be compiled, every value is read as text.
  * @returns `{ json }`, or `{ error }` for empty or malformed HTML.
  */
 export function convertHtmlToJson(options?: {
   html: string;
-  schema?: unknown;
 }): { json: Document } | { error: string };

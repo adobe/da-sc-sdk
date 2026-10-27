@@ -43,17 +43,18 @@ const doc = (data) => ({ metadata: { schemaName: 'article' }, data });
 
 const roundtrip = (json, s = schema) => {
   const { html } = save({ json, schema: s });
-  return convertHtmlToJson({ html, schema: s }).json;
+  return convertHtmlToJson({ html }).json;
 };
 
 describe('rich-text codec', () => {
   describe('convertJsonToHtml with a model', () => {
-    it('writes rich-text values as markup in the value cell', () => {
+    it('writes rich-text values as markup in a block referenced with their type', () => {
       const { html } = save({
         json: doc({ title: '<b>x</b>', body: '<p>Hello <strong>bold</strong></p><ul><li>a</li></ul>' }),
         schema,
       });
-      expect(html).to.include('<div><div><h3>body</h3></div><div><p>Hello <strong>bold</strong></p><ul><li>a</li></ul></div></div>');
+      expect(html).to.include('<div><div><h3>body</h3></div><div><p>self://rich-text#body-1</p></div></div>');
+      expect(html).to.include('<div class="body body-1"><div><div><p>Hello <strong>bold</strong></p><ul><li>a</li></ul></div></div></div>');
       expect(html).to.include('<div><p>&lt;b&gt;x&lt;/b&gt;</p></div>');
     });
 
@@ -79,55 +80,68 @@ describe('rich-text codec', () => {
     it('writes a rich-text value without text content as an empty cell', () => {
       const { html } = save({ json: doc({ title: 't', body: '<p><br></p>' }), schema });
       expect(html).to.include('<div><div><h3>body</h3></div><div></div></div>');
-      expect(convertHtmlToJson({ html, schema }).json.data.body).to.equal('');
+      expect(html).not.to.include('class="body');
+      expect(convertHtmlToJson({ html }).json.data.body).to.equal('');
     });
 
-    it('writes rich-text array items as markup in their list items', () => {
+    it('writes rich-text array items as typed references', () => {
       const { html } = save({ json: doc({ notes: ['<p>n1</p>', 'n2'] }), schema });
-      expect(html).to.include('<ul><li><p>n1</p></li><li><p>n2</p></li></ul>');
+      expect(html).to.include('<ul><li>self://rich-text#notes-1</li><li>self://rich-text#notes-2</li></ul>');
+      expect(html).to.include('<div class="notes notes-1"><div><div><p>n1</p></div></div></div>');
+      expect(html).to.include('<div class="notes notes-2"><div><div><p>n2</p></div></div></div>');
     });
   });
 
-  describe('convertHtmlToJson with a schema', () => {
-    const html = `
-      <main><div>
-        <div class="da-form"><div><div><p>x-schema-name</p></div><div><p>article</p></div></div></div>
-        <div class="article">
-          <div><div><p>title</p></div><div><p>42</p></div></div>
-          <div><div><p>body</p></div><div>
-            <p>Hello <b>bold</b></p>
-            <ul><li>a</li><li>b</li></ul>
-          </div></div>
-        </div>
-      </div></main>`;
-
-    it('reads rich-text cells as canonical markup instead of an array', () => {
-      const { json } = convertHtmlToJson({ html, schema });
-      expect(json.data.body).to.equal('<p>Hello <strong>bold</strong></p><ul><li>a</li><li>b</li></ul>');
-      expect(json.data.title).to.equal(42);
-    });
-
-    it('keeps the schema-less reading unchanged', () => {
-      const { json } = convertHtmlToJson({ html });
-      expect(json.data.body).to.deep.equal(['a', 'b']);
-    });
-
-    it('reads legacy plain cells as a paragraph', () => {
-      const legacy = html.replace(/<div>\s*<p>Hello[\s\S]*?<\/ul>\s*<\/div>/, '<div><p>plain</p></div>');
-      expect(convertHtmlToJson({ html: legacy, schema }).json.data.body).to.equal('<p>plain</p>');
-    });
-
-    it('sanitizes rich-text cells on read', () => {
-      const unsafe = html.replace('<b>bold</b>', '<img src=x onerror=alert(1)><a href="javascript:x">l</a>');
-      expect(convertHtmlToJson({ html: unsafe, schema }).json.data.body)
-        .to.equal('<p>Hello l</p><ul><li>a</li><li>b</li></ul>');
-    });
-
-    it('reads every value as text with a schema that cannot be compiled', () => {
-      const plain = convertHtmlToJson({ html }).json;
-      [1, 'nope', [], null].forEach((invalid) => {
-        expect(convertHtmlToJson({ html, schema: invalid }).json).to.deep.equal(plain);
+  describe('convertHtmlToJson', () => {
+    it('reads written rich text as markup', () => {
+      const json = doc({
+        title: 'Title',
+        body: '<p>Body <em>it</em></p><ul><li>a</li></ul>',
+        author: { name: 'Ann', bio: '<p><u>Bio</u></p>' },
+        sections: [{ heading: 'H1', content: '<p>First</p>' }],
+        notes: ['<p>n1</p>', '<p><strong>n2</strong></p>'],
+        grid: [['<p>a</p>', '<p>b</p>'], ['<p>c</p>']],
       });
+      const { html } = save({ json, schema });
+      expect(convertHtmlToJson({ html }).json).to.deep.equal(json);
+    });
+
+    it('sanitizes referenced rich-text blocks', () => {
+      const html = `
+        <main><div>
+          <div class="da-form"><div><div><p>x-schema-name</p></div><div><p>article</p></div></div></div>
+          <div class="article">
+            <div><div><p>body</p></div><div><p>self://rich-text#body-1</p></div></div>
+          </div>
+          <div class="body body-1">
+            <div>
+              <div>
+                <p onclick="x()">Hi <b>there</b><script>alert(1)</script></p>
+                <a href="javascript:x">l</a>
+              </div>
+            </div>
+          </div>
+        </div></main>`;
+      expect(convertHtmlToJson({ html }).json.data.body).to.equal('<p>Hi <strong>there</strong></p><p>l</p>');
+    });
+
+    it('leaves references of an unknown type as text', () => {
+      const html = `
+        <main><div>
+          <div class="da-form"><div><div><p>x-schema-name</p></div><div><p>article</p></div></div></div>
+          <div class="article"><div><div><p>body</p></div><div><p>self://video#body-1</p></div></div></div>
+          <div class="body body-1"><div><div><p>Hi</p></div></div></div>
+        </div></main>`;
+      expect(convertHtmlToJson({ html }).json.data.body).to.equal('self://video#body-1');
+    });
+
+    it('keeps reading untyped references as objects', () => {
+      const { html } = convertJsonToHtml({
+        json: { metadata: { schemaName: 'article', extra: { gone: null } }, data: { author: { name: 'Ann' } } },
+      });
+      const { json } = convertHtmlToJson({ html });
+      expect(json.data.author).to.deep.equal({ name: 'Ann' });
+      expect(json.metadata.extra).to.deep.equal({});
     });
   });
 
@@ -174,7 +188,7 @@ describe('rich-text codec', () => {
       engine.setField('/data/body', '<p>Edited <strong>text</strong></p>');
       const { document, model } = engine.getState();
       const { html } = convertJsonToHtml({ json: document, model });
-      const { json } = convertHtmlToJson({ html, schema });
+      const { json } = convertHtmlToJson({ html });
       const reloaded = createEngine({ schema, document: json });
       expect(reloaded.getState().document.data.body).to.equal('<p>Edited <strong>text</strong></p>');
     });

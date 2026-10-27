@@ -239,9 +239,25 @@ single-line value.
 | `<strong>`, `<em>`, `<u>`, `<s>`, `<code>`, `<sup>`, `<sub>`, `<br>` | Inline formatting. `b`, `i`, `strike`, `del` are normalized. `<pre>` is flattened to paragraphs. |
 | `<a href title>` | Relative, `http(s):`, `mailto:` and `tel:` links only. An optional `title` is kept with whitespace collapsed and trimmed (empty titles are dropped); other attributes are dropped. |
 
-- Values are sanitized to this subset on both write and read: unknown wrappers are unwrapped, active content (`script`, `iframe`, `img`, event handlers, …) is dropped, loose inline content is wrapped in `<p>`, and empty paragraphs, headings, quotes and items are removed. A value with no text content is written as an empty cell.
+- Values are sanitized to this subset on both write and read: unknown wrappers are unwrapped, active content (`script`, `iframe`, `img`, event handlers, …) is dropped, loose inline content is wrapped in `<p>`, and empty paragraphs, headings, quotes and items are removed.
 - Plain text without markup (e.g. a former `long-text` value) is converted into paragraphs split on blank lines, with single newlines kept as `<br>`.
-- Pass the engine's model to `convertJsonToHtml({ json, model })` and the schema to `convertHtmlToJson({ html, schema })` to keep the markup. Without them, the value is treated as plain text: it is escaped on write, and a cell containing a list is read as an array.
+
+Each value with text content is stored in a block of its own. The block has one row with one cell, and that cell holds the markup. The value's cell, or its list item inside an array, holds the reference `self://rich-text#<key>-<id>`. The key is lowercased, and `<id>` numbers the blocks of a document in the order they are written.
+
+```html
+<div class="article">
+  <div><div><h3>body</h3></div><div><p>self://rich-text#body-1</p></div></div>
+  <div><div><h3>notes</h3></div><div><ul><li>self://rich-text#notes-2</li></ul></div></div>
+</div>
+<div class="body body-1"><div><div><p>Hello <strong>bold</strong></p></div></div></div>
+<div class="notes notes-2"><div><div><p>A note</p></div></div></div>
+```
+
+- `convertJsonToHtml({ json, model })` writes this form. Without the model, the value is escaped and written as text in its cell.
+- A value without text content is written as an empty cell, without a block.
+- `convertHtmlToJson({ html })` reads the cell of the referenced block and sanitizes it. It needs no schema.
+- Markup inside the value's cell itself is not read as rich text. It reads like any other cell, as text or, with a list, as an array.
+- A `self://<type>#…` reference whose type has no markup codec stays text.
 
 ---
 

@@ -25,9 +25,9 @@ da-sc-sdk/
       pointer.js        RFC 6901 ops + definitionAt
       validation.js     validateDocument → { errors } (pointer-keyed map)
     html/             DA wire-format HTML ↔ JSON
-      html2json.js      parse DA HTML → JSON; HTMLConverter class + convertHtmlToJson({ html, schema? })
+      html2json.js      parse DA HTML → JSON; HTMLConverter class + convertHtmlToJson({ html })
       json2html.js      writes JSON as DA HTML, walking blocks, rows and lists with a codec per value
-      codecs/           how a value is written, picked by its model node, rich text as markup, text for everything else
+      codecs/           how semantic values are written and read, text for everything else
       markup.js         escaping, rows and blocks shared by json2html.js and the codecs
       rich-text.js      canonical HTML subset for x-semantic-type: rich-text values
     shared/           helpers every layer may use
@@ -105,8 +105,8 @@ The SDK exposes exactly five named exports from `'da-sc-sdk'`. The surface is na
 | `createEngine({ schema, document, onChange })` | [src/state-engine/index.js](../src/state-engine/index.js) | Stateful JSON state engine — initialized synchronously, exposes mutations and validation. Returns `{ getState, setField, addItem, insertItem, removeItem, moveItem }`. Pure state machine: no persistence, no I/O. `onChange` is NOT called at construction; initial state is read via `engine.getState()`. To swap (schema, document), create a new engine. |
 | `validateSchema({ schema })` | [src/state-engine/index.js](../src/state-engine/index.js) | Schema-only validation. Returns `{ valid, schemaIssues }`. Use to check that a schema is well-formed before binding to it. |
 | `validateData({ schema, data })` | [src/state-engine/index.js](../src/state-engine/index.js) | Data-against-schema validation. Returns `{ valid, errors, schemaIssues }`. `errors` is a pointer-keyed map of ajv-style entries. `valid` is `true` iff both `schemaIssues` and `errors` are empty. Symmetric with `validateSchema`: both validators expose `valid` + `schemaIssues`; `validateData` adds `errors`. |
-| `convertJsonToHtml({ json, model? })` | [src/html/json2html.js](../src/html/json2html.js) | JSON to DA wire-format HTML. Skips empty values. With the engine's model, each value's model node picks its codec (see [lifecycle.md §3.3](./lifecycle.md)), so rich-text values become sanitized markup ([src/html/rich-text.js](../src/html/rich-text.js)). Without a model, every value is text. A model not built from `json` is an error. Returns `{ html } \| { error }`. |
-| `convertHtmlToJson({ html, schema? })` | [src/html/html2json.js](../src/html/html2json.js) | DA wire-format HTML to JSON. Each value reads as the text of its cell. With the schema, rich-text cells read as sanitized markup. Returns `{ json } \| { error }`. |
+| `convertJsonToHtml({ json, model? })` | [src/html/json2html.js](../src/html/json2html.js) | JSON to DA wire-format HTML. Skips empty values. With the engine's model, values of a semantic type are written in their stored form (see [schema-spec.md](./schema-spec.md#x-semantic-type)). Without a model, every value is text. A model not built from `json` is an error. Returns `{ html } \| { error }`. |
+| `convertHtmlToJson({ html })` | [src/html/html2json.js](../src/html/html2json.js) | DA wire-format HTML to JSON. Each value reads as the text of its cell. A `self://<semantic-type>#…` reference reads with the codec of that type. Returns `{ json } \| { error }`. |
 
 ### Everything else is internal — and unreachable
 
