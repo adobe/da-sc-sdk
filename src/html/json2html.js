@@ -211,13 +211,17 @@ function verifyJson(json) {
   return undefined;
 }
 
+function isModel(model) {
+  return isJsonObject(model) && model.root?.pointer === DATA_POINTER
+    && isJsonObject(model.byPointer) && isJsonObject(model.document);
+}
+
 // Without a model every value is written as text, so only a given model is checked.
 function verifyModel({ model, json }) {
   if (model === undefined || model === null) {
     return undefined;
   }
-  if (typeof model !== 'object' || model.root?.pointer !== DATA_POINTER
-    || !model.byPointer || typeof model.byPointer !== 'object' || !model.document) {
+  if (!isModel(model)) {
     return 'model must be the model of engine.getState().';
   }
   if (model.document.metadata?.schemaName !== json.metadata.schemaName) {
