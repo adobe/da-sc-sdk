@@ -10,7 +10,7 @@
  * governing permissions and limitations under the License.
  */
 
-import { appendPointer } from '../shared/pointer.js';
+import { DATA_POINTER, appendPointer } from '../shared/pointer.js';
 import { isJsonObject } from '../shared/object.js';
 
 function objectValue(value) {
@@ -100,7 +100,7 @@ export function buildModel({ definition, document }) {
 
   const root = buildNode({
     definition,
-    pointer: '/data',
+    pointer: DATA_POINTER,
     value: rootValue,
     byPointer,
   });

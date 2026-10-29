@@ -47,6 +47,7 @@
 // surfaces on `schemaIssues`, not here.
 
 import { isDataEmpty } from '../shared/empty.js';
+import { DATA_POINTER } from '../shared/pointer.js';
 
 // First error per pointer wins. Helper makes that rule explicit at every
 // call site instead of buried in the walk.
@@ -321,7 +322,7 @@ export function validateDocument({ document, model }) {
   const data = document?.data;
 
   if (root && data === undefined) {
-    pushError(errors, '/data', {
+    pushError(errors, DATA_POINTER, {
       keyword: 'required',
       params: { missingProperty: 'data' },
       message: 'This field is required.',

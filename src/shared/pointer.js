@@ -13,6 +13,9 @@
 // RFC 6901 JSON Pointer building, shared by the model and the HTML writer so
 // both address a value the same way.
 
+// The pointer of a document's data, the root of the model.
+export const DATA_POINTER = '/data';
+
 export function escapeSegment(segment) {
   return String(segment).replace(/~/g, '~0').replace(/\//g, '~1');
 }

@@ -22,7 +22,7 @@
 // Text nodes and attribute values are escaped at the boundary; structural
 // markup is composed from template literals.
 
-import { appendPointer } from '../shared/pointer.js';
+import { DATA_POINTER, appendPointer } from '../shared/pointer.js';
 import { isDataEmpty } from '../shared/empty.js';
 import { isDeepEqual } from '../shared/equal.js';
 import { isJsonObject } from '../shared/object.js';
@@ -175,7 +175,7 @@ function formBlock({ metadata, writer }) {
 }
 
 function dataBlock({ schemaName, data, writer }) {
-  const pointer = '/data';
+  const pointer = DATA_POINTER;
   if (Array.isArray(data)) {
     const cellHtml = valueCell({
       key: schemaName, value: data, pointer, writer,
@@ -216,7 +216,7 @@ function verifyModel({ model, json }) {
   if (model === undefined || model === null) {
     return undefined;
   }
-  if (typeof model !== 'object' || model.root?.pointer !== '/data'
+  if (typeof model !== 'object' || model.root?.pointer !== DATA_POINTER
     || !model.byPointer || typeof model.byPointer !== 'object' || !model.document) {
     return 'model must be the model of engine.getState().';
   }

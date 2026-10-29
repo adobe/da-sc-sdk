@@ -11,6 +11,7 @@
  */
 
 import { deepClone } from '../shared/clone.js';
+import { DATA_POINTER } from '../shared/pointer.js';
 
 function unionRequired(base = [], next = []) {
   return Array.from(new Set([...(base ?? []), ...(next ?? [])]));
@@ -327,7 +328,7 @@ function issueMessage({ reason, details }) {
 }
 
 function compileNode({
-  key, schema, required = false, labelFallback = '', pointer = '/data', issues,
+  key, schema, required = false, labelFallback = '', pointer = DATA_POINTER, issues,
 }) {
   const { kind, unsupported: inferred = null } = inferKind(schema);
   const label = schema?.title ?? labelFallback ?? key ?? '';
@@ -488,7 +489,7 @@ export function compileSchema(rawSchema) {
     schema: resolved.schema,
     required: false,
     labelFallback: resolved.schema.title ?? 'Data',
-    pointer: '/data',
+    pointer: DATA_POINTER,
     issues,
   });
 
