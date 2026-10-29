@@ -17,7 +17,7 @@
 // their text. Its markup is written into a block of its own, referenced with
 // its semantic type, as `self://<semantic-type>#<key>-<id>`.
 
-import { SEMANTIC_TYPES } from '../../state-engine/schema.js';
+import { SEMANTIC_TYPES } from '../../types/semantic.js';
 import richText from './rich-text.js';
 import text from './text.js';
 
