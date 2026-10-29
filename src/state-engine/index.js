@@ -23,14 +23,15 @@ import {
   setField as applySet,
 } from './mutate.js';
 import { deepClone } from '../shared/clone.js';
+import { isJsonObject } from '../shared/object.js';
 
 function parseDocument(document) {
-  if (!document || typeof document !== 'object' || Array.isArray(document)) { return null; }
+  if (!isJsonObject(document)) { return null; }
 
   const next = deepClone(document);
   if (next.metadata === undefined) { next.metadata = {}; }
 
-  if (next.metadata === null || typeof next.metadata !== 'object' || Array.isArray(next.metadata)) {
+  if (!isJsonObject(next.metadata)) {
     return null;
   }
   if (!('data' in next)) { return null; }
@@ -77,7 +78,7 @@ export function coerceData(value, definition) {
   const { kind } = definition;
 
   if (kind === 'object') {
-    if (typeof value !== 'object' || Array.isArray(value)) { return value; }
+    if (!isJsonObject(value)) { return value; }
     const result = { ...value };
     for (const child of definition.children ?? []) {
       if (child.key in result) { result[child.key] = coerceData(result[child.key], child); }

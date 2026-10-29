@@ -11,9 +11,10 @@
  */
 
 import { appendPointer } from '../shared/pointer.js';
+import { isJsonObject } from '../shared/object.js';
 
 function objectValue(value) {
-  if (value && typeof value === 'object' && !Array.isArray(value)) { return value; }
+  if (isJsonObject(value)) { return value; }
   return {};
 }
 

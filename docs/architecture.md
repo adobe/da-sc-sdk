@@ -33,6 +33,7 @@ da-sc-sdk/
       clone.js          single deepClone util
       empty.js          isDataEmpty, the one rule for empty values (validation, defaults, save)
       equal.js          isDeepEqual, JSON equality regardless of key order
+      object.js         isJsonObject, the check for a non-null, non-array object
       pointer.js        appendPointer, how the model and the writer address a value
   dist/
     index.js          self-contained ESM bundle for vendor / CDN consumers

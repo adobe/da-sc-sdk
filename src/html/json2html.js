@@ -25,6 +25,7 @@
 import { appendPointer } from '../shared/pointer.js';
 import { isDataEmpty } from '../shared/empty.js';
 import { isDeepEqual } from '../shared/equal.js';
+import { isJsonObject } from '../shared/object.js';
 import { block, row, textContent } from './markup.js';
 import { codecFor } from './codecs/index.js';
 
@@ -198,10 +199,10 @@ export default function json2html({ json, byPointer }) {
 
 // `json.metadata.schemaName` names the outer data block in DA's wire format.
 function verifyJson(json) {
-  if (!json || typeof json !== 'object' || Array.isArray(json)) {
+  if (!isJsonObject(json)) {
     return 'Invalid JSON payload.';
   }
-  if (!json.metadata || typeof json.metadata !== 'object' || Array.isArray(json.metadata)) {
+  if (!isJsonObject(json.metadata)) {
     return 'json.metadata is required and must be an object.';
   }
   if (typeof json.metadata.schemaName !== 'string' || json.metadata.schemaName === '') {
