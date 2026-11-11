@@ -257,17 +257,29 @@ export function validateData(options?: {
 }): { valid: boolean; errors: ErrorsByPointer; schemaIssues: SchemaIssue[] };
 
 /**
- * JSON → DA wire-format HTML. Prunes empty / null / whitespace leaves
- * before emitting (same shape the editor saves). Pure string builder,
- * no DOM. Symmetric pair with `convertHtmlToJson`.
+ * Converts JSON to DA wire-format HTML, without empty values, as the editor
+ * saves it. Symmetric pair with `convertHtmlToJson`.
+ *
+ * @param options The conversion input.
+ * @param options.json The document to convert.
+ * @param options.model The model from the same `getState()` as the document.
+ *   Its nodes pick how each value is written. Without it, every value is
+ *   written as text.
+ * @returns `{ html }`, or `{ error }` for invalid JSON or a model of another
+ *   schema or of other data.
  */
 export function convertJsonToHtml(options: {
   json: Document;
+  model?: Model | null;
 }): { html: string } | { error: string };
 
 /**
- * DA wire-format HTML → JSON. Symmetric pair with `convertJsonToHtml`.
- * Returns `{ error }` on empty / malformed input — never silently null.
+ * Converts DA wire-format HTML to JSON. Symmetric pair with `convertJsonToHtml`.
+ * Each value reads as the text of its cell.
+ *
+ * @param options The conversion input.
+ * @param options.html The DA wire-format HTML.
+ * @returns `{ json }`, or `{ error }` for empty or malformed HTML.
  */
 export function convertHtmlToJson(options?: {
   html: string;

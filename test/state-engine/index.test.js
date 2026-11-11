@@ -14,9 +14,9 @@ import { expect } from '@esm-bundle/chai';
 import {
   createEngine,
   coerceData,
-  isDataEmpty,
   materializeDefaults,
 } from '../../src/state-engine/index.js';
+import { isDataEmpty } from '../../src/shared/empty.js';
 import { compileSchema } from '../../src/state-engine/schema.js';
 import { convertJsonToHtml } from '../../src/html/json2html.js';
 

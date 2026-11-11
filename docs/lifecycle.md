@@ -140,16 +140,21 @@ validateSchema({ schema })
 
 Schema-only. Skips data parsing, model building, and document validation — useful for "is this schema well-formed?" without any data on hand.
 
-### 3.3. `convertJsonToHtml({ json })`
+### 3.3. `convertJsonToHtml({ json, model? })`
 
 ```txt
-convertJsonToHtml({ json })
+convertJsonToHtml({ json, model? })
   ├─ shape-check: json is an object with metadata.schemaName (string)
   │    └─ if not: return { error: '<reason>' }
-  ├─ pruned = prune(json.data)                ← drop empty/null/whitespace leaves
-  └─ html = json2html({ ...json, data: pruned })
+  ├─ model-check: no model, or one built from json (same schemaName and data)
+  │    └─ if not: return { error: '<reason>' }
+  └─ html = json2html({ json, byPointer: model?.byPointer })
        ├─ build <body><main><div>…</div></main></body> via template literals
-       └─ recursively emit <div class="<schemaName>"> nodes for nested objects/arrays
+       ├─ walk data with each value's JSON pointer, skipping empty values
+       │    (isDataEmpty), so array items keep their original index
+       ├─ recursively emit <div class="<schemaName>"> nodes for nested objects/arrays
+       └─ look up each value's model node as byPointer[pointer], which picks
+          the codec that writes the value.
   return { html }
 ```
 
@@ -238,4 +243,4 @@ For depth on any single phase, follow the link:
 | `buildModel` | `src/state-engine/model.js` | [model-builder.md](./model-builder.md) |
 | `validateDocument` | `src/state-engine/validation.js` | [architecture.md §8](./architecture.md) |
 | `applySet` / `applyAdd` / `applyInsert` / `applyRemove` / `applyMove` | `src/state-engine/mutate.js` | [architecture.md §4](./architecture.md) |
-| `prune` / `json2html` / `HTMLConverter` | `src/html/` | [architecture.md §1 + §2](./architecture.md) |
+| `json2html` / `HTMLConverter` | `src/html/` | [architecture.md §1 + §2](./architecture.md) |
