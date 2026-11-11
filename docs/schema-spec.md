@@ -254,7 +254,7 @@ Each value with text content is stored in a block of its own. The block has one 
 ```
 
 - `convertJsonToHtml({ json, model })` writes this form. Without the model, the value is escaped and written as text in its cell.
-- A value without text content is written as an empty cell, without a block.
+- A value without text content is left out on save, like an empty value.
 - `convertHtmlToJson({ html })` reads the cell of the referenced block and sanitizes it. It needs no schema.
 - Markup inside the value's cell itself is not read as rich text. It reads like any other cell, as text or, with a list, as an array.
 - A `self://<type>#…` reference whose type has no markup codec stays text.

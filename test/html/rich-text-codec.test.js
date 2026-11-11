@@ -77,11 +77,18 @@ describe('rich-text codec', () => {
       expect(html).to.include('<div><p>one</p><p>two</p></div>');
     });
 
-    it('writes a rich-text value without text content as an empty cell', () => {
-      const { html } = save({ json: doc({ title: 't', body: '<p><br></p>' }), schema });
-      expect(html).to.include('<div><div><h3>body</h3></div><div></div></div>');
-      expect(html).not.to.include('class="body');
-      expect(convertHtmlToJson({ html }).json.data.body).to.equal('');
+    it('leaves out rich-text values without text content, like empty values', () => {
+      const empty = '<p><br></p>';
+      const { html } = save({
+        json: doc({
+          title: 't', body: empty, author: { bio: empty }, notes: [empty, '<p>n</p>'], grid: [[empty]],
+        }),
+        schema,
+      });
+      expect(html).not.to.include('<h3>body</h3>');
+      expect(html).not.to.include('<h3>author</h3>');
+      expect(html).not.to.include('<h3>grid</h3>');
+      expect(convertHtmlToJson({ html }).json.data).to.deep.equal({ title: 't', notes: ['<p>n</p>'] });
     });
 
     it('writes rich-text array items as typed references', () => {

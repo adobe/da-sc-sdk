@@ -41,14 +41,15 @@ function childPointer({ pointer, key }) {
   return isData(pointer) ? appendPointer({ pointer, segment: key }) : undefined;
 }
 
-// Data skips empty values, as save leaves them out. Each entry keeps its
-// original key or index, so its pointer matches the model.
-function entriesToWrite({ value, pointer }) {
-  const entries = Object.entries(value);
-  if (!isData(pointer)) {
-    return entries;
-  }
-  return entries.filter(([, entryValue]) => !isDataEmpty(entryValue));
+// Save leaves out empty data values. Each writer below returns null when it
+// writes nothing, so a container of such values is left out too.
+function isLeftOut({ value, pointer }) {
+  return isData(pointer) && isDataEmpty(value);
+}
+
+// Data that writes nothing is left out. Metadata is written as it is given.
+function writesNothing({ html, pointer }) {
+  return isData(pointer) && !html;
 }
 
 // A block's name is its key as a class name, the way EDS names classes, so a
@@ -71,137 +72,126 @@ function addBlock({ key, innerHtml, writer }) {
   return blockId;
 }
 
-function codecOf({ pointer, writer }) {
-  return codecFor({ node: writer.byPointer?.[pointer] });
-}
-
-function primitiveHtml({ codec, value }) {
-  return codec.toHtml({ value });
-}
-
-// The reference carries the semantic type, so the reader decodes the markup
-// without a schema.
-function markupBlockReference({
-  key, html, pointer, writer,
+// A primitive as its codec writes it, or null for markup without text. Markup
+// goes into a block of its own, referenced with its semantic type, so the
+// reader decodes it without a schema.
+function primitiveHtml({
+  key, value, pointer, writer,
 }) {
+  const node = writer.byPointer?.[pointer];
+  const codec = codecFor({ node });
+  const html = codec.toHtml({ value });
+  if (!codec.fromHtml) {
+    return html;
+  }
+  if (!html) {
+    return null;
+  }
   const blockId = addBlock({ key, innerHtml: `<div><div>${html}</div></div>`, writer });
-  const type = writer.byPointer[pointer].semanticType;
-  return referenceText({ key, blockId, type });
+  return referenceText({ key, blockId, type: node.semanticType });
 }
 
-function itemHtml({
-  key, item, pointer, writer,
-}) {
-  if (Array.isArray(item)) {
+// The rows of an object's entries, without the rows that write nothing.
+function entryRowsHtml({ value, pointer, writer }) {
+  return Object.entries(value).map(([key, entryValue]) => {
     // eslint-disable-next-line no-use-before-define
-    const blockId = listBlock({ key, items: item, pointer, writer });
-    return `<li>${referenceText({ key, blockId })}</li>`;
-  }
-  if (typeof item === 'object' && item !== null) {
-    // eslint-disable-next-line no-use-before-define
-    const blockId = objectBlock({ key, object: item, pointer, writer });
-    return `<li>${referenceText({ key, blockId })}</li>`;
-  }
-  const codec = codecOf({ pointer, writer });
-  const html = primitiveHtml({ codec, value: item });
-  if (codec.fromHtml && html) {
-    const reference = markupBlockReference({ key, html, pointer, writer });
-    return `<li>${reference}</li>`;
-  }
-  return `<li>${html}</li>`;
-}
-
-function listHtml({
-  key, items, pointer, writer,
-}) {
-  const itemsHtml = entriesToWrite({ value: items, pointer })
-    .map(([index, item]) => itemHtml({
-      key, item, pointer: childPointer({ pointer, key: index }), writer,
-    }))
-    .join('');
-  return `<ul>${itemsHtml}</ul>`;
-}
-
-function listBlock({
-  key, items, pointer, writer,
-}) {
-  const cellHtml = `<div>${listHtml({ key, items, pointer, writer })}</div>`;
-  return addBlock({ key, innerHtml: row({ key: '@items', cellHtml }), writer });
+    const cellHtml = valueCell({
+      key, value: entryValue, pointer: childPointer({ pointer, key }), writer,
+    });
+    return cellHtml === null ? '' : row({ key, cellHtml });
+  }).join('');
 }
 
 function objectBlock({
   key, object, pointer, writer,
 }) {
-  const rowsHtml = entriesToWrite({ value: object, pointer })
-    .map(([childKey, childValue]) => row({
-      key: childKey,
-      // eslint-disable-next-line no-use-before-define
-      cellHtml: valueCell({
-        key: childKey,
-        value: childValue,
-        pointer: childPointer({ pointer, key: childKey }),
-        writer,
-      }),
-    }))
-    .join('');
+  const rowsHtml = entryRowsHtml({ value: object, pointer, writer });
+  if (writesNothing({ html: rowsHtml, pointer })) {
+    return null;
+  }
   return addBlock({ key, innerHtml: rowsHtml, writer });
 }
 
-function listCell({
-  key, items, pointer, writer,
+// An object or a primitive as the text of a cell or a list item, or null when
+// it writes nothing. An object goes into a block of its own.
+function inlineHtml({
+  key, value, pointer, writer,
 }) {
-  if (!entriesToWrite({ value: items, pointer }).length) {
-    return null;
+  if (!isJsonObject(value)) {
+    return primitiveHtml({
+      key, value, pointer, writer,
+    });
   }
-  return `<div>${listHtml({ key, items, pointer, writer })}</div>`;
+  const blockId = objectBlock({
+    key, object: value, pointer, writer,
+  });
+  return blockId === null ? null : referenceText({ key, blockId });
 }
 
-function referenceCell({
-  key, object, pointer, writer,
+function itemHtml({
+  key, item, pointer, writer,
 }) {
-  if (!entriesToWrite({ value: object, pointer }).length) {
+  if (isLeftOut({ value: item, pointer })) {
     return null;
   }
+  // eslint-disable-next-line no-use-before-define
+  const html = Array.isArray(item) ? listBlockReference({ key, items: item, pointer, writer })
+    : inlineHtml({
+      key, value: item, pointer, writer,
+    });
+  return html === null ? null : `<li>${html}</li>`;
+}
 
-  const blockId = objectBlock({ key, object, pointer, writer });
-  return `<div><p>${referenceText({ key, blockId })}</p></div>`;
+// Each item keeps its original index, so its pointer matches the model.
+function listHtml({
+  key, items, pointer, writer,
+}) {
+  const itemsHtml = items
+    .map((item, index) => itemHtml({
+      key, item, pointer: childPointer({ pointer, key: index }), writer,
+    }))
+    .filter((html) => html !== null)
+    .join('');
+  return writesNothing({ html: itemsHtml, pointer }) ? null : `<ul>${itemsHtml}</ul>`;
+}
+
+function listBlockReference({
+  key, items, pointer, writer,
+}) {
+  const html = listHtml({
+    key, items, pointer, writer,
+  });
+  if (html === null) {
+    return null;
+  }
+  const cellHtml = `<div>${html}</div>`;
+  const blockId = addBlock({ key, innerHtml: row({ key: '@items', cellHtml }), writer });
+  return referenceText({ key, blockId });
 }
 
 // The value column of a row, or null when the row has no value column.
 function valueCell({
   key, value, pointer, writer,
 }) {
-  if (value === null) {
+  if (value === null || isLeftOut({ value, pointer })) {
     return null;
   }
   if (value === undefined) {
     return EMPTY_CELL;
   }
+  if (typeof value === 'object' && !Object.keys(value).length) {
+    return null;
+  }
   if (Array.isArray(value)) {
-    return listCell({ key, items: value, pointer, writer });
-  }
-  if (typeof value === 'object') {
-    return referenceCell({ key, object: value, pointer, writer });
-  }
-  const codec = codecOf({ pointer, writer });
-  const html = primitiveHtml({ codec, value });
-  if (!codec.fromHtml) {
-    return `<div><p>${html}</p></div>`;
-  }
-  if (!html) {
-    return EMPTY_CELL;
-  }
-  const reference = markupBlockReference({ key, html, pointer, writer });
-  return `<div><p>${reference}</p></div>`;
-}
-
-function entryRowsHtml({ value, pointer, writer }) {
-  return entriesToWrite({ value, pointer }).map(([key, entryValue]) => {
-    const cellHtml = valueCell({
-      key, value: entryValue, pointer: childPointer({ pointer, key }), writer,
+    const html = listHtml({
+      key, items: value, pointer, writer,
     });
-    return cellHtml === null ? '' : row({ key, cellHtml });
-  }).join('');
+    return html === null ? null : `<div>${html}</div>`;
+  }
+  const html = inlineHtml({
+    key, value, pointer, writer,
+  });
+  return html === null ? null : `<div><p>${html}</p></div>`;
 }
 
 function formBlock({ metadata, writer }) {
