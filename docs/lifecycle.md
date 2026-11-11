@@ -194,7 +194,7 @@ Approximate cost per call. **N** = number of fields in the document; **D** = byt
 | `getState()` | O(1) | Returns the current state reference. |
 | `validateSchema` | O(schema) | Compile only; no model, no data. |
 | `validateData` | O(schema + D + N) | Compile + buildModel (throwaway) + validate. No caching across calls. |
-| `convertJsonToHtml` | O(D) | Prune (O(D)) + string build (O(D)). |
+| `convertJsonToHtml` | O(D) | One walk that builds the string and leaves out empty values. |
 | `convertHtmlToJson` | O(html length) | parse5 + tree walk. |
 
 For typical forms (50–500 fields, < 200 KB JSON):

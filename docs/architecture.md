@@ -393,7 +393,7 @@ Schema `default` values are **materialized into the document at load time** when
 |---|---|
 | **Load** | If `isDataEmpty(parsed.data)` → write schema defaults into `data` (recursively). A primitive with an explicit `default` materializes to that value. A boolean without an explicit default materializes to `false`. Other primitives without a default stay absent. Otherwise leave `data` alone. |
 | **Render** | Consumer shows `node.value`. If `undefined`, show empty (or `false` for boolean). Renderers never read `node.defaultValue`. |
-| **Save** | Prune empty strings / null / undefined / whitespace-only / empty branches from `data`, then serialize. `false` is **not** pruned. |
+| **Save** | The writer leaves out every value `isDataEmpty` reports (empty strings, null, undefined, whitespace-only strings and empty branches), and values whose codec writes nothing, such as rich text without text. `false` is kept. |
 
 Save decides by `isDataEmpty` too, so a value the loader treats as "empty enough to materialize over" is exactly a value the serializer strips. The symmetry tests in `test/state-engine/index.test.js` pin it.
 

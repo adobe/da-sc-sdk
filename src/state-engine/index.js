@@ -216,7 +216,7 @@ export function createEngine({ schema, document, onChange } = {}) {
 
   // ─── Initialization ──────────────────────────────────────────────────────
   // Replaces the old `editor.load(...)` two-step. Runs synchronously at
-  // construction. Mirrors `html/utils.js` for the empty-doc rule.
+  // construction. Decides an empty document with `isDataEmpty`, like save.
   {
     const compiled = compileSchema(schema);
     const parsed = parseDocument(document);
