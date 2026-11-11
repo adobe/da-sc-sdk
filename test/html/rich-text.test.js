@@ -61,6 +61,15 @@ describe('rich-text sanitizer', () => {
         .to.equal('<ul><li>Title<br>Quote</li></ul>');
     });
 
+    it('keeps lists nested in blocks inside list items', () => {
+      expect(sanitizeRichText('<ul><li>One<blockquote><ul><li>a</li><li>b</li></ul></blockquote></li></ul>'))
+        .to.equal('<ul><li>One<ul><li>a</li><li>b</li></ul></li></ul>');
+    });
+
+    it('keeps the line breaks of preformatted text', () => {
+      expect(sanitizeRichText('<pre>line 1\nline 2\n</pre>')).to.equal('<p>line 1<br>line 2</p>');
+    });
+
     it('keeps inline code, superscript and subscript', () => {
       const html = '<p><code>x()</code> E=mc<sup>2</sup> H<sub>2</sub>O <strong><code>b</code></strong></p>';
       expect(sanitizeRichText(html)).to.equal(html);
@@ -117,6 +126,11 @@ describe('rich-text sanitizer', () => {
     it('converts plain text into paragraphs and line breaks', () => {
       expect(sanitizeRichText('First line\nsecond line\n\nNext a < b & more'))
         .to.equal('<p>First line<br>second line</p><p>Next a &lt; b &amp; more</p>');
+    });
+
+    it('reads text with a less-than sign but no complete tag as plain text', () => {
+      expect(sanitizeRichText('if a<b then c')).to.equal('<p>if a&lt;b then c</p>');
+      expect(sanitizeRichText('x<br/>y')).to.equal('<p>x<br>y</p>');
     });
 
     it('returns an empty string for empty input', () => {

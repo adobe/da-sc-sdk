@@ -43,7 +43,7 @@ const HEADINGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
 // Blocks that are unwrapped, so their content becomes blocks of its own.
 const CONTAINERS = [
   'div', 'section', 'article', 'header', 'footer', 'main', 'aside', 'nav',
-  'pre', 'figure', 'figcaption', 'address',
+  'figure', 'figcaption', 'address',
   'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'dl', 'dt', 'dd',
 ];
 
@@ -62,6 +62,7 @@ const ROLES = new Map([
   ['blockquote', 'quote'],
   ['ul', 'list'],
   ['ol', 'list'],
+  ['pre', 'preformatted'],
   ...CONTAINERS.map((tag) => [tag, 'container']),
   ...[...MARKS.keys()].map((tag) => [tag, 'mark']),
   ['a', 'link'],
@@ -69,9 +70,13 @@ const ROLES = new Map([
   ...DROPPED.map((tag) => [tag, 'dropped']),
 ]);
 
-const BLOCK_ROLES = new Set(['paragraph', 'heading', 'quote', 'list', 'container']);
+const BLOCK_ROLES = new Set(['paragraph', 'heading', 'quote', 'list', 'preformatted', 'container']);
 
 const SAFE_SCHEMES = new Set(['http', 'https', 'mailto', 'tel']);
+
+// A complete opening, closing or self-closing tag. Text such as `a<b then c`
+// has none, so it stays plain text.
+const TAG_PATTERN = /<\/?[a-z][a-z0-9]*(?:\s[^<>]*)?\/?>/i;
 
 // HTML collapses runs of these characters into one space.
 const WHITESPACE = /[ \t\n\r\f]+/g;
@@ -238,6 +243,32 @@ function trimInline(nodes) {
   });
 }
 
+function textWithLineBreaks(text) {
+  const nodes = [];
+  text.split('\n').forEach((line, index) => {
+    if (index > 0) {
+      nodes.push(LINE_BREAK);
+    }
+    nodes.push({ type: 'text', value: line });
+  });
+  return nodes;
+}
+
+// The nodes of preformatted text with each line break as a `<br>`, so the
+// breaks survive the whitespace collapsing of inline text.
+function preformattedNodes(nodes) {
+  return nodes.flatMap((node) => {
+    if (isText(node)) {
+      return textWithLineBreaks(node.value);
+    }
+    if (node.type === 'element') {
+      const children = preformattedNodes(node.children ?? []);
+      return [{ ...node, children }];
+    }
+    return [node];
+  });
+}
+
 function attributesHtml(properties) {
   return Object.entries(properties)
     .map(([name, value]) => ` ${name}="${escapeAttr(value)}"`)
@@ -292,23 +323,29 @@ function groupInline(nodes) {
   return groups;
 }
 
-// A list item keeps its text as segments joined by `<br>`, followed by its
-// nested lists. The content of other blocks inside it becomes one segment.
-function serializeListItem(item) {
-  const segments = [];
-  const nestedLists = [];
-  groupInline(item.children ?? []).forEach((group) => {
+// The text segments and nested lists of a list item's content, in order.
+// Blocks inside the item are walked the same way, so their lists stay lists.
+function listItemParts(nodes) {
+  return groupInline(nodes).flatMap((group) => {
+    if (Array.isArray(group)) {
+      return [{ segment: inlineHtml(group) }];
+    }
     if (roleOf(group) === 'list') {
       // eslint-disable-next-line no-use-before-define
-      nestedLists.push(serializeList(group));
-      return;
+      return [{ list: serializeList(group) }];
     }
-
-    const inlineNodes = Array.isArray(group) ? group : group.children ?? [];
-    segments.push(inlineHtml(inlineNodes));
+    return listItemParts(group.children ?? []);
   });
+}
 
-  const text = segments.filter(Boolean).join('<br>');
+// A list item keeps its text as segments joined by `<br>`, followed by its
+// nested lists.
+function serializeListItem(item) {
+  const parts = listItemParts(item.children ?? []);
+  const segments = parts.map((part) => part.segment).filter(Boolean);
+  const nestedLists = parts.map((part) => part.list).filter(Boolean);
+
+  const text = segments.join('<br>');
   const lists = nestedLists.join('');
   if (!text && !lists) {
     return '';
@@ -347,6 +384,8 @@ function serializeBlock(node) {
       return serializeQuote(node);
     case 'list':
       return serializeList(node);
+    case 'preformatted':
+      return textBlock(preformattedNodes(children));
     default:
       // eslint-disable-next-line no-use-before-define
       return serializeBlocks(children);
@@ -397,7 +436,7 @@ export function sanitizeRichText(value) {
   if (!text.trim()) {
     return '';
   }
-  if (!/<[a-z/!]/i.test(text)) {
+  if (!TAG_PATTERN.test(text)) {
     return plainTextToHtml(text);
   }
 

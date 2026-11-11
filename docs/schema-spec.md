@@ -236,7 +236,7 @@ single-line value.
 | -------------- | ----- |
 | `<p>`, `<h1>`–`<h6>`, `<ul>`, `<ol>`, `<li>` | Block structure. Lists may nest inside `<li>`; headings inside `<li>` are flattened to text. |
 | `<blockquote>` | Holds paragraphs, headings, lists and nested quotes. Loose text inside is wrapped in `<p>`. |
-| `<strong>`, `<em>`, `<u>`, `<s>`, `<code>`, `<sup>`, `<sub>`, `<br>` | Inline formatting. `b`, `i`, `strike`, `del` are normalized. `<pre>` is flattened to paragraphs. |
+| `<strong>`, `<em>`, `<u>`, `<s>`, `<code>`, `<sup>`, `<sub>`, `<br>` | Inline formatting. `b`, `i`, `strike`, `del` are normalized. `<pre>` becomes a paragraph with its line breaks as `<br>`. |
 | `<a href title>` | Relative, `http(s):`, `mailto:` and `tel:` links only. An optional `title` is kept with whitespace collapsed and trimmed (empty titles are dropped); other attributes are dropped. |
 
 - Values are sanitized to this subset on both write and read: unknown wrappers are unwrapped, active content (`script`, `iframe`, `img`, event handlers, …) is dropped, loose inline content is wrapped in `<p>`, and empty paragraphs, headings, quotes and items are removed.
