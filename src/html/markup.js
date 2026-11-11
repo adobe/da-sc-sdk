@@ -18,7 +18,9 @@ export function escapeText(value) {
 }
 
 export function escapeAttr(value) {
-  return String(value).replace(/[&"]/g, (c) => ({ '&': '&amp;', '"': '&quot;' }[c]));
+  return String(value).replace(/[&"<>]/g, (c) => ({
+    '&': '&amp;', '"': '&quot;', '<': '&lt;', '>': '&gt;',
+  }[c]));
 }
 
 // Like `node.textContent = value`, so `null` becomes empty and anything else a string.

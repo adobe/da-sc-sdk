@@ -25,7 +25,9 @@
 // lines, with single newlines kept as <br>.
 
 import { fromHtml } from 'hast-util-from-html';
+import { escapeAttr, escapeText } from './markup.js';
 
+// The canonical tag of each mark.
 const MARKS = new Map([
   ['strong', 'strong'], ['b', 'strong'],
   ['em', 'em'], ['i', 'em'],
@@ -36,159 +38,347 @@ const MARKS = new Map([
   ['sub', 'sub'],
 ]);
 
-const HEADINGS = new Set(['h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
+const HEADINGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
 
-const LISTS = new Set(['ul', 'ol']);
-
-const BLOCKS = new Set([
+// Blocks that are unwrapped, so their content becomes blocks of its own.
+const CONTAINERS = [
   'div', 'section', 'article', 'header', 'footer', 'main', 'aside', 'nav',
-  'blockquote', 'pre', 'figure', 'figcaption', 'address',
-  'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+  'pre', 'figure', 'figcaption', 'address',
   'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'dl', 'dt', 'dd',
-]);
+];
 
-const DROPPED = new Set([
+// Active and embedded content, dropped with everything inside it.
+const DROPPED = [
   'script', 'style', 'template', 'iframe', 'object', 'embed', 'noscript',
   'head', 'title', 'meta', 'link', 'img', 'picture', 'video', 'audio',
   'source', 'svg', 'math', 'canvas', 'input', 'button', 'select', 'textarea',
+];
+
+// What the sanitizer does with each known tag. Other tags are unwrapped.
+const ROLES = new Map([
+  ['p', 'paragraph'],
+  ['li', 'paragraph'],
+  ...HEADINGS.map((tag) => [tag, 'heading']),
+  ['blockquote', 'quote'],
+  ['ul', 'list'],
+  ['ol', 'list'],
+  ...CONTAINERS.map((tag) => [tag, 'container']),
+  ...[...MARKS.keys()].map((tag) => [tag, 'mark']),
+  ['a', 'link'],
+  ['br', 'break'],
+  ...DROPPED.map((tag) => [tag, 'dropped']),
 ]);
+
+const BLOCK_ROLES = new Set(['paragraph', 'heading', 'quote', 'list', 'container']);
 
 const SAFE_SCHEMES = new Set(['http', 'https', 'mailto', 'tel']);
 
-function escapeText(value) {
-  return String(value).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-}
+// HTML collapses runs of these characters into one space.
+const WHITESPACE = /[ \t\n\r\f]+/g;
 
-function escapeAttr(value) {
-  return String(value).replace(/[&"<>]/g, (c) => ({
-    '&': '&amp;', '"': '&quot;', '<': '&lt;', '>': '&gt;',
-  }[c]));
-}
+// A URL scheme, such as `https` in `https://example.com`.
+const SCHEME = /^([a-z][a-z0-9+.-]*):/i;
+
+// Browsers ignore control characters and spaces when they read a scheme.
+// eslint-disable-next-line no-control-regex
+const CONTROL_AND_SPACE = /[\u0000-\u0020]/g;
 
 // Returns the trimmed href when it is relative or uses an allowed scheme.
 export function safeHref(href) {
-  if (typeof href !== 'string') { return null; }
-  const trimmed = href.trim();
-  if (!trimmed) { return null; }
-  // Browsers ignore control chars and whitespace when sniffing the scheme.
-  // eslint-disable-next-line no-control-regex
-  const compact = trimmed.replace(/[\u0000-\u0020]/g, '');
-  const scheme = compact.match(/^([a-z][a-z0-9+.-]*):/i)?.[1]?.toLowerCase();
-  if (scheme && !SAFE_SCHEMES.has(scheme)) { return null; }
-  return trimmed;
+  if (typeof href !== 'string') {
+    return null;
+  }
+
+  const trimmedHref = href.trim();
+  if (!trimmedHref) {
+    return null;
+  }
+
+  const comparableHref = trimmedHref.replace(CONTROL_AND_SPACE, '');
+  const scheme = comparableHref.match(SCHEME)?.[1]?.toLowerCase();
+  if (scheme && !SAFE_SCHEMES.has(scheme)) {
+    return null;
+  }
+
+  return trimmedHref;
 }
 
-const isElement = (node, tag) => node?.type === 'element' && (!tag || node.tagName === tag);
+function roleOf(node) {
+  if (node?.type !== 'element') {
+    return undefined;
+  }
+  return ROLES.get(node.tagName);
+}
 
-const hasText = (html) => html.replace(/<[^>]*>/g, '').trim() !== '';
+function isBlock(node) {
+  return BLOCK_ROLES.has(roleOf(node));
+}
 
-const trimEdges = (html) => html.replace(/^(?:\s|<br>)+|(?:\s|<br>)+$/g, '');
+function isText(node) {
+  return node.type === 'text';
+}
 
-const linkTitle = (title) => (typeof title === 'string' ? title.replace(/[ \t\n\r\f]+/g, ' ').trim() : '');
+function isBlankText(text) {
+  return !/\S/.test(text);
+}
+
+function element(tagName, children, properties = {}) {
+  return {
+    type: 'element',
+    tagName,
+    properties,
+    children,
+  };
+}
+
+const LINE_BREAK = element('br', []);
+
+function isLineBreak(node) {
+  return node.tagName === 'br';
+}
+
+// Whether canonical inline nodes hold any text that is not whitespace.
+function hasText(nodes) {
+  return nodes.some((node) => {
+    if (isText(node)) {
+      return !isBlankText(node.value);
+    }
+    return hasText(node.children);
+  });
+}
+
+function linkTitle(title) {
+  if (typeof title !== 'string') {
+    return '';
+  }
+  return title.replace(WHITESPACE, ' ').trim();
+}
+
+// A link with a safe href and text keeps its title. Any other link is unwrapped.
+function canonicalLink(link, children) {
+  const href = safeHref(link.properties?.href);
+  if (!href || !hasText(children)) {
+    return children;
+  }
+
+  const title = linkTitle(link.properties?.title);
+  const properties = title ? { href, title } : { href };
+  return [element('a', children, properties)];
+}
+
+// A mark with text keeps its canonical tag. A mark without text is unwrapped.
+function canonicalMark(mark, children) {
+  if (!hasText(children)) {
+    return children;
+  }
+  return [element(MARKS.get(mark.tagName), children)];
+}
+
+// Inline nodes in canonical form: text with collapsed whitespace, line breaks,
+// and marks and links that hold text. Any other element is unwrapped or dropped.
+function canonicalInline(nodes) {
+  return nodes.flatMap((node) => {
+    if (isText(node)) {
+      const value = node.value.replace(WHITESPACE, ' ');
+      return [{ type: 'text', value }];
+    }
+
+    const role = roleOf(node);
+    if (node.type !== 'element' || role === 'dropped') {
+      return [];
+    }
+    if (role === 'break') {
+      return [LINE_BREAK];
+    }
+
+    const children = canonicalInline(node.children ?? []);
+    if (role === 'mark') {
+      return canonicalMark(node, children);
+    }
+    if (role === 'link') {
+      return canonicalLink(node, children);
+    }
+    return children;
+  });
+}
+
+// Line breaks and whitespace-only text at either end of a run of inline nodes.
+function isEdgeSpace(node) {
+  if (isLineBreak(node)) {
+    return true;
+  }
+  return isText(node) && isBlankText(node.value);
+}
+
+// Canonical inline nodes without line breaks and whitespace at either end.
+function trimInline(nodes) {
+  let first = 0;
+  let last = nodes.length - 1;
+  while (first <= last && isEdgeSpace(nodes[first])) {
+    first += 1;
+  }
+  while (last >= first && isEdgeSpace(nodes[last])) {
+    last -= 1;
+  }
+
+  const trimmed = nodes.slice(first, last + 1);
+  return trimmed.map((node, index) => {
+    if (!isText(node)) {
+      return node;
+    }
+
+    let { value } = node;
+    if (index === 0) {
+      value = value.trimStart();
+    }
+    if (index === trimmed.length - 1) {
+      value = value.trimEnd();
+    }
+    return { ...node, value };
+  });
+}
+
+function attributesHtml(properties) {
+  return Object.entries(properties)
+    .map(([name, value]) => ` ${name}="${escapeAttr(value)}"`)
+    .join('');
+}
 
 function serializeInline(nodes) {
   return nodes.map((node) => {
-    if (node.type === 'text') { return escapeText(node.value.replace(/[ \t\n\r\f]+/g, ' ')); }
-    if (!isElement(node) || DROPPED.has(node.tagName)) { return ''; }
-    const inner = serializeInline(node.children ?? []);
-    if (node.tagName === 'br') { return '<br>'; }
-    if (MARKS.has(node.tagName)) {
-      const tag = MARKS.get(node.tagName);
-      return hasText(inner) ? `<${tag}>${inner}</${tag}>` : inner;
+    if (isText(node)) {
+      return escapeText(node.value);
     }
-    if (node.tagName === 'a') {
-      const href = safeHref(node.properties?.href);
-      if (!href || !hasText(inner)) { return inner; }
-      const title = linkTitle(node.properties?.title);
-      const titleAttr = title ? ` title="${escapeAttr(title)}"` : '';
-      return `<a href="${escapeAttr(href)}"${titleAttr}>${inner}</a>`;
+    if (isLineBreak(node)) {
+      return '<br>';
     }
-    return inner;
+
+    const attributes = attributesHtml(node.properties);
+    const content = serializeInline(node.children);
+    return `<${node.tagName}${attributes}>${content}</${node.tagName}>`;
   }).join('');
 }
 
-function textBlock(nodes, tag = 'p') {
-  const inner = trimEdges(serializeInline(nodes));
-  return hasText(inner) ? `<${tag}>${inner}</${tag}>` : '';
+// The canonical markup of inline content, or '' when it holds no text.
+function inlineHtml(nodes) {
+  const inline = trimInline(canonicalInline(nodes));
+  if (!hasText(inline)) {
+    return '';
+  }
+  return serializeInline(inline);
 }
 
-function serializeListItem(li) {
-  const segments = [];
-  const nested = [];
-  let run = [];
-  const flush = () => {
-    const inner = trimEdges(serializeInline(run));
-    if (hasText(inner)) { segments.push(inner); }
-    run = [];
-  };
-  (li.children ?? []).forEach((child) => {
-    if (isElement(child) && LISTS.has(child.tagName)) {
-      flush();
-      // eslint-disable-next-line no-use-before-define
-      const list = serializeList(child);
-      if (list) { nested.push(list); }
-    } else if (isElement(child) && (child.tagName === 'p' || BLOCKS.has(child.tagName))) {
-      flush();
-      run = child.children ?? [];
-      flush();
+function textBlock(nodes, tag = 'p') {
+  const html = inlineHtml(nodes);
+  if (!html) {
+    return '';
+  }
+  return `<${tag}>${html}</${tag}>`;
+}
+
+// The block nodes, with each run of inline nodes between them as one array.
+function groupInline(nodes) {
+  const groups = [];
+  nodes.forEach((node) => {
+    const lastGroup = groups.at(-1);
+    if (isBlock(node)) {
+      groups.push(node);
+    } else if (Array.isArray(lastGroup)) {
+      lastGroup.push(node);
     } else {
-      run.push(child);
+      groups.push([node]);
     }
   });
-  flush();
-  if (!segments.length && !nested.length) { return ''; }
-  return `<li>${segments.join('<br>')}${nested.join('')}</li>`;
+  return groups;
+}
+
+// A list item keeps its text as segments joined by `<br>`, followed by its
+// nested lists. The content of other blocks inside it becomes one segment.
+function serializeListItem(item) {
+  const segments = [];
+  const nestedLists = [];
+  groupInline(item.children ?? []).forEach((group) => {
+    if (roleOf(group) === 'list') {
+      // eslint-disable-next-line no-use-before-define
+      nestedLists.push(serializeList(group));
+      return;
+    }
+
+    const inlineNodes = Array.isArray(group) ? group : group.children ?? [];
+    segments.push(inlineHtml(inlineNodes));
+  });
+
+  const text = segments.filter(Boolean).join('<br>');
+  const lists = nestedLists.join('');
+  if (!text && !lists) {
+    return '';
+  }
+  return `<li>${text}${lists}</li>`;
 }
 
 function serializeList(list) {
   const items = (list.children ?? [])
-    .filter((child) => isElement(child, 'li'))
+    .filter((child) => child.type === 'element' && child.tagName === 'li')
     .map(serializeListItem)
     .join('');
-  return items ? `<${list.tagName}>${items}</${list.tagName}>` : '';
+  if (!items) {
+    return '';
+  }
+  return `<${list.tagName}>${items}</${list.tagName}>`;
 }
 
+function serializeQuote(quote) {
+  // eslint-disable-next-line no-use-before-define
+  const content = serializeBlocks(quote.children ?? []);
+  if (!content) {
+    return '';
+  }
+  return `<blockquote>${content}</blockquote>`;
+}
+
+function serializeBlock(node) {
+  const children = node.children ?? [];
+  switch (roleOf(node)) {
+    case 'paragraph':
+      return textBlock(children);
+    case 'heading':
+      return textBlock(children, node.tagName);
+    case 'quote':
+      return serializeQuote(node);
+    case 'list':
+      return serializeList(node);
+    default:
+      // eslint-disable-next-line no-use-before-define
+      return serializeBlocks(children);
+  }
+}
+
+// Blocks in canonical form. Inline nodes between blocks become a paragraph.
 function serializeBlocks(nodes) {
-  const out = [];
-  let run = [];
-  const flush = () => {
-    out.push(textBlock(run));
-    run = [];
-  };
-  nodes.forEach((node) => {
-    if (isElement(node) && DROPPED.has(node.tagName)) { return; }
-    if (isElement(node, 'p') || isElement(node, 'li')) {
-      flush();
-      out.push(textBlock(node.children ?? []));
-    } else if (isElement(node) && HEADINGS.has(node.tagName)) {
-      flush();
-      out.push(textBlock(node.children ?? [], node.tagName));
-    } else if (isElement(node, 'blockquote')) {
-      flush();
-      const inner = serializeBlocks(node.children ?? []);
-      out.push(inner ? `<blockquote>${inner}</blockquote>` : '');
-    } else if (isElement(node) && LISTS.has(node.tagName)) {
-      flush();
-      out.push(serializeList(node));
-    } else if (isElement(node) && BLOCKS.has(node.tagName)) {
-      flush();
-      out.push(serializeBlocks(node.children ?? []));
-    } else {
-      run.push(node);
-    }
-  });
-  flush();
-  return out.join('');
+  return groupInline(nodes)
+    .map((group) => {
+      if (Array.isArray(group)) {
+        return textBlock(group);
+      }
+      return serializeBlock(group);
+    })
+    .join('');
 }
 
+// A paragraph of plain text, with each line break kept as `<br>`.
+function plainParagraph(text) {
+  const lines = text.split('\n').map((line) => escapeText(line.trim()));
+  return `<p>${lines.join('<br>')}</p>`;
+}
+
+// Plain text becomes paragraphs split on blank lines.
 function plainTextToHtml(text) {
-  return text
-    .replace(/\r\n?/g, '\n')
+  const normalized = text.replace(/\r\n?/g, '\n');
+  const paragraphs = normalized
     .split(/\n[ \t]*\n+/)
-    .map((block) => block.trim())
-    .filter(Boolean)
-    .map((block) => `<p>${block.split('\n').map((line) => escapeText(line.trim())).join('<br>')}</p>`)
-    .join('');
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean);
+  return paragraphs.map(plainParagraph).join('');
 }
 
 // Canonical rich-text HTML for a list of hast nodes (e.g. a value cell's
@@ -199,9 +389,18 @@ export function richTextFromNodes(nodes = []) {
 
 // Canonical rich-text HTML for an HTML (or plain-text) string.
 export function sanitizeRichText(value) {
-  if (value === null || value === undefined) { return ''; }
+  if (value === null || value === undefined) {
+    return '';
+  }
+
   const text = String(value);
-  if (!text.trim()) { return ''; }
-  if (!/<[a-z/!]/i.test(text)) { return plainTextToHtml(text); }
-  return richTextFromNodes(fromHtml(text, { fragment: true }).children);
+  if (!text.trim()) {
+    return '';
+  }
+  if (!/<[a-z/!]/i.test(text)) {
+    return plainTextToHtml(text);
+  }
+
+  const { children } = fromHtml(text, { fragment: true });
+  return richTextFromNodes(children);
 }
