@@ -50,10 +50,14 @@ function elementChildren(node) {
 // Recursive innerText. Walks descendant text nodes and concatenates them.
 // Robust to nested wrappers (<p>, <h3>, <span>, …) and to direct text in
 // cells (`<div>blog-post</div>` instead of `<div><p>blog-post</p></div>`).
-function textContent(node) {
-  if (!node) { return ''; }
-  if (node.type === 'text') { return node.value ?? ''; }
-  return (node.children ?? []).map(textContent).join('');
+function nodeText(node) {
+  if (!node) {
+    return '';
+  }
+  if (node.type === 'text') {
+    return node.value ?? '';
+  }
+  return (node.children ?? []).map(nodeText).join('');
 }
 
 // Find a direct list child of a value cell. The wire format uses `<ul>`,
@@ -98,7 +102,7 @@ export default class HTMLConverter {
       }
 
       const [keyCell, valueCell] = cells;
-      const key = textContent(keyCell).trim();
+      const key = nodeText(keyCell).trim();
       if (!key) {
         return properties;
       }
@@ -116,7 +120,7 @@ export default class HTMLConverter {
       return this.readListValue(list);
     }
 
-    const text = textContent(valueCell).trim();
+    const text = nodeText(valueCell).trim();
     if (text === '') {
       return '';
     }
@@ -130,12 +134,7 @@ export default class HTMLConverter {
     return elementChildren(list)
       .filter((child) => child.tagName === 'li')
       .map((li) => {
-        const text = textContent(li).trim();
-        const reference = this.getReference(text);
-        if (reference !== null) {
-          return reference;
-        }
-
+        const text = nodeText(li).trim();
         return this.getTypedValue(text);
       });
   }
