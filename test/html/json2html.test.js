@@ -13,6 +13,7 @@
 import { expect } from '@esm-bundle/chai';
 import { readFile } from '@web/test-runner-commands';
 import json2html from '../../src/html/json2html.js';
+import { convertHtmlToJson } from '../../src/html/html2json.js';
 import { normalizeHtml, prune } from './test-utils.js';
 
 describe('JSON to HTML Conversion', () => {
@@ -144,6 +145,20 @@ describe('JSON to HTML Conversion', () => {
     expect(classes).to.deep.equal(['da-form', 'deck', 'cover cover-1', 'slides slides-2', 'slides slides-3']);
     expect(doc.querySelector('.deck').textContent).to.include('self://#cover-1');
     expect(json2html({ json })).to.equal(html);
+  });
+
+  it('names blocks after their key as one class, so keys with spaces read back', () => {
+    const json = {
+      metadata: { schemaName: 'deck' },
+      data: { 'My Notes': { title: 'A' }, 'Q&A list': [{ title: 'B' }] },
+    };
+
+    const html = json2html({ json });
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const classes = [...doc.querySelectorAll('main > div > div')].map((block) => block.className);
+
+    expect(classes).to.deep.equal(['da-form', 'deck', 'my-notes my-notes-1', 'q-a-list q-a-list-2']);
+    expect(convertHtmlToJson({ html }).json.data).to.deep.equal(json.data);
   });
 
   it('should create nested blocks for object values', () => {

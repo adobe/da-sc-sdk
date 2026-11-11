@@ -161,6 +161,15 @@ describe('rich-text codec', () => {
       expect(roundtrip(json)).to.deep.equal(json);
     });
 
+    it('preserves rich text under keys with spaces', () => {
+      const spacedSchema = {
+        type: 'object',
+        properties: { 'My Body': RICH, 'Side notes': { type: 'array', items: RICH } },
+      };
+      const json = doc({ 'My Body': '<p>a</p>', 'Side notes': ['<p>b</p>'] });
+      expect(roundtrip(json, spacedSchema)).to.deep.equal(json);
+    });
+
     it('preserves a root array of rich text', () => {
       const rootSchema = { type: 'array', items: RICH };
       const json = doc(['<p>a</p>', '<ul><li>b</li></ul>']);

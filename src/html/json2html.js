@@ -51,15 +51,23 @@ function entriesToWrite({ value, pointer }) {
   return entries.filter(([, entryValue]) => !isDataEmpty(entryValue));
 }
 
+// A block's name is its key as a class name, the way EDS names classes, so a
+// key with spaces or other characters stays one class the reader can match.
+function blockName(key) {
+  const name = key.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  return name || 'block';
+}
+
 function referenceText({ key, blockId, type = '' }) {
-  return textContent(`self://${type}#${key.toLowerCase()}-${blockId}`);
+  return textContent(`self://${type}#${blockName(key)}-${blockId}`);
 }
 
 // Blocks are numbered in the order they are written, so the same document is
 // always written the same way and every ID is unique within it.
 function addBlock({ key, innerHtml, writer }) {
   const blockId = String(writer.blocks.length + 1);
-  writer.blocks.push(block({ className: `${key} ${key}-${blockId}`, innerHtml }));
+  const name = blockName(key);
+  writer.blocks.push(block({ className: `${name} ${name}-${blockId}`, innerHtml }));
   return blockId;
 }
 
