@@ -10,7 +10,7 @@
  * governing permissions and limitations under the License.
  */
 
-// Codecs write values as DA markup. A semantic type, such as `rich-text`,
+// Codecs write values as DA markup. A semantic type, such as `html`,
 // registers a codec for its values here. Everything else is text.
 //
 // A codec with `fromHtml` reads its value from a cell's nodes instead of from
@@ -22,7 +22,8 @@ import richText from './rich-text.js';
 import text from './text.js';
 
 const CODECS_BY_SEMANTIC_TYPE = new Map([
-  [SEMANTIC_TYPES.richText, richText],
+  // The rich-text codec writes and reads values of the `html` semantic type.
+  [SEMANTIC_TYPES.html, richText],
 ]);
 
 // `node` is the value's model node.

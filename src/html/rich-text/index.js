@@ -10,7 +10,7 @@
  * governing permissions and limitations under the License.
  */
 
-// Canonical HTML for `x-semantic-type: rich-text` values.
+// Canonical HTML for rich text, the values of `x-semantic-type: html`.
 //
 // Both codec directions run values through the same steps, so the stored
 // string is always the canonical form, written the way EDS writes it.
