@@ -10,7 +10,7 @@
  * governing permissions and limitations under the License.
  */
 
-import { richTextFromNodes, sanitizeRichText } from '../rich-text.js';
+import { richTextFromNodes, sanitizeRichText } from '../rich-text/index.js';
 
 export default {
   toHtml: ({ value }) => sanitizeRichText(value),

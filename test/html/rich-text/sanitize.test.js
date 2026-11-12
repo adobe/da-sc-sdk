@@ -12,7 +12,7 @@
 
 import { expect } from '@esm-bundle/chai';
 import { fromHtml } from 'hast-util-from-html';
-import { sanitizeRichText, richTextFromNodes, safeHref } from '../../src/html/rich-text.js';
+import { sanitizeRichText, richTextFromNodes, safeHref } from '../../../src/html/rich-text/index.js';
 
 describe('rich-text sanitizer', () => {
   describe('sanitizeRichText', () => {

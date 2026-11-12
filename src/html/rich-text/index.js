@@ -25,7 +25,7 @@
 // lines, with single newlines kept as <br>.
 
 import { fromHtml } from 'hast-util-from-html';
-import { escapeAttr, escapeText } from './markup.js';
+import { escapeAttr, escapeText } from '../markup.js';
 
 // The canonical tag of each mark.
 const MARKS = new Map([

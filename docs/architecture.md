@@ -29,7 +29,7 @@ da-sc-sdk/
       json2html.js      writes JSON as DA HTML, walking blocks, rows and lists with a codec per value
       codecs/           how semantic values are written and read, text for everything else
       markup.js         escaping, rows and blocks shared by json2html.js and the codecs
-      rich-text.js      canonical HTML subset for x-semantic-type: rich-text values
+      rich-text/        canonical HTML subset for x-semantic-type: rich-text values
     types/            the types both state-engine/ and html/ read
       semantic.js       the x-semantic-type values and the JSON type each applies to
     shared/           helpers every layer may use
