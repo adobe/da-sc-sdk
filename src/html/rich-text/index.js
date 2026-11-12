@@ -74,10 +74,6 @@ const BLOCK_ROLES = new Set(['paragraph', 'heading', 'quote', 'list', 'preformat
 
 const SAFE_SCHEMES = new Set(['http', 'https', 'mailto', 'tel']);
 
-// A complete opening, closing or self-closing tag. Text such as `a<b then c`
-// has none, so it stays plain text.
-const TAG_PATTERN = /<\/?[a-z][a-z0-9]*(?:\s[^<>]*)?\/?>/i;
-
 // HTML collapses runs of these characters into one space.
 const WHITESPACE = /[ \t\n\r\f]+/g;
 
@@ -106,6 +102,10 @@ export function safeHref(href) {
   }
 
   return trimmedHref;
+}
+
+function isElement(node) {
+  return node.type === 'element';
 }
 
 function roleOf(node) {
@@ -426,7 +426,9 @@ export function richTextFromNodes(nodes = []) {
   return serializeBlocks(nodes);
 }
 
-// Canonical rich-text HTML for an HTML (or plain-text) string.
+// Canonical rich-text HTML for an HTML (or plain-text) string. A value that
+// parses without an element, such as `if a<b then c`, is plain text, the same
+// rule the editor applies.
 export function sanitizeRichText(value) {
   if (value === null || value === undefined) {
     return '';
@@ -436,10 +438,10 @@ export function sanitizeRichText(value) {
   if (!text.trim()) {
     return '';
   }
-  if (!TAG_PATTERN.test(text)) {
-    return plainTextToHtml(text);
-  }
 
   const { children } = fromHtml(text, { fragment: true });
+  if (!children.some(isElement)) {
+    return plainTextToHtml(text);
+  }
   return richTextFromNodes(children);
 }
