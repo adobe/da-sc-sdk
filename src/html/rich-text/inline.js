@@ -207,13 +207,35 @@ function dropEmptyMarks(leaves) {
   });
 }
 
+function isCodeOnly(leaf) {
+  return leaf.marks.every((mark) => mark.tagName === CODE);
+}
+
+// Where the mark opened at `start` closes. Code stays innermost, since EDS
+// drops any mark inside code, so it closes before text with another mark.
+function markEnd(leaves, start, mark) {
+  const [, end] = runAround(leaves, start, mark);
+  if (mark.tagName !== CODE) {
+    return end;
+  }
+
+  let codeEnd = start;
+  while (codeEnd < end && isCodeOnly(leaves[codeEnd])) {
+    codeEnd += 1;
+  }
+  return codeEnd;
+}
+
 // The mark to open at `start`. A mark over more leaves wraps the shorter ones,
-// and marks over the same leaves nest in EDS's order.
+// and marks over the same leaves nest in EDS's order. Code opens only around
+// text without other marks.
 function outermostMark(leaves, start) {
-  const candidates = leaves[start].marks.map((mark) => {
-    const [, end] = runAround(leaves, start, mark);
-    return { mark, end, rank: MARK_RANKS.get(mark.tagName) };
-  });
+  const candidates = leaves[start].marks
+    .map((mark) => {
+      const end = markEnd(leaves, start, mark);
+      return { mark, end, rank: MARK_RANKS.get(mark.tagName) };
+    })
+    .filter(({ end }) => end > start);
   candidates.sort((a, b) => b.end - a.end || a.rank - b.rank);
   return candidates[0];
 }

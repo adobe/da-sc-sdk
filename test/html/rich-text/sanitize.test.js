@@ -36,6 +36,11 @@ describe('rich-text sanitizer', () => {
         .to.equal('<p><em><strong>a</strong></em> <strong><a href="/x">b</a></strong> <sup><code>c</code></sup></p>');
     });
 
+    it('keeps code innermost even when it covers more text', () => {
+      expect(sanitizeRichText('<p><code>x</code><del><code>y</code></del> <code>a</code><a href="/b"><code>b</code></a></p>'))
+        .to.equal('<p><code>x</code><del><code>y</code></del> <code>a</code><a href="/b"><code>b</code></a></p>');
+    });
+
     it('keeps a mark over more text outside the marks over less', () => {
       const html = '<p><strong>a<em>b</em></strong><em>c</em></p>';
       expect(sanitizeRichText(html)).to.equal(html);

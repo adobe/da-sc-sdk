@@ -53,6 +53,13 @@ function valueCells(html) {
   return cells;
 }
 
+// The markup inside a cell, as written in the fixture.
+function markupOf({ cell, html }) {
+  const start = cell.children.at(0)?.position.start.offset;
+  const end = cell.children.at(-1)?.position.end.offset;
+  return html.slice(start, end);
+}
+
 function tagNamesOf(node, tagNames = new Set()) {
   if (node.type === 'element') {
     tagNames.add(node.tagName);
@@ -62,11 +69,13 @@ function tagNamesOf(node, tagNames = new Set()) {
 }
 
 describe('rich-text allowlist', () => {
+  let storedHtml;
   let stored;
   let delivered;
 
   before(async () => {
-    stored = valueCells(await readFile({ path: '../mocks/richText.da.html' }));
+    storedHtml = await readFile({ path: '../mocks/richText.da.html' });
+    stored = valueCells(storedHtml);
     delivered = valueCells(await readFile({ path: '../mocks/richText.eds.html' }));
   });
 
@@ -75,6 +84,18 @@ describe('rich-text allowlist', () => {
     delivered.forEach((cell) => tagNamesOf(cell, deliveredTags));
     const droppedByEds = ALLOWED_TAG_NAMES.filter((tagName) => !deliveredTags.has(tagName));
     expect(droppedByEds).to.deep.equal([]);
+  });
+
+  // The comparison below normalizes both sides, so it can't notice a stored
+  // form the SDK no longer writes. This test does.
+  it('holds stored values in the form the SDK writes them', () => {
+    const rewritten = [...stored.entries()]
+      .filter(([, cell]) => {
+        const written = richTextFromNodes(cell.children);
+        return written !== markupOf({ cell, html: storedHtml });
+      })
+      .map(([name]) => name);
+    expect(rewritten).to.deep.equal([]);
   });
 
   it('reads a value back from a page EDS delivered as it was stored', () => {
