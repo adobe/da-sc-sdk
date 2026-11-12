@@ -47,6 +47,11 @@ const SCHEMA = {
   strip: STRIPPED,
 };
 
+// Protocols that run script, and Windows protocols that start an app. A link with one
+// of them loses its href. Any other protocol is kept, so links can open custom apps.
+const BLOCKED_PROTOCOLS = Object.freeze(['javascript', 'data', 'vbscript', 'search', 'search-ms']);
+const BLOCKED_PROTOCOL_PREFIX = 'ms-';
+
 // The link as an absolute URL, or null when it is relative to the page.
 function absoluteUrl(href) {
   try {
@@ -56,7 +61,11 @@ function absoluteUrl(href) {
   }
 }
 
-// Whether a browser opens the link with a protocol in the allowlist. The URL
+function isBlockedProtocol(protocol) {
+  return BLOCKED_PROTOCOLS.includes(protocol) || protocol.startsWith(BLOCKED_PROTOCOL_PREFIX);
+}
+
+// Whether a browser opens the link with a protocol that is not blocked. The URL
 // parser reads the protocol as a browser does, ignoring case, surrounding spaces
 // and control characters. A relative link stays on the page's protocol.
 function isAllowedHref(href) {
@@ -66,10 +75,10 @@ function isAllowedHref(href) {
   }
 
   const protocol = url.protocol.slice(0, -1);
-  return ALLOWLIST.link.protocols.includes(protocol);
+  return !isBlockedProtocol(protocol);
 }
 
-// Removes every href with a protocol outside the allowlist below the node.
+// Removes every href with a blocked protocol below the node.
 function removeUnsafeHrefs(node) {
   const href = node.properties?.href;
   if (typeof href === 'string' && !isAllowedHref(href)) {

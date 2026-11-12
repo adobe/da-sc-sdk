@@ -30,7 +30,7 @@ da-sc-sdk/
       codecs/           how semantic values are written and read, text for everything else
       markup.js         escaping, rows and blocks shared by json2html.js and the codecs
       rich-text/        canonical HTML subset for rich text, x-semantic-type: html values
-        allowlist.js      the tags, attributes and link protocols rich text keeps, a subset of what EDS keeps
+        allowlist.js      the tags and attributes rich text keeps, a subset of what EDS keeps
         sanitize.js       removes active content, unsafe links and other attributes with hast-util-sanitize
         index.js          normalizes and serializes the rest in the canonical form
     types/            the types both state-engine/ and html/ read

@@ -23,7 +23,6 @@ export const ALLOWLIST = Object.freeze({
   link: {
     tagName: 'a',
     attributes: ['href', 'title'],
-    protocols: ['http', 'https', 'mailto', 'tel'],
   },
   // Tags with the same meaning as an allowed tag, written as that tag.
   aliases: {

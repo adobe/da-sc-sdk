@@ -237,7 +237,7 @@ single-line value.
 | `<p>`, `<h1>`–`<h6>`, `<ul>`, `<ol>`, `<li>` | Block structure. Lists may nest inside `<li>`; headings inside `<li>` are flattened to text. |
 | `<blockquote>` | Holds paragraphs, headings, lists and nested quotes. Loose text inside is wrapped in `<p>`. |
 | `<strong>`, `<em>`, `<u>`, `<del>`, `<code>`, `<sup>`, `<sub>`, `<br>` | Inline formatting. `b`, `i`, `s` and `strike` become `strong`, `em` and `del`. `<pre>` becomes a paragraph with its line breaks as `<br>`. |
-| `<a href title>` | Relative, `http(s):`, `mailto:` and `tel:` links only. An optional `title` is kept with whitespace collapsed and trimmed (empty titles are dropped); other attributes are dropped. |
+| `<a href title>` | The `href` is dropped when its protocol runs script (`javascript:`, `data:`, `vbscript:`) or starts a Windows app (`ms-…:`, `search:`, `search-ms:`). Relative links and other protocols, including custom app schemes, are kept. An optional `title` is kept with whitespace collapsed and trimmed (empty titles are dropped); other attributes are dropped. |
 
 - Values are sanitized to this subset on both write and read: unknown wrappers are unwrapped, active content (`script`, `iframe`, `img`, event handlers, …) is dropped, loose inline content is wrapped in `<p>`, and empty paragraphs, headings, quotes and items are removed.
 - Plain text without markup (e.g. a former `long-text` value) is converted into paragraphs split on blank lines, with single newlines kept as `<br>`.
