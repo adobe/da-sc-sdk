@@ -16,10 +16,9 @@ const outdir = resolve(root, 'dist');
 await rm(outdir, { recursive: true, force: true });
 await mkdir(outdir, { recursive: true });
 
-// `platform: 'neutral'` because the SDK has zero environment-specific
-// dependencies — `hast-util-from-html` is pure JS (parse5), and the rest
-// of the SDK is plain ESM. The output runs in browsers, Node, Deno, Bun,
-// and Cloudflare Workers without modification.
+// The bundle targets no specific runtime (`platform: 'neutral'`). The SDK is
+// plain ESM, and its dependencies are pure JS. The output runs in browsers,
+// Node, Deno, Bun and Cloudflare Workers without changes.
 await build({
   entryPoints: [resolve(root, 'src/index.js')],
   outfile: resolve(outdir, 'index.js'),

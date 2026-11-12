@@ -30,6 +30,9 @@ da-sc-sdk/
       codecs/           how semantic values are written and read, text for everything else
       markup.js         escaping, rows and blocks shared by json2html.js and the codecs
       rich-text/        canonical HTML subset for x-semantic-type: rich-text values
+        allowlist.js      the tags, attributes and link protocols rich text keeps, a subset of what EDS keeps
+        sanitize.js       removes active content, unsafe links and other attributes with hast-util-sanitize
+        index.js          normalizes and serializes the rest in the canonical form
     types/            the types both state-engine/ and html/ read
       semantic.js       the x-semantic-type values and the JSON type each applies to
     shared/           helpers every layer may use
@@ -52,7 +55,7 @@ da-sc-sdk/
 | `src/shared/` | nothing |
 | `src/types/` | `src/shared/` |
 | `src/state-engine/` | `src/types/`, `src/shared/`, and no external packages |
-| `src/html/` | `src/types/`, `src/shared/`, and `hast-util-from-html` (parse5) for parsing. No DOM for writing. |
+| `src/html/` | `src/types/`, `src/shared/`, `hast-util-from-html` (parse5) for parsing and `hast-util-sanitize` for rich text. No DOM for writing. |
 | `src/index.js` | `src/state-engine/`, `src/html/` |
 
 `state-engine/` has no DOM, no Lit, no browser dependency. It runs unchanged in Node, browsers, MCP servers, and any other ESM runtime. The boundary is enforced by zero external imports — there is nothing in `state-engine/` for a build tool to fail to resolve.

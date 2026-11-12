@@ -58,7 +58,8 @@
     "semantic-release-dry": "semantic-release --dry-run --no-ci --branches $CI_BRANCH"
   },
   "dependencies": {
-    "hast-util-from-html": "^2.0.0"
+    "hast-util-from-html": "^2.0.0",
+    "hast-util-sanitize": "^5.0.2"
   },
   "devDependencies": {
     "@adobe/eslint-config-helix": "^3.0.17",

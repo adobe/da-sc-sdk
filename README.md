@@ -192,7 +192,7 @@ import type {
 
 - ES2022 + ESM. No Node built-ins, no DOM.
 - Node ≥18 and modern browsers.
-- One runtime dependency: [hast-util-from-html](https://www.npmjs.com/package/hast-util-from-html).
+- Two runtime dependencies: [hast-util-from-html](https://www.npmjs.com/package/hast-util-from-html) to parse HTML and [hast-util-sanitize](https://www.npmjs.com/package/hast-util-sanitize) to sanitize rich text.
 
 ## Design
 

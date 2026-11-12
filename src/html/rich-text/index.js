@@ -26,93 +26,43 @@
 
 import { fromHtml } from 'hast-util-from-html';
 import { escapeAttr, escapeText } from '../markup.js';
+import { ALLOWLIST } from './allowlist.js';
+import { CONTAINERS, PREFORMATTED, sanitizeNodes } from './sanitize.js';
 
-// The canonical tag of each mark.
-const MARKS = new Map([
-  ['strong', 'strong'], ['b', 'strong'],
-  ['em', 'em'], ['i', 'em'],
-  ['u', 'u'],
-  ['s', 's'], ['strike', 's'], ['del', 's'],
-  ['code', 'code'],
-  ['sup', 'sup'],
-  ['sub', 'sub'],
-]);
+const MARK_TAGS = [...ALLOWLIST.marks, ...Object.keys(ALLOWLIST.aliases)];
 
-const HEADINGS = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
-
-// Blocks that are unwrapped, so their content becomes blocks of its own.
-const CONTAINERS = [
-  'div', 'section', 'article', 'header', 'footer', 'main', 'aside', 'nav',
-  'figure', 'figcaption', 'address',
-  'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'dl', 'dt', 'dd',
-];
-
-// Active and embedded content, dropped with everything inside it.
-const DROPPED = [
-  'script', 'style', 'template', 'iframe', 'object', 'embed', 'noscript',
-  'head', 'title', 'meta', 'link', 'img', 'picture', 'video', 'audio',
-  'source', 'svg', 'math', 'canvas', 'input', 'button', 'select', 'textarea',
-];
-
-// What the sanitizer does with each known tag. Other tags are unwrapped.
+// What normalizing does with each tag that sanitizing keeps.
 const ROLES = new Map([
-  ['p', 'paragraph'],
-  ['li', 'paragraph'],
-  ...HEADINGS.map((tag) => [tag, 'heading']),
-  ['blockquote', 'quote'],
-  ['ul', 'list'],
-  ['ol', 'list'],
-  ['pre', 'preformatted'],
+  [ALLOWLIST.paragraph, 'paragraph'],
+  [ALLOWLIST.listItem, 'paragraph'],
+  ...ALLOWLIST.headings.map((tag) => [tag, 'heading']),
+  [ALLOWLIST.quote, 'quote'],
+  ...ALLOWLIST.lists.map((tag) => [tag, 'list']),
+  [PREFORMATTED, 'preformatted'],
   ...CONTAINERS.map((tag) => [tag, 'container']),
-  ...[...MARKS.keys()].map((tag) => [tag, 'mark']),
-  ['a', 'link'],
-  ['br', 'break'],
-  ...DROPPED.map((tag) => [tag, 'dropped']),
+  ...MARK_TAGS.map((tag) => [tag, 'mark']),
+  [ALLOWLIST.link.tagName, 'link'],
+  [ALLOWLIST.lineBreak, 'break'],
 ]);
 
 const BLOCK_ROLES = new Set(['paragraph', 'heading', 'quote', 'list', 'preformatted', 'container']);
 
-const SAFE_SCHEMES = new Set(['http', 'https', 'mailto', 'tel']);
-
 // HTML collapses runs of these characters into one space.
 const WHITESPACE = /[ \t\n\r\f]+/g;
-
-// A URL scheme, such as `https` in `https://example.com`.
-const SCHEME = /^([a-z][a-z0-9+.-]*):/i;
-
-// Browsers ignore control characters and spaces when they read a scheme.
-// eslint-disable-next-line no-control-regex
-const CONTROL_AND_SPACE = /[\u0000-\u0020]/g;
-
-// Returns the trimmed href when it is relative or uses an allowed scheme.
-export function safeHref(href) {
-  if (typeof href !== 'string') {
-    return null;
-  }
-
-  const trimmedHref = href.trim();
-  if (!trimmedHref) {
-    return null;
-  }
-
-  const comparableHref = trimmedHref.replace(CONTROL_AND_SPACE, '');
-  const scheme = comparableHref.match(SCHEME)?.[1]?.toLowerCase();
-  if (scheme && !SAFE_SCHEMES.has(scheme)) {
-    return null;
-  }
-
-  return trimmedHref;
-}
 
 function isElement(node) {
   return node.type === 'element';
 }
 
 function roleOf(node) {
-  if (node?.type !== 'element') {
+  if (!isElement(node)) {
     return undefined;
   }
   return ROLES.get(node.tagName);
+}
+
+function canonicalMarkTag(tagName) {
+  return ALLOWLIST.aliases[tagName] ?? tagName;
 }
 
 function isBlock(node) {
@@ -136,10 +86,10 @@ function element(tagName, children, properties = {}) {
   };
 }
 
-const LINE_BREAK = element('br', []);
+const LINE_BREAK = element(ALLOWLIST.lineBreak, []);
 
 function isLineBreak(node) {
-  return node.tagName === 'br';
+  return node.tagName === ALLOWLIST.lineBreak;
 }
 
 // Whether canonical inline nodes hold any text that is not whitespace.
@@ -159,16 +109,17 @@ function linkTitle(title) {
   return title.replace(WHITESPACE, ' ').trim();
 }
 
-// A link with a safe href and text keeps its title. Any other link is unwrapped.
+// A link with an href and text keeps its title. Any other link is unwrapped.
+// Sanitizing has already removed an href with a protocol outside the allowlist.
 function canonicalLink(link, children) {
-  const href = safeHref(link.properties?.href);
+  const href = link.properties?.href?.trim();
   if (!href || !hasText(children)) {
     return children;
   }
 
   const title = linkTitle(link.properties?.title);
   const properties = title ? { href, title } : { href };
-  return [element('a', children, properties)];
+  return [element(ALLOWLIST.link.tagName, children, properties)];
 }
 
 // A mark with text keeps its canonical tag. A mark without text is unwrapped.
@@ -176,11 +127,11 @@ function canonicalMark(mark, children) {
   if (!hasText(children)) {
     return children;
   }
-  return [element(MARKS.get(mark.tagName), children)];
+  return [element(canonicalMarkTag(mark.tagName), children)];
 }
 
 // Inline nodes in canonical form: text with collapsed whitespace, line breaks,
-// and marks and links that hold text. Any other element is unwrapped or dropped.
+// and marks and links that hold text. Any other element is unwrapped.
 function canonicalInline(nodes) {
   return nodes.flatMap((node) => {
     if (isText(node)) {
@@ -188,10 +139,11 @@ function canonicalInline(nodes) {
       return [{ type: 'text', value }];
     }
 
-    const role = roleOf(node);
-    if (node.type !== 'element' || role === 'dropped') {
+    if (!isElement(node)) {
       return [];
     }
+
+    const role = roleOf(node);
     if (role === 'break') {
       return [LINE_BREAK];
     }
@@ -355,7 +307,7 @@ function serializeListItem(item) {
 
 function serializeList(list) {
   const items = (list.children ?? [])
-    .filter((child) => child.type === 'element' && child.tagName === 'li')
+    .filter((child) => isElement(child) && child.tagName === ALLOWLIST.listItem)
     .map(serializeListItem)
     .join('');
   if (!items) {
@@ -423,7 +375,7 @@ function plainTextToHtml(text) {
 // Canonical rich-text HTML for a list of hast nodes (e.g. a value cell's
 // children). Returns '' when nothing with text content survives.
 export function richTextFromNodes(nodes = []) {
-  return serializeBlocks(nodes);
+  return serializeBlocks(sanitizeNodes(nodes));
 }
 
 // Canonical rich-text HTML for an HTML (or plain-text) string. A value that

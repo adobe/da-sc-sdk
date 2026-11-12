@@ -12,7 +12,7 @@
 
 import { expect } from '@esm-bundle/chai';
 import { fromHtml } from 'hast-util-from-html';
-import { sanitizeRichText, richTextFromNodes, safeHref } from '../../../src/html/rich-text/index.js';
+import { sanitizeRichText, richTextFromNodes } from '../../../src/html/rich-text/index.js';
 
 describe('rich-text sanitizer', () => {
   describe('sanitizeRichText', () => {
@@ -156,16 +156,22 @@ describe('rich-text sanitizer', () => {
     });
   });
 
-  describe('safeHref', () => {
-    it('accepts allowed schemes and relative references', () => {
-      ['https://a.b', 'http://a.b', 'mailto:a@b.c', 'tel:+1', '/a', './a', '../a', '#a', '?q=1', 'page.html']
-        .forEach((href) => expect(safeHref(href)).to.equal(href));
+  describe('links', () => {
+    const link = (href) => sanitizeRichText(`<a href="${href}">x</a>`);
+
+    it('keeps relative links and links with an allowed protocol in any case', () => {
+      ['https://a.b', 'http://a.b', 'mailto:a@b.c', 'tel:+1', '/a', './a', '../a', '#a', '?q=1', 'page.html', 'HTTPS://A']
+        .forEach((href) => expect(link(href)).to.equal(`<p><a href="${href}">x</a></p>`));
     });
 
-    it('rejects unsafe schemes, empty and non-string values', () => {
+    it('trims links', () => {
+      expect(link(' tel:+1 ')).to.equal('<p><a href="tel:+1">x</a></p>');
+    });
+
+    it('unwraps links with another protocol or without an href', () => {
       // eslint-disable-next-line no-script-url
-      ['javascript:x', 'JAVASCRIPT:x', 'vbscript:x', 'data:x', ' \u0001javascript:x', '', '   ', null, 1]
-        .forEach((href) => expect(safeHref(href)).to.equal(null));
+      ['javascript:x', 'JAVASCRIPT:x', 'vbscript:x', 'data:x', ' \u0001javascript:x', 'java\tscript:x', '', '   ']
+        .forEach((href) => expect(link(href)).to.equal('<p>x</p>'));
     });
   });
 });
