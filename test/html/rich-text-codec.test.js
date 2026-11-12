@@ -160,7 +160,7 @@ describe('rich-text codec', () => {
         author: { name: 'Ann', bio: '<p><u>Bio</u></p>' },
         sections: [
           { heading: 'H1', content: '<p>First</p>' },
-          { heading: 'H2', content: '<ul><li><s>Second</s></li></ul>' },
+          { heading: 'H2', content: '<ul><li><del>Second</del></li></ul>' },
         ],
         notes: ['<p>n1</p>', '<p><strong>n2</strong></p>'],
         grid: [['<p>a</p>', '<p>b</p>'], ['<p>c</p>']],

@@ -18,7 +18,7 @@ export const ALLOWLIST = Object.freeze({
   quote: 'blockquote',
   lists: ['ul', 'ol'],
   listItem: 'li',
-  marks: ['strong', 'em', 'u', 's', 'code', 'sup', 'sub'],
+  marks: ['del', 'em', 'strong', 'a', 'u', 'sub', 'sup', 'code'],
   lineBreak: 'br',
   link: {
     tagName: 'a',
@@ -29,8 +29,8 @@ export const ALLOWLIST = Object.freeze({
   aliases: {
     b: 'strong',
     i: 'em',
-    strike: 's',
-    del: 's',
+    s: 'del',
+    strike: 'del',
   },
 });
 
@@ -43,5 +43,4 @@ export const ALLOWED_TAG_NAMES = Object.freeze([
   ALLOWLIST.listItem,
   ...ALLOWLIST.marks,
   ALLOWLIST.lineBreak,
-  ALLOWLIST.link.tagName,
 ]);

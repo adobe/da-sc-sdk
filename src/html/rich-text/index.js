@@ -12,27 +12,23 @@
 
 // Canonical HTML for `x-semantic-type: rich-text` values.
 //
-// Both codec directions run values through the same allowlist so the stored
-// string is always the canonical form:
-//
-//   blocks:  <p>, <h1>-<h6>, <blockquote>, <ul>, <ol>, <li>
-//   inline:  <strong>, <em>, <u>, <s>, <code>, <sup>, <sub>, <a href title>, <br>
-//
-// Equivalent tags are normalized (b → strong, i → em, strike/del → s),
-// unknown wrappers are unwrapped, unsafe link schemes and active content are
-// dropped, loose inline content is wrapped in <p>, and empty paragraphs/items
-// are removed. Plain text without markup becomes paragraphs split on blank
-// lines, with single newlines kept as <br>.
+// Both codec directions run values through the same steps, so the stored
+// string is always the canonical form, written the way EDS writes it.
+// allowlist.js lists the tags it keeps, sanitize.js removes everything unsafe,
+// inline.js writes marks and this module writes the blocks. Unknown wrappers
+// are unwrapped, loose inline content is wrapped in <p>, and empty paragraphs
+// and items are removed. Plain text without markup becomes paragraphs split
+// on blank lines, with single newlines kept as <br>.
 
 import { fromHtml } from 'hast-util-from-html';
-import { escapeAttr, escapeText } from '../markup.js';
+import { escapeText } from '../markup.js';
 import { ALLOWLIST } from './allowlist.js';
+import { inlineHtml } from './inline.js';
 import { CONTAINERS, PREFORMATTED, sanitizeNodes } from './sanitize.js';
 
-const MARK_TAGS = [...ALLOWLIST.marks, ...Object.keys(ALLOWLIST.aliases)];
-
-// What normalizing does with each tag that sanitizing keeps.
-const ROLES = new Map([
+// The role of each block tag, which decides how the block is written. A tag
+// without a role, such as <strong> or <span>, is inline content.
+const BLOCK_ROLES = new Map([
   [ALLOWLIST.paragraph, 'paragraph'],
   [ALLOWLIST.listItem, 'paragraph'],
   ...ALLOWLIST.headings.map((tag) => [tag, 'heading']),
@@ -40,15 +36,14 @@ const ROLES = new Map([
   ...ALLOWLIST.lists.map((tag) => [tag, 'list']),
   [PREFORMATTED, 'preformatted'],
   ...CONTAINERS.map((tag) => [tag, 'container']),
-  ...MARK_TAGS.map((tag) => [tag, 'mark']),
-  [ALLOWLIST.link.tagName, 'link'],
-  [ALLOWLIST.lineBreak, 'break'],
 ]);
 
-const BLOCK_ROLES = new Set(['paragraph', 'heading', 'quote', 'list', 'preformatted', 'container']);
-
-// HTML collapses runs of these characters into one space.
-const WHITESPACE = /[ \t\n\r\f]+/g;
+const LINE_BREAK = {
+  type: 'element',
+  tagName: ALLOWLIST.lineBreak,
+  properties: {},
+  children: [],
+};
 
 function isElement(node) {
   return node.type === 'element';
@@ -58,141 +53,11 @@ function roleOf(node) {
   if (!isElement(node)) {
     return undefined;
   }
-  return ROLES.get(node.tagName);
-}
-
-function canonicalMarkTag(tagName) {
-  return ALLOWLIST.aliases[tagName] ?? tagName;
+  return BLOCK_ROLES.get(node.tagName);
 }
 
 function isBlock(node) {
-  return BLOCK_ROLES.has(roleOf(node));
-}
-
-function isText(node) {
-  return node.type === 'text';
-}
-
-function isBlankText(text) {
-  return !/\S/.test(text);
-}
-
-function element(tagName, children, properties = {}) {
-  return {
-    type: 'element',
-    tagName,
-    properties,
-    children,
-  };
-}
-
-const LINE_BREAK = element(ALLOWLIST.lineBreak, []);
-
-function isLineBreak(node) {
-  return node.tagName === ALLOWLIST.lineBreak;
-}
-
-// Whether canonical inline nodes hold any text that is not whitespace.
-function hasText(nodes) {
-  return nodes.some((node) => {
-    if (isText(node)) {
-      return !isBlankText(node.value);
-    }
-    return hasText(node.children);
-  });
-}
-
-function linkTitle(title) {
-  if (typeof title !== 'string') {
-    return '';
-  }
-  return title.replace(WHITESPACE, ' ').trim();
-}
-
-// A link with an href and text keeps its title. Any other link is unwrapped.
-// Sanitizing has already removed an href with a protocol outside the allowlist.
-function canonicalLink(link, children) {
-  const href = link.properties?.href?.trim();
-  if (!href || !hasText(children)) {
-    return children;
-  }
-
-  const title = linkTitle(link.properties?.title);
-  const properties = title ? { href, title } : { href };
-  return [element(ALLOWLIST.link.tagName, children, properties)];
-}
-
-// A mark with text keeps its canonical tag. A mark without text is unwrapped.
-function canonicalMark(mark, children) {
-  if (!hasText(children)) {
-    return children;
-  }
-  return [element(canonicalMarkTag(mark.tagName), children)];
-}
-
-// Inline nodes in canonical form: text with collapsed whitespace, line breaks,
-// and marks and links that hold text. Any other element is unwrapped.
-function canonicalInline(nodes) {
-  return nodes.flatMap((node) => {
-    if (isText(node)) {
-      const value = node.value.replace(WHITESPACE, ' ');
-      return [{ type: 'text', value }];
-    }
-
-    if (!isElement(node)) {
-      return [];
-    }
-
-    const role = roleOf(node);
-    if (role === 'break') {
-      return [LINE_BREAK];
-    }
-
-    const children = canonicalInline(node.children ?? []);
-    if (role === 'mark') {
-      return canonicalMark(node, children);
-    }
-    if (role === 'link') {
-      return canonicalLink(node, children);
-    }
-    return children;
-  });
-}
-
-// Line breaks and whitespace-only text at either end of a run of inline nodes.
-function isEdgeSpace(node) {
-  if (isLineBreak(node)) {
-    return true;
-  }
-  return isText(node) && isBlankText(node.value);
-}
-
-// Canonical inline nodes without line breaks and whitespace at either end.
-function trimInline(nodes) {
-  let first = 0;
-  let last = nodes.length - 1;
-  while (first <= last && isEdgeSpace(nodes[first])) {
-    first += 1;
-  }
-  while (last >= first && isEdgeSpace(nodes[last])) {
-    last -= 1;
-  }
-
-  const trimmed = nodes.slice(first, last + 1);
-  return trimmed.map((node, index) => {
-    if (!isText(node)) {
-      return node;
-    }
-
-    let { value } = node;
-    if (index === 0) {
-      value = value.trimStart();
-    }
-    if (index === trimmed.length - 1) {
-      value = value.trimEnd();
-    }
-    return { ...node, value };
-  });
+  return roleOf(node) !== undefined;
 }
 
 function textWithLineBreaks(text) {
@@ -210,45 +75,19 @@ function textWithLineBreaks(text) {
 // breaks survive the whitespace collapsing of inline text.
 function preformattedNodes(nodes) {
   return nodes.flatMap((node) => {
-    if (isText(node)) {
+    if (node.type === 'text') {
       return textWithLineBreaks(node.value);
     }
-    if (node.type === 'element') {
+    // EDS writes a code block as `<pre><code>`. That code is the block's, not a mark.
+    if (isElement(node) && node.tagName === 'code') {
+      return preformattedNodes(node.children ?? []);
+    }
+    if (isElement(node)) {
       const children = preformattedNodes(node.children ?? []);
       return [{ ...node, children }];
     }
     return [node];
   });
-}
-
-function attributesHtml(properties) {
-  return Object.entries(properties)
-    .map(([name, value]) => ` ${name}="${escapeAttr(value)}"`)
-    .join('');
-}
-
-function serializeInline(nodes) {
-  return nodes.map((node) => {
-    if (isText(node)) {
-      return escapeText(node.value);
-    }
-    if (isLineBreak(node)) {
-      return '<br>';
-    }
-
-    const attributes = attributesHtml(node.properties);
-    const content = serializeInline(node.children);
-    return `<${node.tagName}${attributes}>${content}</${node.tagName}>`;
-  }).join('');
-}
-
-// The canonical markup of inline content, or '' when it holds no text.
-function inlineHtml(nodes) {
-  const inline = trimInline(canonicalInline(nodes));
-  if (!hasText(inline)) {
-    return '';
-  }
-  return serializeInline(inline);
 }
 
 function textBlock(nodes, tag = 'p') {
@@ -392,8 +231,12 @@ export function sanitizeRichText(value) {
   }
 
   const { children } = fromHtml(text, { fragment: true });
-  if (!children.some(isElement)) {
-    return plainTextToHtml(text);
+  if (children.some(isElement)) {
+    return richTextFromNodes(children);
   }
-  return richTextFromNodes(children);
+
+  // Plain text goes through the same normalizing once it is paragraphs, so
+  // spaces collapse the way they do in HTML.
+  const paragraphs = fromHtml(plainTextToHtml(text), { fragment: true });
+  return richTextFromNodes(paragraphs.children);
 }

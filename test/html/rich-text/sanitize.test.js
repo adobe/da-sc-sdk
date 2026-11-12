@@ -17,7 +17,7 @@ import { sanitizeRichText, richTextFromNodes } from '../../../src/html/rich-text
 describe('rich-text sanitizer', () => {
   describe('sanitizeRichText', () => {
     it('keeps canonical markup unchanged', () => {
-      const html = '<p>Hello <strong>bold</strong> <em>it</em> <u>u</u> <s>s</s> <a href="https://adobe.com">link</a><br>next</p><ul><li>one<ul><li>nested</li></ul></li></ul><ol><li>two</li></ol>';
+      const html = '<p>Hello <strong>bold</strong> <em>it</em> <u>u</u> <del>s</del> <a href="https://adobe.com">link</a><br>next</p><ul><li>one<ul><li>nested</li></ul></li></ul><ol><li>two</li></ol>';
       expect(sanitizeRichText(html)).to.equal(html);
     });
 
@@ -27,8 +27,28 @@ describe('rich-text sanitizer', () => {
     });
 
     it('normalizes equivalent tags', () => {
-      expect(sanitizeRichText('<p><b>a</b><i>b</i><strike>c</strike><del>d</del></p>'))
-        .to.equal('<p><strong>a</strong><em>b</em><s>c</s><s>d</s></p>');
+      expect(sanitizeRichText('<p><b>a</b> <i>b</i> <strike>c</strike> <s>d</s></p>'))
+        .to.equal('<p><strong>a</strong> <em>b</em> <del>c</del> <del>d</del></p>');
+    });
+
+    it('nests marks on the same text in the order EDS writes them', () => {
+      expect(sanitizeRichText('<p><strong><em>a</em></strong> <a href="/x"><strong>b</strong></a> <code><sup>c</sup></code></p>'))
+        .to.equal('<p><em><strong>a</strong></em> <strong><a href="/x">b</a></strong> <sup><code>c</code></sup></p>');
+    });
+
+    it('keeps a mark over more text outside the marks over less', () => {
+      const html = '<p><strong>a<em>b</em></strong><em>c</em></p>';
+      expect(sanitizeRichText(html)).to.equal(html);
+    });
+
+    it('merges neighbouring identical marks', () => {
+      expect(sanitizeRichText('<p><strong>a</strong><strong>b</strong> <a href="/x">c</a><a href="/y">d</a></p>'))
+        .to.equal('<p><strong>ab</strong> <a href="/x">c</a><a href="/y">d</a></p>');
+    });
+
+    it('moves spaces at the edges of a mark outside it, except in code', () => {
+      expect(sanitizeRichText('<p>a<em> b </em>c<strong>d&nbsp;</strong>e<code> f </code>g</p>'))
+        .to.equal('<p>a <em>b</em> c<strong>d</strong>\u00a0e<code> f </code>g</p>');
     });
 
     it('wraps loose inline content in paragraphs', () => {
@@ -126,6 +146,11 @@ describe('rich-text sanitizer', () => {
     it('converts plain text into paragraphs and line breaks', () => {
       expect(sanitizeRichText('First line\nsecond line\n\nNext a < b & more'))
         .to.equal('<p>First line<br>second line</p><p>Next a &lt; b &amp; more</p>');
+    });
+
+    it('collapses spaces in plain text like in HTML, so the result is stable', () => {
+      expect(sanitizeRichText('x  y')).to.equal('<p>x y</p>');
+      expect(sanitizeRichText(sanitizeRichText('x  y'))).to.equal('<p>x y</p>');
     });
 
     it('reads text with a less-than sign but no complete tag as plain text', () => {
