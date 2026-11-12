@@ -11,8 +11,12 @@
  */
 
 import { deepClone } from '../shared/clone.js';
-import { DATA_POINTER } from '../shared/pointer.js';
+import { DATA_POINTER, appendPointer } from '../shared/pointer.js';
+import { registeredType } from '../types/index.js';
 import { isSupportedSemanticType } from '../types/semantic.js';
+import {
+  externalRefMessage, resolveTypeRef, typeRefIssue, typeRefKeywordsMessage,
+} from './type-ref.js';
 
 function unionRequired(base = [], next = []) {
   return Array.from(new Set([...(base ?? []), ...(next ?? [])]));
@@ -75,13 +79,17 @@ function resolveNode({
 
   let resolved = { ...node };
   // The schema-source location for this node. When a `$ref` resolves, we
-  // re-root here at the ref target (`#/$defs/Foo` → `/$defs/Foo`) so issues
+  // re-root here at the ref target (`#/$defs/Foo` becomes `/$defs/Foo`) so issues
   // point at the `$def` the author wrote, not the inlined usage site.
   let effectivePath = schemaPath;
 
   if (resolved.$ref) {
     const ref = resolved.$ref;
     const isInternal = typeof ref === 'string' && ref.startsWith('#/');
+
+    if (registeredType(ref)) {
+      return resolveTypeRef({ node: resolved, ref, schemaPath });
+    }
 
     if (!isInternal) {
       // External ref (URL, file path, or malformed). docs/schema-spec.md only
@@ -114,6 +122,13 @@ function resolveNode({
         node: deepClone(target), rootSchema, seenRefs, schemaPath: effectivePath,
       });
       seenRefs.delete(ref);
+      if (derefTarget?.typeRef) {
+        // Keywords at the usage of a local reference to a type apply to the type too.
+        const usageIssue = typeRefIssue({ node: resolved, ref: derefTarget.typeRef, schemaPath });
+        if (usageIssue) {
+          return usageIssue;
+        }
+      }
       resolved = mergeSchemas(derefTarget, { ...resolved, $ref: undefined });
     }
   }
@@ -213,10 +228,6 @@ function getDefaults({ schema = {}, kind }) {
   };
 }
 
-function escapePointerSegment(segment) {
-  return String(segment).replace(/~/g, '~0').replace(/\//g, '~1');
-}
-
 const SUPPORTED_TYPES = new Set([
   'string', 'number', 'integer', 'boolean', 'object', 'array',
 ]);
@@ -242,11 +253,11 @@ function unsupportedKind({ reason, feature, schemaPath = '/', variants = 0, deta
 
 function inferKind(schema = {}) {
   if (schema?.unsupportedRef) {
-    const r = schema.unsupportedRef;
+    const { reason, ref, properties } = schema.unsupportedRef;
     return unsupportedKind({
-      reason: r.reason,
-      feature: r.reason,
-      details: { ref: r.ref },
+      reason,
+      feature: reason,
+      details: { ref, ...(properties && { properties }) },
     });
   }
 
@@ -262,13 +273,13 @@ function inferKind(schema = {}) {
       return { kind: 'object' };
     }
 
-    const u = schema.unsupportedComposition ?? {};
-    const keyword = u.compositionKeyword ?? 'unknown';
+    const composition = schema.unsupportedComposition ?? {};
+    const keyword = composition.compositionKeyword ?? 'unknown';
     return unsupportedKind({
       reason: 'unsupported-composition',
       feature: keyword,
-      variants: u.variants ?? 0,
-      schemaPath: u.schemaPath ?? '/',
+      variants: composition.variants ?? 0,
+      schemaPath: composition.schemaPath ?? '/',
     });
   }
 
@@ -310,7 +321,9 @@ function issueMessage({ reason, details }) {
     case 'unsupported-composition':
       return `Composition "${details?.keyword ?? ''}" is not supported.`;
     case 'external-ref':
-      return `External reference "${details?.ref ?? ''}" is not supported; use a local "#/…" reference.`;
+      return externalRefMessage(details);
+    case 'type-ref-keywords':
+      return typeRefKeywordsMessage(details);
     case 'unresolved-ref':
       return `Reference "${details?.ref ?? ''}" could not be resolved.`;
     case 'invalid-pattern':
@@ -320,10 +333,27 @@ function issueMessage({ reason, details }) {
   }
 }
 
+function compileChildren({
+  properties, required, pointer, issues,
+}) {
+  const requiredSet = new Set(required);
+  return Object.entries(properties).map(([childKey, childSchema]) => (
+    // eslint-disable-next-line no-use-before-define
+    compileNode({
+      key: childKey,
+      schema: childSchema ?? {},
+      required: requiredSet.has(childKey),
+      labelFallback: childKey,
+      pointer: appendPointer({ pointer, segment: childKey }),
+      issues,
+    })
+  ));
+}
+
 function compileNode({
   key, schema, required = false, labelFallback = '', pointer = DATA_POINTER, issues,
 }) {
-  const { kind, unsupported: inferred = null } = inferKind(schema);
+  const { kind, unsupported = {} } = inferKind(schema);
   const label = schema?.title ?? labelFallback ?? key ?? '';
   const defaults = getDefaults({ schema, kind });
   // Where this node lives in the schema source (refs resolved to their $def).
@@ -362,15 +392,14 @@ function compileNode({
   };
 
   if (kind === 'unsupported') {
-    const u = inferred ?? {};
-    const keyword = u.compositionKeyword ?? 'unknown';
-    const reason = u.reason ?? 'unsupported-schema-feature';
-    const feature = u.feature ?? keyword;
+    const keyword = unsupported.compositionKeyword ?? 'unknown';
+    const reason = unsupported.reason ?? 'unsupported-schema-feature';
+    const feature = unsupported.feature ?? keyword;
     // Composition folds its keyword + branch count into details; every other
     // reason keeps its own details blob ({ type } / { ref } / null).
     const issueDetails = reason === 'unsupported-composition'
-      ? { keyword, variants: u.variants ?? 0 }
-      : (u.details ?? null);
+      ? { keyword, variants: unsupported.variants ?? 0 }
+      : (unsupported.details ?? null);
     issues.push({
       reason,
       message: issueMessage({ reason, details: issueDetails }),
@@ -387,21 +416,35 @@ function compileNode({
         compositionKeyword: keyword,
         feature,
         reason,
-        variants: u.variants ?? 0,
+        variants: unsupported.variants ?? 0,
         schemaPath,
-        details: u.details ?? null,
+        details: unsupported.details ?? null,
       },
     };
   }
 
-  if (kind === 'object') {
-    const properties = schema?.properties ?? {};
-    const requiredSet = new Set(schema?.required ?? []);
+  // A typed value's properties come from its definition. What the definition
+  // requires and what the schema adds next to the `$ref` are both required.
+  if (schema?.typeRef) {
+    const { name, schema: definition } = registeredType(schema.typeRef);
+    return {
+      ...base,
+      typeRef: schema.typeRef,
+      typeName: name,
+      children: compileChildren({
+        properties: definition.properties,
+        required: [...definition.required, ...(schema.required ?? [])],
+        pointer,
+        issues,
+      }),
+    };
+  }
 
+  if (kind === 'object') {
     if (schema?.unsupportedComposition) {
-      const u = schema.unsupportedComposition;
-      const keyword = u.compositionKeyword ?? 'unknown';
-      const details = { keyword, variants: u.variants ?? 0 };
+      const composition = schema.unsupportedComposition;
+      const keyword = composition.compositionKeyword ?? 'unknown';
+      const details = { keyword, variants: composition.variants ?? 0 };
       issues.push({
         reason: 'unsupported-composition',
         message: issueMessage({ reason: 'unsupported-composition', details }),
@@ -413,16 +456,12 @@ function compileNode({
 
     const node = {
       ...base,
-      children: Object.entries(properties).map(([childKey, childSchema]) => (
-        compileNode({
-          key: childKey,
-          schema: childSchema ?? {},
-          required: requiredSet.has(childKey),
-          labelFallback: childKey,
-          pointer: `${pointer}/${escapePointerSegment(childKey)}`,
-          issues,
-        })
-      )),
+      children: compileChildren({
+        properties: schema?.properties ?? {},
+        required: schema?.required ?? [],
+        pointer,
+        issues,
+      }),
     };
 
     if (schema?.unsupportedComposition) {
