@@ -78,19 +78,27 @@ function isAllowedHref(href) {
   return !isBlockedProtocol(protocol);
 }
 
-// Removes every href with a blocked protocol below the node.
-function removeUnsafeHrefs(node) {
+// Trims every href below the node and removes it when its protocol is blocked.
+// The trimmed href is checked because it is the one stored. The URL parser
+// keeps Unicode spaces such as U+00A0, so a protocol behind them only shows
+// after trimming.
+function cleanHrefs(node) {
   const href = node.properties?.href;
-  if (typeof href === 'string' && !isAllowedHref(href)) {
-    delete node.properties.href;
+  if (typeof href === 'string') {
+    const trimmed = href.trim();
+    if (isAllowedHref(trimmed)) {
+      node.properties.href = trimmed;
+    } else {
+      delete node.properties.href;
+    }
   }
-  (node.children ?? []).forEach(removeUnsafeHrefs);
+  (node.children ?? []).forEach(cleanHrefs);
 }
 
 // The nodes without comments, active content, unsafe links and attributes
 // other than a link's. Normalizing reads the rest.
 export function sanitizeNodes(nodes) {
   const root = sanitize({ type: 'root', children: nodes }, SCHEMA);
-  removeUnsafeHrefs(root);
+  cleanHrefs(root);
   return root.children;
 }

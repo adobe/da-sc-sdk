@@ -206,6 +206,11 @@ describe('rich-text sanitizer', () => {
         .forEach((href) => expect(link(href)).to.equal('<p>x</p>'));
     });
 
+    it('unwraps links with a blocked protocol behind Unicode spaces', () => {
+      ['\u00A0', '\uFEFF', '\u2003', '\u3000', '\u2028']
+        .forEach((space) => expect(link(`${space}javascript:x`)).to.equal('<p>x</p>'));
+    });
+
     it('unwraps links with a Windows protocol that starts an app', () => {
       ['ms-msdt:/id x', 'MS-OFFICECMD:x', 'ms-word:ofe|u|https://a.b', 'search:query=x', 'search-ms:query=x', 'ms\t-msdt:x']
         .forEach((href) => expect(link(href)).to.equal('<p>x</p>'));

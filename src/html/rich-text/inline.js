@@ -64,10 +64,10 @@ function linkTitle(title) {
   return title.replace(WHITESPACE, ' ').trim();
 }
 
-// A link mark with its trimmed href and title, or undefined without an href.
-// Sanitizing has already removed an href with a protocol outside the allowlist.
+// A link mark with its href and trimmed title, or undefined without an href.
+// Sanitizing has already trimmed the href and removed it when its protocol is blocked.
 function linkMark(link) {
-  const href = link.properties?.href?.trim();
+  const href = link.properties?.href;
   if (!href) {
     return undefined;
   }

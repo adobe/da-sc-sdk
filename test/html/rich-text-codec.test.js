@@ -65,10 +65,10 @@ describe('rich-text codec', () => {
 
     it('sanitizes rich-text values on write', () => {
       const { html } = save({
-        json: doc({ body: '<p onclick="x()">a<script>alert(1)</script><a href="javascript:x">b</a></p>' }),
+        json: doc({ body: '<p onclick="x()">a<script>alert(1)</script><a href="javascript:x">b</a><a href="\u00A0javascript:x">c</a></p>' }),
         schema,
       });
-      expect(html).to.include('<div><p>ab</p></div>');
+      expect(html).to.include('<div><p>abc</p></div>');
       expect(html).not.to.include('script');
     });
 
@@ -124,12 +124,12 @@ describe('rich-text codec', () => {
             <div>
               <div>
                 <p onclick="x()">Hi <b>there</b><script>alert(1)</script></p>
-                <a href="javascript:x">l</a>
+                <a href="javascript:x">l</a><a href="&nbsp;javascript:x">m</a>
               </div>
             </div>
           </div>
         </div></main>`;
-      expect(convertHtmlToJson({ html }).json.data.body).to.equal('<p>Hi <strong>there</strong></p><p>l</p>');
+      expect(convertHtmlToJson({ html }).json.data.body).to.equal('<p>Hi <strong>there</strong></p><p>lm</p>');
     });
 
     it('leaves references of an unknown type as text', () => {
