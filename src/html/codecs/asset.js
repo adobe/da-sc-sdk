@@ -35,31 +35,40 @@ function linkHtml(href) {
   return `<a href="${escapeAttr(href)}">${escapeText(href)}</a>`;
 }
 
-// A source that is not a media bus path or an http(s) URL is written as text.
-function srcToHtml({
-  value, parentValue, options, asImage,
-}) {
+// The normalized source of a value, or null when it is not a media bus path or
+// an http(s) URL. Such a value is written as text.
+function mediaSourceOf(value) {
   if (typeof value !== 'string') {
-    return textContent(value);
+    return null;
   }
   const src = normalizeMediaSource(value);
-  if (!isMediaSource(src)) {
+  return isMediaSource(src) ? src : null;
+}
+
+// EDS copies images into the media bus, so an image's source is written as `<img>`.
+function imageSrcToHtml({ value, parentValue, options }) {
+  const src = mediaSourceOf(value);
+  if (src === null) {
     return textContent(value);
   }
 
   const { externalImagesAsLinks } = options;
-  if (asImage && isWrittenAsImage({ src, externalImagesAsLinks })) {
+  if (isWrittenAsImage({ src, externalImagesAsLinks })) {
     return imageHtml({ src, altText: parentValue[ASSET_ALT] });
   }
   return linkHtml(src);
 }
 
-// EDS copies images into the media bus, so an image's source is written as `<img>`.
+// A file is written as a link, which EDS keeps.
+function fileSrcToHtml({ value }) {
+  const src = mediaSourceOf(value);
+  return src === null ? textContent(value) : linkHtml(src);
+}
+
 export const imageCodecs = {
-  [ASSET_SRC]: { toHtml: (context) => srcToHtml({ ...context, asImage: true }) },
+  [ASSET_SRC]: { toHtml: imageSrcToHtml },
 };
 
-// A file is written as a link, which EDS keeps.
 export const fileCodecs = {
-  [ASSET_SRC]: { toHtml: (context) => srcToHtml({ ...context, asImage: false }) },
+  [ASSET_SRC]: { toHtml: fileSrcToHtml },
 };
