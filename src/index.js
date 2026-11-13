@@ -36,9 +36,8 @@ export { validateSchema } from './state-engine/index.js';
 // either check `schemaIssues.length === 0` or call `validateSchema()` first.
 export { validateData } from './state-engine/index.js';
 
-// JSON → DA wire-format HTML. Prunes empty/null/whitespace leaves before
-// emitting (same shape the engine saves). Pure string builder, no DOM.
-// `convertJsonToHtml({ json })` returns `{ html } | { error }`.
+// Converts JSON to DA wire-format HTML, as the engine saves it.
+// `convertJsonToHtml({ json, model? })` returns `{ html } | { error }`.
 export { convertJsonToHtml } from './html/json2html.js';
 
 // DA wire-format HTML → JSON. Symmetric pair with `convertJsonToHtml`.

@@ -10,13 +10,13 @@
  * governing permissions and limitations under the License.
  */
 
-// The single canonical "is this value form-empty?" predicate for the SDK.
+// The one rule for "is this value form-empty?" in the SDK.
 //
-// Empty iff `prune()` (html/utils.js) would strip it — recursively: a container
-// is empty when every leaf beneath it is (`{ a: '' }` → empty), while `0`/
-// `false` are not. Must stay in lockstep with `prune()` so what validation
-// accepts is exactly what save persists — the `isDataEmpty ↔ prune` symmetry
-// test in test/state-engine/index.test.js guards that.
+// Empty are null, undefined, blank strings, and containers whose every leaf
+// is empty, so `{ a: '' }` and `['', { b: ' ' }]` are empty. `0` and `false`
+// are values. Validation, defaults and the HTML writer all decide by
+// this rule, so a value validation treats as absent is exactly one that save
+// leaves out. A test in test/state-engine/index.test.js pins that symmetry.
 export function isDataEmpty(value) {
   if (value === null || value === undefined || value === '') { return true; }
   if (typeof value === 'string') { return value.trim() === ''; }

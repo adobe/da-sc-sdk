@@ -10,7 +10,9 @@
  * governing permissions and limitations under the License.
  */
 
-import { deepClone } from './clone.js';
+import { deepClone } from '../shared/clone.js';
+import { DATA_POINTER } from '../shared/pointer.js';
+import { isSupportedSemanticType } from '../types/semantic.js';
 
 function unionRequired(base = [], next = []) {
   return Array.from(new Set([...(base ?? []), ...(next ?? [])]));
@@ -219,14 +221,6 @@ const SUPPORTED_TYPES = new Set([
   'string', 'number', 'integer', 'boolean', 'object', 'array',
 ]);
 
-// Recognized `x-semantic-type` values mapped to the JSON type each applies to.
-// A value is surfaced to consumers only when the field's kind matches; any
-// other value (or type mismatch) is dropped so consumers never receive a hint
-// they can't act on.
-const SEMANTIC_TYPES = new Map([
-  ['long-text', 'string'],
-]);
-
 // Native JSON Schema string `format` values we surface to the UI as date/time
 // widgets. Standard RFC 3339 keywords — no proprietary hint needed. Carried onto
 // the node only when the field is a string; any other format value is dropped.
@@ -327,7 +321,7 @@ function issueMessage({ reason, details }) {
 }
 
 function compileNode({
-  key, schema, required = false, labelFallback = '', pointer = '/data', issues,
+  key, schema, required = false, labelFallback = '', pointer = DATA_POINTER, issues,
 }) {
   const { kind, unsupported: inferred = null } = inferKind(schema);
   const label = schema?.title ?? labelFallback ?? key ?? '';
@@ -464,7 +458,9 @@ function compileNode({
   }
 
   // Vendor hint; `enum` and the standard `format` keyword take precedence above.
-  if (SEMANTIC_TYPES.get(schema?.['x-semantic-type']) === kind) {
+  // An unknown hint, or one for another kind, is dropped so consumers never
+  // receive a hint they can't act on.
+  if (isSupportedSemanticType({ semanticType: schema?.['x-semantic-type'], kind })) {
     return { ...base, semanticType: schema['x-semantic-type'] };
   }
 
@@ -488,7 +484,7 @@ export function compileSchema(rawSchema) {
     schema: resolved.schema,
     required: false,
     labelFallback: resolved.schema.title ?? 'Data',
-    pointer: '/data',
+    pointer: DATA_POINTER,
     issues,
   });
 

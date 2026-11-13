@@ -14,7 +14,7 @@ import { compileSchema } from './schema.js';
 import { buildModel, nodeAt } from './model.js';
 import { validateDocument } from './validation.js';
 import { definitionAt, getParentPointer } from './pointer.js';
-import { isDataEmpty } from './empty.js';
+import { isDataEmpty } from '../shared/empty.js';
 import {
   addItem as applyAdd,
   insertItem as applyInsert,
@@ -22,15 +22,16 @@ import {
   removeItem as applyRemove,
   setField as applySet,
 } from './mutate.js';
-import { deepClone } from './clone.js';
+import { deepClone } from '../shared/clone.js';
+import { isJsonObject } from '../shared/object.js';
 
 function parseDocument(document) {
-  if (!document || typeof document !== 'object' || Array.isArray(document)) { return null; }
+  if (!isJsonObject(document)) { return null; }
 
   const next = deepClone(document);
   if (next.metadata === undefined) { next.metadata = {}; }
 
-  if (next.metadata === null || typeof next.metadata !== 'object' || Array.isArray(next.metadata)) {
+  if (!isJsonObject(next.metadata)) {
     return null;
   }
   if (!('data' in next)) { return null; }
@@ -40,14 +41,9 @@ function parseDocument(document) {
   return next;
 }
 
-// The canonical "form-empty" predicate lives in ./empty.js so validation,
-// defaults, and save all decide presence the same way. Re-exported here to
-// keep the existing import surface (and the isDataEmpty ↔ prune symmetry test).
-export { isDataEmpty };
-
 // Walk the compiled definition tree and produce a partial document containing
 // only keys that carry a real schema default (recursively). Fields without
-// defaults stay absent so they get pruned to nothing on save instead of being
+// defaults stay absent so save leaves them out instead of being
 // written as empty placeholders. Arrays stay empty — fabricating items is the
 // job of mutate.js's `addItem`, not load.
 //
@@ -69,7 +65,7 @@ export function materializeDefaults(definition) {
   }
   // Booleans get an implicit default of `false`. A checkbox is always in one
   // of two states (checked or unchecked); there is no meaningful "absent."
-  // `false` survives `prune()` on save, so the round-trip is stable.
+  // `false` survives save, so the round-trip is stable.
   if (definition.kind === 'boolean') { return false; }
   return undefined;
 }
@@ -82,7 +78,7 @@ export function coerceData(value, definition) {
   const { kind } = definition;
 
   if (kind === 'object') {
-    if (typeof value !== 'object' || Array.isArray(value)) { return value; }
+    if (!isJsonObject(value)) { return value; }
     const result = { ...value };
     for (const child of definition.children ?? []) {
       if (child.key in result) { result[child.key] = coerceData(result[child.key], child); }
@@ -220,7 +216,7 @@ export function createEngine({ schema, document, onChange } = {}) {
 
   // ─── Initialization ──────────────────────────────────────────────────────
   // Replaces the old `editor.load(...)` two-step. Runs synchronously at
-  // construction. Mirrors `html/utils.js` for the empty-doc rule.
+  // construction. Decides an empty document with `isDataEmpty`, like save.
   {
     const compiled = compileSchema(schema);
     const parsed = parseDocument(document);

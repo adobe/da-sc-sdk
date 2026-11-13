@@ -10,10 +10,11 @@
  * governing permissions and limitations under the License.
  */
 
-import { appendPointer } from './pointer.js';
+import { DATA_POINTER, appendPointer } from '../shared/pointer.js';
+import { isJsonObject } from '../shared/object.js';
 
 function objectValue(value) {
-  if (value && typeof value === 'object' && !Array.isArray(value)) { return value; }
+  if (isJsonObject(value)) { return value; }
   return {};
 }
 
@@ -99,7 +100,7 @@ export function buildModel({ definition, document }) {
 
   const root = buildNode({
     definition,
-    pointer: '/data',
+    pointer: DATA_POINTER,
     value: rootValue,
     byPointer,
   });

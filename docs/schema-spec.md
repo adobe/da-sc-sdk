@@ -210,7 +210,7 @@ anything else is ignored.
 
 | Keyword | Type | Applies to | Effect |
 | ------- | ---- | ---------- | ------ |
-| `x-semantic-type` | string | `string` | Declares the semantic kind of a `string` value. Defined value: `long-text` (long-form, multi-line text). |
+| `x-semantic-type` | string | `string` | Declares the semantic kind of a `string` value. Defined values: `long-text` (long-form, multi-line text) and `rich-text` (formatted HTML subset). |
 
 #### `x-semantic-type`
 
@@ -223,8 +223,43 @@ single-line value.
 
 - Valid only on `string`; on any other type it is ignored.
 - If `enum` or a supported `format` is also present, that keyword applies and `x-semantic-type` has no effect (it is vendor glue; the standard keyword wins).
-- `long-text` is the only defined value; any other value is ignored.
-- Does not affect validation — `minLength`, `maxLength`, and `pattern` apply independently.
+- `long-text` and `rich-text` are the defined values; any other value is ignored.
+- Does not affect validation — `minLength`, `maxLength`, and `pattern` apply independently (for `rich-text` they count the stored markup).
+
+`rich-text` declares that the string holds formatted text stored as a canonical HTML subset. The subset is part of what EDS keeps when it delivers a page, and [src/html/rich-text/allowlist.js](../src/html/rich-text/allowlist.js) lists it. The rich-text editor mirrors that list.
+
+```json
+{ "type": "string", "title": "Body", "x-semantic-type": "rich-text" }
+```
+
+| Allowed markup | Notes |
+| -------------- | ----- |
+| `<p>`, `<h1>`–`<h6>`, `<ul>`, `<ol>`, `<li>` | Block structure. Lists may nest inside `<li>`; headings inside `<li>` are flattened to text. |
+| `<blockquote>` | Holds paragraphs, headings, lists and nested quotes. Loose text inside is wrapped in `<p>`. |
+| `<strong>`, `<em>`, `<u>`, `<del>`, `<code>`, `<sup>`, `<sub>`, `<br>` | Inline formatting. `b`, `i`, `s` and `strike` become `strong`, `em` and `del`. `<pre>` becomes a paragraph with its line breaks as `<br>`. |
+| `<a href title>` | The `href` is dropped when its protocol runs script (`javascript:`, `data:`, `vbscript:`) or starts a Windows app (`ms-…:`, `search:`, `search-ms:`). Relative links and other protocols, including custom app schemes, are kept. An optional `title` is kept with whitespace collapsed and trimmed (empty titles are dropped); other attributes are dropped. |
+
+- Values are sanitized to this subset on both write and read: unknown wrappers are unwrapped, active content (`script`, `iframe`, `img`, event handlers, …) is dropped, loose inline content is wrapped in `<p>`, and empty paragraphs, headings, quotes and items are removed.
+- Plain text without markup (e.g. a former `long-text` value) is converted into paragraphs split on blank lines, with single newlines kept as `<br>`.
+- Marks are written the way EDS writes them, so a value read back from a delivered page equals the stored one. Marks on the same text nest in the order `del`, `em`, `strong`, `a`, `u`, `sub`, `sup`, `code`, outermost first. Neighbouring identical marks merge, and spaces at the start or end of a mark move outside it, except in `code`.
+- EDS changes the text in two cases, which the SDK does not copy. It puts spaces around a mark inside a word, so `a<strong>b</strong>c` is delivered as `a <strong>b</strong> c`, and it drops a `<br>` at the end of a mark.
+
+Each value with text content is stored in a block of its own. The block has one row with one cell, and that cell holds the markup. The value's cell, or its list item inside an array, holds the reference `self://rich-text#<key>-<id>`. The key is lowercased, and `<id>` numbers the blocks of a document in the order they are written.
+
+```html
+<div class="article">
+  <div><div><h3>body</h3></div><div><p>self://rich-text#body-1</p></div></div>
+  <div><div><h3>notes</h3></div><div><ul><li>self://rich-text#notes-2</li></ul></div></div>
+</div>
+<div class="body body-1"><div><div><p>Hello <strong>bold</strong></p></div></div></div>
+<div class="notes notes-2"><div><div><p>A note</p></div></div></div>
+```
+
+- `convertJsonToHtml({ json, model })` writes this form. Without the model, the value is escaped and written as text in its cell.
+- A value without text content is left out on save, like an empty value.
+- `convertHtmlToJson({ html })` reads the cell of the referenced block and sanitizes it. It needs no schema.
+- Markup inside the value's cell itself is not read as rich text. It reads like any other cell, as text or, with a list, as an array.
+- A `self://<type>#…` reference whose type has no markup codec stays text.
 
 ---
 

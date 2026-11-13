@@ -12,6 +12,7 @@
 
 import { expect } from '@esm-bundle/chai';
 import { convertJsonToHtml } from '../../src/html/json2html.js';
+import { modelOf } from './test-utils.js';
 
 describe('convertJsonToHtml', () => {
   it('rejects non-object inputs', () => {
@@ -51,6 +52,35 @@ describe('convertJsonToHtml', () => {
     });
     expect(result.html).to.be.a('string').and.have.length.greaterThan(0);
     expect(result.html).to.include('Alice');
+  });
+
+  describe('model', () => {
+    const schema = { type: 'object', properties: { name: { type: 'string' } } };
+    const json = { metadata: { schemaName: 'x' }, data: { name: 'Alice' } };
+
+    it('writes every value as text without a model or with one of only text fields', () => {
+      const { html } = convertJsonToHtml({ json });
+      expect(convertJsonToHtml({ json, model: null }).html).to.equal(html);
+      expect(convertJsonToHtml({ json, model: modelOf(schema, json) }).html).to.equal(html);
+    });
+
+    it('returns an error for anything that is not a model', () => {
+      ['model', 42, [], {}, { root: null }, schema].forEach((model) => {
+        expect(convertJsonToHtml({ json, model }), JSON.stringify(model))
+          .to.deep.equal({ error: 'model must be the model of engine.getState().' });
+      });
+    });
+
+    it('returns an error for a model of another schema or other data', () => {
+      const otherSchema = modelOf(schema, { ...json, metadata: { schemaName: 'other' } });
+      expect(convertJsonToHtml({ json, model: otherSchema })).to.deep.equal({
+        error: 'model was built for another schema than json.metadata.schemaName.',
+      });
+      const otherData = modelOf(schema, { ...json, data: {} });
+      expect(convertJsonToHtml({ json, model: otherData })).to.deep.equal({
+        error: 'model was built from other data than json.data.',
+      });
+    });
   });
 
   describe('prune', () => {

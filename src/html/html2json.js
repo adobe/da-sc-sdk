@@ -11,8 +11,14 @@
  */
 
 import { fromHtml } from 'hast-util-from-html';
+import { markupCodecFor } from './codecs/index.js';
 
-const SELF_REF = 'self://#';
+const SELF_REFERENCE_PATTERN = /^self:\/\/([a-z-]*)#(.*)$/;
+
+// A referenced block's second class is its reference ID.
+function blockReferenceId(block) {
+  return block.properties.className[1]?.toLowerCase();
+}
 
 // Equivalent of `selectAll('main > div > div', tree)` without `hast-util-select`.
 // We inline this one selector to avoid extra weight and CJS interop overhead.
@@ -44,10 +50,14 @@ function elementChildren(node) {
 // Recursive innerText. Walks descendant text nodes and concatenates them.
 // Robust to nested wrappers (<p>, <h3>, <span>, …) and to direct text in
 // cells (`<div>blog-post</div>` instead of `<div><p>blog-post</p></div>`).
-function textContent(node) {
-  if (!node) { return ''; }
-  if (node.type === 'text') { return node.value ?? ''; }
-  return (node.children ?? []).map(textContent).join('');
+function nodeText(node) {
+  if (!node) {
+    return '';
+  }
+  if (node.type === 'text') {
+    return node.value ?? '';
+  }
+  return (node.children ?? []).map(nodeText).join('');
 }
 
 // Find a direct list child of a value cell. The wire format uses `<ul>`,
@@ -62,7 +72,7 @@ function firstListChild(node) {
 }
 
 export default class HTMLConverter {
-  constructor(html) {
+  constructor({ html }) {
     this.tree = fromHtml(html);
     this.blocks = selectBlocks(this.tree);
     this.json = this.convertBlocksToJson();
@@ -85,26 +95,35 @@ export default class HTMLConverter {
     // accepts value cells with or without an element wrapper. See the
     // "EDS-formatted HTML" tests in html2json.test.js for the shapes this
     // must handle.
-    return elementChildren(block).reduce((rdx, row) => {
-      const cols = elementChildren(row);
-      if (cols.length < 2) { return rdx; }
-      const [keyCol, valCol] = cols;
-      const key = textContent(keyCol).trim();
-      if (!key) { return rdx; }
-      rdx[key] = this.readValue(valCol);
-      return rdx;
+    return elementChildren(block).reduce((properties, row) => {
+      const cells = elementChildren(row);
+      if (cells.length < 2) {
+        return properties;
+      }
+
+      const [keyCell, valueCell] = cells;
+      const key = nodeText(keyCell).trim();
+      if (!key) {
+        return properties;
+      }
+
+      properties[key] = this.readValue({ valueCell });
+      return properties;
     }, {});
   }
 
-  // Read a value cell. A `<ul>` or `<ol>` child makes it an array; anything
-  // else (or bare text) makes it a primitive whose value is the cell's text
-  // content.
-  readValue(valCol) {
-    const list = firstListChild(valCol);
-    if (list) { return this.readListValue(list); }
+  // Read a value cell. A `<ul>` or `<ol>` child makes it an array. Otherwise
+  // the cell's text is the value.
+  readValue({ valueCell }) {
+    const list = firstListChild(valueCell);
+    if (list) {
+      return this.readListValue(list);
+    }
 
-    const text = textContent(valCol).trim();
-    if (text === '') { return ''; }
+    const text = nodeText(valueCell).trim();
+    if (text === '') {
+      return '';
+    }
     return this.getTypedValue(text);
   }
 
@@ -113,11 +132,9 @@ export default class HTMLConverter {
   // rather than silently treated as items — they were never list entries.
   readListValue(list) {
     return elementChildren(list)
-      .filter((c) => c.tagName === 'li')
+      .filter((child) => child.tagName === 'li')
       .map((li) => {
-        const text = textContent(li).trim();
-        const ref = this.getReference(text);
-        if (ref !== null) { return ref; }
+        const text = nodeText(li).trim();
         return this.getTypedValue(text);
       });
   }
@@ -125,20 +142,21 @@ export default class HTMLConverter {
   /**
    * Find and convert a block to its basic JSON data
    * @param {String} searchTerm the block name or variation
-   * @param {Boolean} searchRef if the variation should be used for search
+   * @param {Boolean} byReferenceId if the variation should be used for search
    * @returns {Object|Array} the JSON Object or Array representing the block
    */
-  findAndConvert(searchTerm, searchRef) {
-    return this.blocks.reduce((acc, block) => {
+  findAndConvert(searchTerm, byReferenceId) {
+    return this.blocks.reduce((lastMatch, block) => {
       // If we are looking for a reference,
       // use the variation, not the block name
-      const idx = searchRef ? 1 : 0;
-      const matches = block.properties.className[idx]?.toLowerCase() === searchTerm.toLowerCase();
+      const classIndex = byReferenceId ? 1 : 0;
+      const matches = block.properties.className[classIndex]?.toLowerCase()
+        === searchTerm.toLowerCase();
       // Root block has a single class (e.g. "foo"); nested item blocks add a
       // second class for refs (e.g. "foo foo-abcd"). Both match on className[0],
       // so we require no second class to pick the root.
-      const isRootBlock = !searchRef && !block.properties.className[1];
-      if (matches && (searchRef || isRootBlock)) {
+      const isRootBlock = !byReferenceId && !block.properties.className[1];
+      if (matches && (byReferenceId || isRootBlock)) {
         const properties = this.getProperties(block);
         // If the block contains only @items, it represents an array
         // Return the array value directly instead of the object wrapper
@@ -148,7 +166,7 @@ export default class HTMLConverter {
         }
         return properties;
       }
-      return acc;
+      return lastMatch;
     }, {});
   }
 
@@ -176,13 +194,42 @@ export default class HTMLConverter {
     return value;
   }
 
+  // Resolve a `self://` reference, or return null when the text is not one.
+  // A typed reference, `self://<semantic-type>#…`, reads its block's cell with
+  // the codec of that type. References of an unknown type stay text.
   getReference(text) {
-    if (text.startsWith(SELF_REF)) {
-      const refId = text.split(SELF_REF)[1].replaceAll('/', '-');
-      const reference = this.findAndConvert(refId, true);
-      if (reference) { return reference; }
+    const [, semanticType, fragment] = text.match(SELF_REFERENCE_PATTERN) ?? [];
+    if (fragment === undefined) {
+      return null;
+    }
+
+    const referenceId = fragment.replaceAll('/', '-');
+    if (semanticType) {
+      return this.readMarkupBlock({ semanticType, referenceId });
+    }
+
+    const reference = this.findAndConvert(referenceId, true);
+    if (reference) {
+      return reference;
     }
     return null;
+  }
+
+  // The markup in the cell of the referenced block, read with the codec of
+  // `semanticType`, or null without such a codec or block.
+  readMarkupBlock({ semanticType, referenceId }) {
+    const codec = markupCodecFor(semanticType);
+    if (!codec) {
+      return null;
+    }
+
+    // Like findAndConvert, the last block with the reference ID wins.
+    const block = this.blocks.findLast(
+      (candidate) => blockReferenceId(candidate) === referenceId.toLowerCase(),
+    );
+    const [row] = elementChildren(block);
+    const [cell] = elementChildren(row);
+    return cell ? codec.fromHtml({ nodes: cell.children }) : null;
   }
 
   getBoolean(text) {
@@ -210,7 +257,7 @@ export function convertHtmlToJson({ html } = {}) {
     return { error: 'html must be a non-empty string.' };
   }
   try {
-    return { json: new HTMLConverter(html).json };
+    return { json: new HTMLConverter({ html }).json };
   } catch (e) {
     return { error: `Failed to parse HTML: ${e?.message ?? e}` };
   }

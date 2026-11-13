@@ -24,11 +24,23 @@ da-sc-sdk/
       mutate.js         setField, addItem, insertItem, removeItem, moveItem
       pointer.js        RFC 6901 ops + definitionAt
       validation.js     validateDocument → { errors } (pointer-keyed map)
-      clone.js          single deepClone util
     html/             DA wire-format HTML ↔ JSON
       html2json.js      parse DA HTML → JSON; HTMLConverter class + convertHtmlToJson({ html })
-      json2html.js      emit JSON → DA HTML; defines convertJsonToHtml (public) + json2html (internal raw)
-      utils.js          prune helper shared by the emit path
+      json2html.js      writes JSON as DA HTML, walking blocks, rows and lists with a codec per value
+      codecs/           how semantic values are written and read, text for everything else
+      markup.js         escaping, rows and blocks shared by json2html.js and the codecs
+      rich-text/        canonical HTML subset for x-semantic-type: rich-text values
+        allowlist.js      the tags and attributes rich text keeps, a subset of what EDS keeps
+        sanitize.js       removes active content, unsafe links and other attributes with hast-util-sanitize
+        index.js          normalizes and serializes the rest in the canonical form
+    types/            the types both state-engine/ and html/ read
+      semantic.js       the x-semantic-type values and the JSON type each applies to
+    shared/           helpers every layer may use
+      clone.js          single deepClone util
+      empty.js          isDataEmpty, the one rule for empty values (validation, defaults, save)
+      equal.js          isDeepEqual, JSON equality regardless of key order
+      object.js         isJsonObject, the check for a non-null, non-array object
+      pointer.js        appendPointer, how the model and the writer address a value
   dist/
     index.js          self-contained ESM bundle for vendor / CDN consumers
   test/               mirrors src/ — one .test.js per module + roundtrip suite
@@ -38,11 +50,13 @@ da-sc-sdk/
 
 ## 2. Dependency direction
 
-```txt
-src/html/   →  (no SDK-internal deps; uses hast-util-from-html (parse5-based) for parsing; no DOM for emit)
-src/state-engine/   →  (zero external imports — only relative ./)
-src/index.js → src/state-engine/, src/html/
-```
+| Module | Depends on |
+| ------ | ---------- |
+| `src/shared/` | nothing |
+| `src/types/` | `src/shared/` |
+| `src/state-engine/` | `src/types/`, `src/shared/`, and no external packages |
+| `src/html/` | `src/types/`, `src/shared/`, `hast-util-from-html` (parse5) for parsing and `hast-util-sanitize` for rich text. No DOM for writing. |
+| `src/index.js` | `src/state-engine/`, `src/html/` |
 
 `state-engine/` has no DOM, no Lit, no browser dependency. It runs unchanged in Node, browsers, MCP servers, and any other ESM runtime. The boundary is enforced by zero external imports — there is nothing in `state-engine/` for a build tool to fail to resolve.
 
@@ -97,12 +111,12 @@ The SDK exposes exactly five named exports from `'da-sc-sdk'`. The surface is na
 | `createEngine({ schema, document, onChange })` | [src/state-engine/index.js](../src/state-engine/index.js) | Stateful JSON state engine — initialized synchronously, exposes mutations and validation. Returns `{ getState, setField, addItem, insertItem, removeItem, moveItem }`. Pure state machine: no persistence, no I/O. `onChange` is NOT called at construction; initial state is read via `engine.getState()`. To swap (schema, document), create a new engine. |
 | `validateSchema({ schema })` | [src/state-engine/index.js](../src/state-engine/index.js) | Schema-only validation. Returns `{ valid, schemaIssues }`. Use to check that a schema is well-formed before binding to it. |
 | `validateData({ schema, data })` | [src/state-engine/index.js](../src/state-engine/index.js) | Data-against-schema validation. Returns `{ valid, errors, schemaIssues }`. `errors` is a pointer-keyed map of ajv-style entries. `valid` is `true` iff both `schemaIssues` and `errors` are empty. Symmetric with `validateSchema`: both validators expose `valid` + `schemaIssues`; `validateData` adds `errors`. |
-| `convertJsonToHtml({ json })` | [src/html/json2html.js](../src/html/json2html.js) | JSON → DA wire-format HTML. Prunes empty/null/whitespace leaves before emitting (same shape the engine would save). Pure string builder, no DOM. Returns `{ html } \| { error }`. |
-| `convertHtmlToJson({ html })` | [src/html/html2json.js](../src/html/html2json.js) | DA wire-format HTML → JSON. Returns `{ json } \| { error }` so a malformed input produces a clear reason instead of a silent null. |
+| `convertJsonToHtml({ json, model? })` | [src/html/json2html.js](../src/html/json2html.js) | JSON to DA wire-format HTML. Skips empty values. With the engine's model, values of a semantic type are written in their stored form (see [schema-spec.md](./schema-spec.md#x-semantic-type)). Without a model, every value is text. A model not built from `json` is an error. Returns `{ html } \| { error }`. |
+| `convertHtmlToJson({ html })` | [src/html/html2json.js](../src/html/html2json.js) | DA wire-format HTML to JSON. Each value reads as the text of its cell. A `self://<semantic-type>#…` reference reads with the codec of that type. Returns `{ json } \| { error }`. |
 
 ### Everything else is internal — and unreachable
 
-`src/state-engine/pointer.js`, `src/state-engine/mutate.js`, `src/state-engine/model.js`, `src/state-engine/clone.js`, `src/state-engine/validation.js`, `src/state-engine/schema.js`, `src/html/json2html.js`, plus the `compileSchema` / `coerceData` / `materializeDefaults` / `isDataEmpty` / `HTMLConverter` symbols inside them — all internal.
+`src/state-engine/pointer.js`, `src/state-engine/mutate.js`, `src/state-engine/model.js`, `src/shared/clone.js`, `src/state-engine/validation.js`, `src/state-engine/schema.js`, `src/html/json2html.js`, plus the `compileSchema` / `coerceData` / `materializeDefaults` / `isDataEmpty` / `HTMLConverter` symbols inside them — all internal.
 
 The `package.json` `exports` map exposes only `.` (the main entry). Per the Node ESM spec, this **blocks every other subpath** — a consumer attempting `import x from 'da-sc-sdk/src/state-engine/schema.js'` gets `ERR_PACKAGE_PATH_NOT_EXPORTED`. The vendored bundle (`dist/index.js`) only re-exports the five public functions. There is no path-based escape hatch.
 
@@ -346,7 +360,7 @@ ajv throws at schema-compile time when the pattern's regex is unparseable. We mi
 - Constraints (`enum`, `pattern`, `minLength`, etc.) do not fire on absent values.
 - A `required` field whose value is absent produces a `required` error at the **parent's** pointer with `params.missingProperty` naming the empty field.
 
-This mirrors the rule `convertJsonToHtml` (via `prune` in `html/utils.js`) applies on save — absent values are stripped from the persisted document. The two definitions are written independently; a replacement serializer can adopt different rules without breaking validation.
+Save applies the same rule. `convertJsonToHtml` skips every value `isDataEmpty` reports, so absent values never reach the saved document.
 
 ### What does not get validated
 
@@ -382,9 +396,9 @@ Schema `default` values are **materialized into the document at load time** when
 |---|---|
 | **Load** | If `isDataEmpty(parsed.data)` → write schema defaults into `data` (recursively). A primitive with an explicit `default` materializes to that value. A boolean without an explicit default materializes to `false`. Other primitives without a default stay absent. Otherwise leave `data` alone. |
 | **Render** | Consumer shows `node.value`. If `undefined`, show empty (or `false` for boolean). Renderers never read `node.defaultValue`. |
-| **Save** | Prune empty strings / null / undefined / whitespace-only / empty branches from `data`, then serialize. `false` is **not** pruned. |
+| **Save** | The writer leaves out every value `isDataEmpty` reports (empty strings, null, undefined, whitespace-only strings and empty branches), and values whose codec writes nothing, such as rich text without text. `false` is kept. |
 
-`isDataEmpty` and `prune` mirror each other on purpose: a value the loader treats as "empty enough to materialize over" is exactly a value the serializer would strip. If one definition changes, the other must too — covered by the symmetry tests in `test/state-engine/index.test.js`.
+Save decides by `isDataEmpty` too, so a value the loader treats as "empty enough to materialize over" is exactly a value the serializer strips. The symmetry tests in `test/state-engine/index.test.js` pin it.
 
 ### Why booleans get an implicit default
 
@@ -392,7 +406,7 @@ A boolean field has exactly two visible states (checked, unchecked); there is no
 
 Materializing `false` for booleans without an explicit default makes the round-trip stable:
 
-- `false` survives `prune()` on save.
+- `false` survives save.
 - A saved document containing `{ flag: false }` is not `isDataEmpty`, so the next load does not re-materialize and the checkbox stays unchecked.
 - This pattern only applies to booleans. For other primitives, materializing an empty placeholder would be stripped on save anyway. Booleans are the only primitive where the natural "empty" state is itself a persistable value.
 
@@ -423,7 +437,8 @@ They stay separate on purpose.
 
 ### NEVER
 
-- Let `state-engine/` import from `html/` (or anything else).
+- Let `state-engine/` import from `html/`, or `html/` from `state-engine/`. Shared knowledge goes in `types/` or `shared/`.
+- Let `types/` or `shared/` import from `state-engine/` or `html/`.
 - Let `state-engine/` depend on DOM or Lit.
 - Silently degrade on unsupported schema features — produce a `kind: 'unsupported'` node and surface it on `state.schemaIssues`.
 - Synthesize defaults outside `createEngine` initialization and `addItem`.
@@ -432,7 +447,7 @@ They stay separate on purpose.
 
 - Keep `state-engine/` and `html/` headless. The SDK has no DOM dependency anywhere.
 - Use JSON Pointer for canonical addressing.
-- Mirror `isDataEmpty` and `prune` — they are the same predicate from different sides.
+- Decide emptiness with `isDataEmpty` everywhere, so validation, defaults and save agree.
 
 ---
 

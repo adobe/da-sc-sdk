@@ -54,7 +54,8 @@ engine.setField("/data/name", "Alice");
 engine.addItem("/data/tags");
 engine.setField("/data/tags/0", "demo");
 
-const { html } = convertJsonToHtml({ json: engine.getState().document });
+const { document, model } = engine.getState();
+const { html } = convertJsonToHtml({ json: document, model });
 // `html` is ready to POST. Persistence is your job.
 ```
 
@@ -125,6 +126,22 @@ const { json } = convertHtmlToJson({ html });
 
 `convertHtmlToJson` returns `{ error: "<reason>" }` on empty or malformed input.
 
+Pass the document's model (`engine.getState().model`) so each value is written the way its field declares. Without a model, every value is written as text. A model of another schema or of other data returns `{ error }`.
+
+```js
+const { document, model } = engine.getState();
+const { html } = convertJsonToHtml({ json: document, model });
+```
+
+Without an editor, build the model from the schema:
+
+```js
+const { document, model } = createEngine({ schema, document: json }).getState();
+const { html } = convertJsonToHtml({ json: document, model });
+```
+
+The model writes values with an `x-semantic-type` in the stored form of their type, which [schema-spec.md](docs/schema-spec.md#x-semantic-type) describes. Reading them back needs only the HTML.
+
 ### Edit (with persistence)
 
 The engine has no transport and no save status. Wire your own persistence on top of `onChange`:
@@ -136,10 +153,10 @@ engine = createEngine({
   schema,
   document,
   onChange: () => {
-    const next = engine.getState().document;
+    const { document: next, model } = engine.getState();
     if (next === lastValues) return; // skip non-mutation transitions
     lastValues = next;
-    // convert via convertJsonToHtml, POST, IndexedDB-cache — whatever fits
+    // convert via convertJsonToHtml({ json: next, model }), POST, IndexedDB-cache — whatever fits
   },
 });
 lastValues = engine.getState().document; // onChange does NOT fire at init
@@ -175,7 +192,7 @@ import type {
 
 - ES2022 + ESM. No Node built-ins, no DOM.
 - Node ≥18 and modern browsers.
-- One runtime dependency: [hast-util-from-html](https://www.npmjs.com/package/hast-util-from-html).
+- Two runtime dependencies: [hast-util-from-html](https://www.npmjs.com/package/hast-util-from-html) to parse HTML and [hast-util-sanitize](https://www.npmjs.com/package/hast-util-sanitize) to sanitize rich text.
 
 ## Design
 
