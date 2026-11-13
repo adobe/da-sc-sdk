@@ -26,7 +26,7 @@ const goodSchema = {
 };
 
 console.log('Good schema:', validateSchema({ schema: goodSchema }));
-// → { valid: true, schemaIssues: [] }
+// Prints { valid: true, schemaIssues: [] }
 
 // 2. A schema with multiple problems — useful for testing your error UI.
 const badSchema = {
@@ -61,10 +61,11 @@ for (const issue of result.schemaIssues) {
   // message = ready human summary. (Also available: issue.pointer, issue.details.)
   console.log(`    ${issue.reason} at ${issue.schemaPath} — ${issue.message}`);
 }
-// → valid       : false
+// Prints the following.
+//   valid       : false
 //   schemaIssues:
 //     unsupported-composition at /properties/mystery — Composition "oneOf" is not supported.
 //     type-as-array at /properties/nullable — The type must be a single value, not an array.
-//     external-ref at /properties/remote — External reference "https://example.com/schema.json" is not supported; use a local "#/…" reference.
+//     external-ref at /properties/remote — External reference "https://example.com/schema.json" is not supported. Use a local "#/…" reference or a type URL (…).
 //     missing-type at /properties/untyped — A type is required.
 //     invalid-pattern at /properties/code — The pattern is not a valid regular expression.

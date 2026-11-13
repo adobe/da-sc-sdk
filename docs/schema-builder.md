@@ -51,7 +51,7 @@ Returns:
 
 The contract:
 
-- **Pure.** Same input → same output. No state.
+- **Pure.** The same input gives the same output. No state.
 - **Idempotent under repeat compilation.** Re-compiling the resolved schema yields the same definition (refs are already inlined).
 - **Never throws on malformed input.** Issues are *collected* into the `issues` array rather than raised; the form renders the editable subset and surfaces issues in a side panel.
 
@@ -64,8 +64,8 @@ The compiler is two passes, in order:
 ```
 compileSchema
   ├─ resolveSchema(rawSchema)
-  │    └─ resolveNode(...)                ← phase 1: refs + composition flagging
-  └─ compileNode(...)                     ← phase 2: kind inference + tree shaping
+  │    └─ resolveNode(...)                // phase 1 resolves refs and flags composition
+  └─ compileNode(...)                     // phase 2 infers kinds and shapes the tree
 ```
 
 ### Phase 1 — `resolveSchema` / `resolveNode`
@@ -74,7 +74,9 @@ Walks the raw schema. At each node:
 
 1. **Deep-clones** the input (the resolved schema owns its own object graph; callers can mutate `rawSchema` later without affecting compiled output).
 2. **Resolves `$ref`.**
-   - External refs (anything not starting with `#/`) become `unsupportedRef: { reason: 'external-ref', ref }`.
+   - A ref to an asset definition resolves in [state-engine/type-ref.js](../src/state-engine/type-ref.js) to `{ type: 'object', typeRef }` and is never fetched. The field keeps its `title`, `description`, `readOnly` and `default`. An image also keeps `required: ['altText']` if the schema sets it.
+   - Any other keyword next to an asset `$ref` that could constrain the value becomes `unsupportedRef: { reason: 'type-ref-keywords', ref, properties }`. Other annotations, `$`-keywords and `x-*` hints are ignored. A local `$ref` that targets an asset gets the same check.
+   - Other external refs (anything not starting with `#/`) become `unsupportedRef: { reason: 'external-ref', ref }`.
    - Internal refs that don't resolve become `unsupportedRef: { reason: 'unresolved-ref', ref }`.
    - Cycles are broken by tracking refs in `seenRefs`; the cycle root keeps whatever local fields it already had.
    - Successful refs are merged with the local node via `mergeSchemas` — local fields take precedence over the referent's fields. `properties` and `$defs` are merged shallowly; `required` is union-merged.
@@ -88,17 +90,17 @@ Output of phase 1: the raw schema, but with `$ref` inlined, composition keywords
 Walks the resolved schema. At each node:
 
 1. **Infers the kind** via `inferKind`. Order matters:
-   - `unsupportedRef` → `kind: 'unsupported'`
-   - `unsupportedComposition` with direct `properties` → `kind: 'object'` (composition surfaces as a flag on the object node)
-   - `unsupportedComposition` without direct `properties` → `kind: 'unsupported'`
-   - `type` as array (`["string", "null"]`) → `kind: 'unsupported'`
-   - `type` string in `SUPPORTED_TYPES` → that kind
-   - Anything else (missing type, unknown type) → `kind: 'unsupported'`
+   - `unsupportedRef` gives `kind: 'unsupported'`.
+   - `unsupportedComposition` with direct `properties` gives `kind: 'object'`, with the composition as a flag on the node.
+   - `unsupportedComposition` without direct `properties` gives `kind: 'unsupported'`.
+   - `type` as an array (`["string", "null"]`) gives `kind: 'unsupported'`.
+   - A `type` string in `SUPPORTED_TYPES` gives that kind.
+   - Anything else, such as a missing or unknown type, gives `kind: 'unsupported'`.
 2. **Picks validation rules** via `pickValidation`. Only `minLength`, `maxLength`, `minimum`, `maximum`, `pattern` survive — everything else is silently dropped. This is intentional: the validator's contract is the docs, not the JSON Schema spec.
 3. **Builds the node** with `key`, `kind`, `label` (from `title` or key fallback), `description` (from `description`, when set), `required`, `readonly`, `defaultValue`, `validation`.
 4. **Recurses** for composite kinds:
-   - `object` → compiles each `properties` entry into `children`. `required` flags carry through.
-   - `array` → compiles `items` into a single `item` node (the *template* for array elements; the model later instantiates one node per document element).
+   - `object` compiles each `properties` entry into `children`. `required` flags carry through.
+   - `array` compiles `items` into a single `item` node (the *template* for array elements; the model later instantiates one node per document element).
 5. **Collects issues** into the shared `issues` array. Each issue records its `reason`, a human `message`, both locations (`schemaPath` in the schema, `pointer` in the data), and a reason-specific `details` blob.
 
 Output of phase 2: the **definition tree**.
@@ -132,6 +134,15 @@ What `compileNode` produces. This is the shape `buildModel` expects.
 
   // string with date/time format:
   format:      '…',        // 'date' | 'time' | 'date-time'
+
+  // x-semantic-type: 'long-text' on a string (ignored when enum or format applies):
+  semanticType: '…',       // 'long-text'
+
+  // a $ref to a type (children from the image type — src, altText — or
+  // the file type — src). `src` is required, and so is any property the schema
+  // lists in `required` next to the `$ref`:
+  typeRef:      '…',       // …/image/v1.0.0.json | …/file/v1.0.0.json
+  typeName:     '…',       // 'image' | 'file'
 
   // unsupported:
   unsupported: { reason, feature, compositionKeyword, variants, schemaPath, details },
@@ -388,7 +399,7 @@ The object compiles and the editable subset (`name`) renders. The `allOf` is dro
 }
 ```
 
-Same shape for `unresolved-ref` (an internal `#/` pointer that doesn't resolve). Both flow through the unsupported pathway.
+Same shape for `unresolved-ref` (an internal `#/` pointer that doesn't resolve) and `type-ref-keywords` (whose `details` also list the offending keywords as `properties`). All flow through the unsupported pathway.
 
 ---
 
@@ -403,7 +414,8 @@ Issues populate `compileSchema(...).issues` and drive both:
 {
   reason,      // machine code: 'unsupported-composition' | 'unsupported-type' |
                //   'type-as-array' | 'missing-type' | 'external-ref' |
-               //   'unresolved-ref' | 'invalid-pattern' — branch on this
+               //   'unresolved-ref' | 'type-ref-keywords' | 'invalid-pattern'
+               //   — branch on this
   message,     // human-readable summary, derived from reason/details
   schemaPath,  // '/properties/weird' — where to fix it in the *schema* ($refs
                //   re-rooted at their $def); '/' at the root
@@ -412,6 +424,7 @@ Issues populate `compileSchema(...).issues` and drive both:
                //   { type }            — unsupported-type / type-as-array
                //   { keyword, variants }— unsupported-composition
                //   { ref }             — external-ref / unresolved-ref
+               //   { ref, properties } — type-ref-keywords
                //   { pattern }         — invalid-pattern
 }
 ```

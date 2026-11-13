@@ -8,7 +8,9 @@ them, keyword by keyword, with a worked example of every combination.
 
 - **Scope:** the keyword subset in `schema-spec.md` §2–5. Anything outside it is
   ignored (see [§8](#8-what-validation-does-not-check)).
-- **Entry point:** `validateData({ schema, data })` → `{ valid, errors, schemaIssues }`.
+- **Entry point:** `validateData({ schema, data })` returns `{ valid, errors, schemaIssues }`.
+- **Examples:** each document is followed by its results, indented. An error
+  shows its pointer and message.
   The stateful engine runs the same validation on every mutation.
 
 > **Example convention.** Schema snippets below omit `title` (which the spec
@@ -86,6 +88,7 @@ matches the control:
 | scalar | `This field is required.` |
 | object | `This section is required.` |
 | array | `Must contain at least one item with content.` (or the `minItems` count) |
+| asset (image or file) | `This field is required.` |
 
 ### 2.5 Arrays: present once they have rows; counted by content
 
@@ -143,14 +146,29 @@ present (§2.3).
 **Documents and results**
 
 ```text
-{ "name": "ab" }      → /data/name     Must be at least 3 characters.
-{ "name": "" }        → valid          (empty optional — constraint suppressed)
-{ "code": "AB1" }     → /data/code     Must match the pattern "^[a-z]+$".
-{ "status": "X" }     → /data/status   Must be one of the allowed options.
-{ "count": 1 }        → /data/count    Must be greater than or equal to 5.
-{ "count": 1.5 }      → /data/count    Must be an integer.
-{ "name": 42 }        → /data/name     Must be a string.
-{ "active": "yes" }   → /data/active   Must be a boolean.
+{ "name": "ab" }
+  /data/name     Must be at least 3 characters.
+
+{ "name": "" }
+  valid          (empty optional — constraint suppressed)
+
+{ "code": "AB1" }
+  /data/code     Must match the pattern "^[a-z]+$".
+
+{ "status": "X" }
+  /data/status   Must be one of the allowed options.
+
+{ "count": 1 }
+  /data/count    Must be greater than or equal to 5.
+
+{ "count": 1.5 }
+  /data/count    Must be an integer.
+
+{ "name": 42 }
+  /data/name     Must be a string.
+
+{ "active": "yes" }
+  /data/active   Must be a boolean.
 ```
 
 `0` and `false` are real values, not empty — a `required` number field is
@@ -178,16 +196,35 @@ trailing `Z`, zero seconds — so every writer produces one identical value.
 **Documents and results**
 
 ```text
-{ "day": "2026-08-14" }                  → valid
-{ "day": "2026-02-30" }                  → /data/day    Must be a valid date.
-{ "day": "08/14/2026" }                  → /data/day    Must be a valid date.
-{ "at": "09:30" }                        → valid
-{ "at": "24:00" }                        → /data/at     Must be a valid time.
-{ "start": "2026-08-14T13:00:00Z" }      → valid
-{ "start": "2026-08-14T13:00:00.000Z" }  → valid        (millisecond zeros allowed)
-{ "start": "2026-08-14T13:00:00+02:00" } → /data/start  Must be a valid date and time.  (offset — not UTC)
-{ "start": "2026-08-14T13:00:30Z" }      → /data/start  Must be a valid date and time.  (non-zero seconds)
-{ "start": "" }                          → valid        (empty optional — constraint suppressed)
+{ "day": "2026-08-14" }
+  valid
+
+{ "day": "2026-02-30" }
+  /data/day    Must be a valid date.
+
+{ "day": "08/14/2026" }
+  /data/day    Must be a valid date.
+
+{ "at": "09:30" }
+  valid
+
+{ "at": "24:00" }
+  /data/at     Must be a valid time.
+
+{ "start": "2026-08-14T13:00:00Z" }
+  valid
+
+{ "start": "2026-08-14T13:00:00.000Z" }
+  valid        (millisecond zeros allowed)
+
+{ "start": "2026-08-14T13:00:00+02:00" }
+  /data/start  Must be a valid date and time.  (offset — not UTC)
+
+{ "start": "2026-08-14T13:00:30Z" }
+  /data/start  Must be a valid date and time.  (non-zero seconds)
+
+{ "start": "" }
+  valid        (empty optional — constraint suppressed)
 ```
 
 The error carries `keyword: "format"` and `params: { format }`.
@@ -222,19 +259,87 @@ each named child.
 
 ```text
 { "seo": { "metaTitle": "" } }
-  → /data/seo             This section is required.
-  → /data/seo/metaTitle   This field is required.
+  /data/seo             This section is required.
+  /data/seo/metaTitle   This field is required.
   (the section is empty — every leaf is blank — so both the section and its
    required field are flagged; prunes to nothing)
 
 { "seo": { "metaTitle": "", "metaDescription": "A description." } }
-  → /data/seo/metaTitle   This field is required.
+  /data/seo/metaTitle   This field is required.
   (the section has content, so it is not "required"; we validate inside it —
    the required metaTitle is missing; prunes to { "seo": { "metaDescription": "A description." } })
 ```
 
 A child's `required` error lands on the **child's** pointer, with
 `params.missingProperty` set.
+
+### 4.1 Assets
+
+An asset ([Assets](./schema-spec.md#assets)) is an object with a `src`, plus an
+`altText` on images. It follows the object rules above, with two differences:
+a required asset that is missing reports `This field is required.`, and its
+properties are checked only once the asset has a value.
+
+**Schema**
+
+```json
+{
+  "type": "object",
+  "required": ["hero"],
+  "properties": {
+    "hero":    { "$ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/image/v1.0.0.json", "required": ["altText"] },
+    "sheet":   { "$ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/file/v1.0.0.json" },
+    "gallery": { "type": "array", "items": { "$ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/image/v1.0.0.json" } }
+  }
+}
+```
+
+**Documents and results**
+
+```text
+{}
+  /data/hero       This field is required.
+
+{ "hero": { "src": "", "altText": "" } }
+  /data/hero       This field is required.
+  (every property is blank, so the asset is absent)
+
+{ "hero": { "altText": "A runner" } }
+  /data/hero/src   This field is required.
+
+{ "hero": { "src": "./media_1a2b.jpg" } }
+  /data/hero/altText   This field is required.
+  (required: ["altText"] makes alt text mandatory once the image has a value)
+
+{ "hero": { "src": "./media_1a2b.jpg", "altText": "A runner" }, "sheet": {} }
+  valid  (the empty optional file is absent; prunes to { "hero": … })
+
+{ "hero": …, "gallery": [ { "altText": "Team" }, { "src": "./media_3c4d.jpg" } ] }
+  /data/gallery/0/src   This field is required.
+  (gallery items don't require alt text)
+
+{ "hero": { "src": "/content/dam/hero.jpg", "altText": "A runner" } }
+  /data/hero/src   Must match the pattern "…".
+  (src must be a media bus path or an http(s) URL)
+```
+
+Missing values use `keyword: "required"` and `params.missingProperty` (`hero`, `src`,
+or `altText`). A `src` that is not a media bus path or an http(s) URL uses
+`keyword: "pattern"`, the `pattern` of `src` in the type file.
+
+A schema that breaks the asset rules (an unsupported `$ref`, or a keyword next
+to an asset `$ref` that isn't allowed there) reports a schema issue, and every
+document is invalid with an empty `errors` map:
+
+```json
+{
+  "reason": "type-ref-keywords",
+  "message": "Only these keywords can be set next to the image reference (title, description, readOnly, default, required: [\"altText\"]). Remove \"type\".",
+  "schemaPath": "/properties/hero",
+  "pointer": "/data/hero",
+  "details": { "ref": "https://raw.githubusercontent.com/adobe/da-sc-sdk/main/schemas/image/v1.0.0.json", "properties": ["type"] }
+}
+```
 
 ---
 
@@ -256,19 +361,29 @@ A child's `required` error lands on the **child's** pointer, with
 **Documents and results**
 
 ```text
-{}                     → valid          (no rows → absent)
-{ "tags": ["", ""] }   → /data/tags     Must contain at least 2 items with content.
-                         (rows exist → present; blank rows don't count; prunes to nothing)
-{ "tags": ["a", ""] }  → /data/tags     Must contain at least 2 items with content.
-                         (1 item with content < 2; prunes to { "tags": ["a"] })
-{ "tags": ["a", "b"] } → valid
+{}
+  valid          (no rows, so absent)
+
+{ "tags": ["", ""] }
+  /data/tags     Must contain at least 2 items with content.
+  (rows exist, so present. Blank rows don't count. Prunes to nothing.)
+
+{ "tags": ["a", ""] }
+  /data/tags     Must contain at least 2 items with content.
+  (1 item with content < 2; prunes to { "tags": ["a"] })
+
+{ "tags": ["a", "b"] }
+  valid
 ```
 
 Other variants of the same array:
 
 ```text
-maxItems: 2, { "tags": ["a", "b", "c"] }   → /data/tags   Must contain at most 2 items.
-required + minItems: 3, { "tags": [] }      → /data/tags   Must contain at least 3 items with content.
+maxItems: 2, { "tags": ["a", "b", "c"] }
+  /data/tags   Must contain at most 2 items.
+
+required + minItems: 3, { "tags": [] }
+  /data/tags   Must contain at least 3 items with content.
 ```
 
 ### 5.2 Array of objects
@@ -301,26 +416,26 @@ Every existing row is validated, and the count surfaces at once.
 
 ```text
 { "authors": [ { "name": "", "email": "" } ] }
-  → /data/authors          Must contain at least 2 items with content.
-  → /data/authors/0/name   This field is required.
+  /data/authors          Must contain at least 2 items with content.
+  /data/authors/0/name   This field is required.
   (prunes to nothing — the blank row would not persist)
 
 { "authors": [ { "name": "", "email": "a@b" } ] }
-  → /data/authors          Must contain at least 2 items with content.
-  → /data/authors/0/name   This field is required.
+  /data/authors          Must contain at least 2 items with content.
+  /data/authors/0/name   This field is required.
   (the row has content, so it survives save — its missing required name is real;
    prunes to { "authors": [ { "email": "a@b" } ] })
 
 { "authors": [ { "name": "Ada" }, { "name": "Grace" } ] }
-  → valid
+  valid
 ```
 
 ---
 
 ## 6. Nesting (arrays in arrays of objects)
 
-The same rules apply at every depth. This schema nests
-array → object → array → object → array of strings:
+The same rules apply at every depth. This schema nests an array of objects, each
+with an array of objects that holds an array of strings.
 
 **Schema**
 
@@ -359,16 +474,16 @@ array → object → array → object → array of strings:
 
 ```text
 { "chapters": [ { "heading": "", "sections": [ { "label": "", "keywords": [""] } ] } ] }
-  → /data/chapters                       Must contain at least one item with content.
-  → /data/chapters/0/heading             This field is required.
-  → /data/chapters/0/sections            Must contain at least one item with content.
-  → /data/chapters/0/sections/0/label    This field is required.
-  → /data/chapters/0/sections/0/keywords Must contain at least 2 items with content.
+  /data/chapters                       Must contain at least one item with content.
+  /data/chapters/0/heading             This field is required.
+  /data/chapters/0/sections            Must contain at least one item with content.
+  /data/chapters/0/sections/0/label    This field is required.
+  /data/chapters/0/sections/0/keywords Must contain at least 2 items with content.
   (prunes to nothing)
 
 { "chapters": [ { "heading": "Intro",
     "sections": [ { "label": "Overview", "keywords": ["a", "b"] } ] } ] }
-  → valid
+  valid
 ```
 
 Note that `chapters` (with one real chapter) shows **no** count error even while
@@ -407,6 +522,10 @@ violates it will still be reported valid:
 
 (`format: date | time | date-time` **is** validated — see §3.)
 
+Properties outside an asset's definition (for example a `caption` on an image)
+are not reported. The definitions set `additionalProperties: false`, so a full
+JSON Schema validator rejects them.
+
 The save guarantee (§2.5) therefore holds **within the supported subset**: if a
 schema restricts itself to supported keywords, SDK-valid data conforms to the
 schema (and to AJV). If a schema uses an unsupported constraint keyword, the SDK
@@ -421,6 +540,7 @@ validity against a full JSON Schema validator for that keyword.
 | ------- | ------- |
 | `required` (scalar) | `This field is required.` |
 | `required` (object) | `This section is required.` |
+| `required` (asset, or its `src` / `altText`) | `This field is required.` |
 | `required` / `minItems` (array) | `Must contain at least N items with content.` · singular `…at least one item with content.` |
 | `maxItems` | `Must contain at most N items.` |
 | `minLength` | `Must be at least N characters.` |
