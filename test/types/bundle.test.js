@@ -16,8 +16,9 @@ import {
   TYPE_URLS, bundleSchema, createEngine, validateSchema,
 } from '../../src/index.js';
 import {
-  GITHUB_TYPES_BASE, REGISTERED_TYPES, TYPES, latestByName, registeredType,
+  GITHUB_TYPES_BASE, REGISTERED_TYPES, TYPES, registeredType,
 } from '../../src/types/index.js';
+import { latestByName } from '../../src/types/version.js';
 
 const schema = {
   type: 'object',

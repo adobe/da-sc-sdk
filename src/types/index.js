@@ -12,6 +12,7 @@
 
 import image from './image/v1.0.0.js';
 import file from './file/v1.0.0.js';
+import { latestByName } from './version.js';
 
 // Types a schema references by URL, for example `{ "$ref": TYPE_URLS.image }`.
 // Each type is a JS module identical to its published JSON file in `schemas/`.
@@ -44,30 +45,6 @@ function register(schema) {
       .filter((key) => !schema.required.includes(key)),
     schema,
   });
-}
-
-function versionParts(version) {
-  return version.slice(1).split('.').map(Number);
-}
-
-// Whether version `a` is newer than `b`, both as `v<major>.<minor>.<patch>`.
-function isNewer(a, b) {
-  const aParts = versionParts(a);
-  const bParts = versionParts(b);
-  const index = aParts.findIndex((part, i) => part !== bParts[i]);
-  return index !== -1 && aParts[index] > bParts[index];
-}
-
-// The latest version of each type, by name.
-export function latestByName(types) {
-  const latest = new Map();
-  types.forEach((type) => {
-    const current = latest.get(type.name);
-    if (!current || isNewer(type.version, current.version)) {
-      latest.set(type.name, type);
-    }
-  });
-  return Object.freeze(Object.fromEntries(latest));
 }
 
 // Every registered version of every type.

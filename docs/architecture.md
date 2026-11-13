@@ -43,6 +43,7 @@ da-sc-sdk/
       asset.js          the rules every asset value follows, such as the form of its src
       semantic.js       the x-semantic-type values and the JSON type each applies to
       bundle.js         bundleSchema() — embeds the type definitions for other validators
+      version.js        latestByName, the newest version of each type
     shared/           helpers every layer may use
       clone.js          single deepClone util
       empty.js          isDataEmpty, the one rule for empty values (validation, defaults, save)
