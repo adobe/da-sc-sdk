@@ -1,3 +1,10 @@
+# [0.6.0](https://github.com/adobe/da-sc-sdk/compare/v0.5.0...v0.6.0) (2026-11-13)
+
+
+### Features
+
+* add rich-text semantic type ([#22](https://github.com/adobe/da-sc-sdk/issues/22)) ([34e3b04](https://github.com/adobe/da-sc-sdk/commit/34e3b04a9103dc2d6d35946aa8709e0723826e4e))
+
 # [0.5.0](https://github.com/adobe/da-sc-sdk/compare/v0.4.0...v0.5.0) (2026-09-04)
 
 
