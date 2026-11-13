@@ -20,21 +20,30 @@ da-sc-sdk/
     state-engine/             headless editing engine
       index.js          createEngine() — public API; validateData, isDataEmpty, materializeDefaults, coerceData
       schema.js         resolveSchema + compileSchema ($ref/$defs resolution, composition handling)
-      model.js          buildModel + pointer→node Map, in one pass
+      type-ref.js       resolves $refs to types such as images, rejects keywords that change them
+      model.js          buildModel and the pointer-to-node map, in one pass
       mutate.js         setField, addItem, insertItem, removeItem, moveItem
       pointer.js        RFC 6901 ops + definitionAt
-      validation.js     validateDocument → { errors } (pointer-keyed map)
-    html/             DA wire-format HTML ↔ JSON
-      html2json.js      parse DA HTML → JSON; HTMLConverter class + convertHtmlToJson({ html })
+      validation.js     validateDocument, returns { errors } keyed by pointer
+    html/             converts between DA wire-format HTML and JSON
+      html2json.js      parses DA HTML into JSON, HTMLConverter and convertHtmlToJson({ html, config? })
       json2html.js      writes JSON as DA HTML, walking blocks, rows and lists with a codec per value
-      codecs/           how semantic values are written and read, text for everything else
+      codecs/           how typed and semantic values are written and read, text for everything else
       markup.js         escaping, rows and blocks shared by json2html.js and the codecs
+      media.js          media bus paths and image extensions, shared by both directions
       rich-text/        canonical HTML subset for x-semantic-type: rich-text values
         allowlist.js      the tags and attributes rich text keeps, a subset of what EDS keeps
         sanitize.js       removes active content, unsafe links and other attributes with hast-util-sanitize
         index.js          normalizes and serializes the rest in the canonical form
+      utils.js          httpUrl and httpHref, the http(s) URL checks
     types/            the types both state-engine/ and html/ read
+      index.js          registry: every version by URL, the latest by name (TYPES)
+      image/v1.0.0.js   the image definition, identical to schemas/image/v1.0.0.json
+      file/v1.0.0.js    the file definition, identical to schemas/file/v1.0.0.json
+      asset.js          the rules every asset value follows, such as the form of its src
       semantic.js       the x-semantic-type values and the JSON type each applies to
+      bundle.js         bundleSchema() — embeds the type definitions for other validators
+      version.js        latestByName, the newest version of each type
     shared/           helpers every layer may use
       clone.js          single deepClone util
       empty.js          isDataEmpty, the one rule for empty values (validation, defaults, save)
@@ -43,6 +52,9 @@ da-sc-sdk/
       pointer.js        appendPointer, how the model and the writer address a value
   dist/
     index.js          self-contained ESM bundle for vendor / CDN consumers
+  schemas/
+    image/v1.0.0.json the published image definition, the URL schemas reference
+    file/v1.0.0.json  the published file definition, the URL schemas reference
   test/               mirrors src/ — one .test.js per module + roundtrip suite
 ```
 
@@ -56,11 +68,13 @@ da-sc-sdk/
 | `src/types/` | `src/shared/` |
 | `src/state-engine/` | `src/types/`, `src/shared/`, and no external packages |
 | `src/html/` | `src/types/`, `src/shared/`, `hast-util-from-html` (parse5) for parsing and `hast-util-sanitize` for rich text. No DOM for writing. |
-| `src/index.js` | `src/state-engine/`, `src/html/` |
+| `src/index.js` | `src/state-engine/`, `src/html/`, `src/types/` |
 
 `state-engine/` has no DOM, no Lit, no browser dependency. It runs unchanged in Node, browsers, MCP servers, and any other ESM runtime. The boundary is enforced by zero external imports — there is nothing in `state-engine/` for a build tool to fail to resolve.
 
-`html/` is environment-agnostic. The `JSON → HTML` direction in [src/html/json2html.js](../src/html/json2html.js) is a pure string builder — template literals + a small text/attribute escape helper. No DOM, no async, no peer dependency. The `HTML → JSON` direction uses `hast-util-from-html`, a pure-JS parse5 wrapper with no DOM or Node-built-in dependency. The whole SDK runs in Cloudflare Workers, Deno, Bun, and other V8-isolate environments without modification.
+`types/` holds the type definitions as JS modules, each identical to its published JSON file in `schemas/`, since not every runtime can import JSON. It derives from each definition its name, its URL and what a schema may require next to its `$ref`. Both `state-engine/` and `html/` read it, and neither imports the other.
+
+`html/` is environment-agnostic. The JSON to HTML direction in [src/html/json2html.js](../src/html/json2html.js) is a pure string builder — template literals + a small text/attribute escape helper. No DOM, no async, no peer dependency. The HTML to JSON direction uses `hast-util-from-html`, a pure-JS parse5 wrapper with no DOM or Node-built-in dependency. The whole SDK runs in Cloudflare Workers, Deno, Bun, and other V8-isolate environments without modification.
 
 ---
 
@@ -102,23 +116,25 @@ Per-entry shape (the values in the map) is ajv-style: `{ keyword, instancePath, 
 
 Note: there is no `saveStatus` field. The engine doesn't persist; consumers that do maintain their own status outside the engine.
 
-### Public API — five exports
+### Public API
 
-The SDK exposes exactly five named exports from `'da-sc-sdk'`. The surface is narrow on purpose; additions go through deliberate semver minors.
+The table lists everything `'da-sc-sdk'` exports. The surface stays narrow on purpose, and additions go through deliberate semver minors.
 
 | Function | Source | Purpose |
 | -------- | ------ | ------- |
 | `createEngine({ schema, document, onChange })` | [src/state-engine/index.js](../src/state-engine/index.js) | Stateful JSON state engine — initialized synchronously, exposes mutations and validation. Returns `{ getState, setField, addItem, insertItem, removeItem, moveItem }`. Pure state machine: no persistence, no I/O. `onChange` is NOT called at construction; initial state is read via `engine.getState()`. To swap (schema, document), create a new engine. |
 | `validateSchema({ schema })` | [src/state-engine/index.js](../src/state-engine/index.js) | Schema-only validation. Returns `{ valid, schemaIssues }`. Use to check that a schema is well-formed before binding to it. |
 | `validateData({ schema, data })` | [src/state-engine/index.js](../src/state-engine/index.js) | Data-against-schema validation. Returns `{ valid, errors, schemaIssues }`. `errors` is a pointer-keyed map of ajv-style entries. `valid` is `true` iff both `schemaIssues` and `errors` are empty. Symmetric with `validateSchema`: both validators expose `valid` + `schemaIssues`; `validateData` adds `errors`. |
-| `convertJsonToHtml({ json, model? })` | [src/html/json2html.js](../src/html/json2html.js) | JSON to DA wire-format HTML. Skips empty values. With the engine's model, values of a semantic type are written in their stored form (see [schema-spec.md](./schema-spec.md#x-semantic-type)). Without a model, every value is text. A model not built from `json` is an error. Returns `{ html } \| { error }`. |
-| `convertHtmlToJson({ html })` | [src/html/html2json.js](../src/html/html2json.js) | DA wire-format HTML to JSON. Each value reads as the text of its cell. A `self://<semantic-type>#…` reference reads with the codec of that type. Returns `{ json } \| { error }`. |
+| `convertJsonToHtml({ json, model?, config? })` | [src/html/json2html.js](../src/html/json2html.js) | JSON to DA wire-format HTML. Skips empty values. With the engine's model, asset `src` values become images or links (see [lifecycle.md §3.3](./lifecycle.md)), and values of a semantic type in their stored form (see [schema-spec.md](./schema-spec.md#x-semantic-type)). Without a model, every value is text. A model not built from `json` is an error. Returns `{ html } \| { error }`. |
+| `convertHtmlToJson({ html, config? })` | [src/html/html2json.js](../src/html/html2json.js) | DA wire-format HTML to JSON. Each value reads as the text of its cell. An asset's `src` cell without text reads as its image source. A `self://<semantic-type>#…` reference reads with the codec of that type. With the page URL as `config.baseUrl`, media bus paths become absolute URLs. Returns `{ json } \| { error }`. |
+| `bundleSchema({ schema })` | [src/types/bundle.js](../src/types/bundle.js) | Copy of the schema with each referenced asset type embedded under `$defs` (keeping its `$id`), so validators that don't fetch references can use it offline. The SDK itself never needs it. Returns `{ schema } \| { error }`. |
+| `TYPE_URLS` | [src/types/index.js](../src/types/index.js) | The URL of the latest version of every type by name, for an asset field's `$ref`, such as `TYPE_URLS.image`. Experimental until the types have a production domain. |
 
 ### Everything else is internal — and unreachable
 
 `src/state-engine/pointer.js`, `src/state-engine/mutate.js`, `src/state-engine/model.js`, `src/shared/clone.js`, `src/state-engine/validation.js`, `src/state-engine/schema.js`, `src/html/json2html.js`, plus the `compileSchema` / `coerceData` / `materializeDefaults` / `isDataEmpty` / `HTMLConverter` symbols inside them — all internal.
 
-The `package.json` `exports` map exposes only `.` (the main entry). Per the Node ESM spec, this **blocks every other subpath** — a consumer attempting `import x from 'da-sc-sdk/src/state-engine/schema.js'` gets `ERR_PACKAGE_PATH_NOT_EXPORTED`. The vendored bundle (`dist/index.js`) only re-exports the five public functions. There is no path-based escape hatch.
+The `package.json` `exports` map exposes only `.` (the main entry) and the type definitions as JSON (`./schemas/<name>/v<major>.<minor>.<patch>.json`). Per the Node ESM spec, this **blocks every other subpath** — a consumer attempting `import x from 'da-sc-sdk/src/state-engine/schema.js'` gets `ERR_PACKAGE_PATH_NOT_EXPORTED`. The vendored bundle (`dist/index.js`) only re-exports the public functions and constants. There is no path-based escape hatch.
 
 The only code that reaches internals is the SDK's own tests via relative paths into `src/` — that's white-box testing, not API consumption.
 
@@ -163,7 +179,7 @@ Nodes:
 
 A `kind: 'unsupported'` node means the field's shape is defined by a construct the SDK cannot model (composition with no sibling properties, an unknown `type`, `type` as an array, or a missing `type`). Consumers should skip rendering these nodes; stored values pass through untouched.
 
-The pointer→node Map is built during the same traversal that builds the tree — no follow-up pass.
+The pointer-to-node map is built in the same traversal that builds the tree, with no follow-up pass.
 
 When adding a new field type, add a new `kind` value to `schema.js`'s `inferKind`. Never fall through to a default.
 
@@ -234,7 +250,7 @@ When an unsupported construct is found on a node:
 - **Node has direct `properties`** (composition alongside a full property map): compiled as `kind: 'object'` with an `unsupportedComposition` flag. Properties are fully editable.
 - **Otherwise**: compiled as `kind: 'unsupported'`. The stored value passes through untouched.
 
-`compileSchema` returns `{ schema, definition, editable, issues }`. `issues` lists every node the compiler could not model with structured reason codes (`unsupported-composition`, `unsupported-type`, `type-as-array`, `missing-type`, `external-ref`, `unresolved-ref`); `editable` is `false` iff `issues` is non-empty. `issues` is also exposed on every state snapshot as `state.schemaIssues`.
+`compileSchema` returns `{ schema, definition, editable, issues }`. `issues` lists every node the compiler could not model with structured reason codes (`unsupported-composition`, `unsupported-type`, `type-as-array`, `missing-type`, `external-ref`, `unresolved-ref`, `type-ref-keywords`, `invalid-pattern`); `editable` is `false` iff `issues` is non-empty. `issues` is also exposed on every state snapshot as `state.schemaIssues`.
 
 ---
 
@@ -327,7 +343,7 @@ The SDK deliberately omits two ajv-standard fields:
 - **`schemaPath`** — would expose schema structure (property names, nesting, `$defs` layout) to whoever sees the errors. Our consumers (form UI, MCP agents, workers) don't need it; tools that forward errors externally shouldn't be tempted to leak it. If you need it, you have the schema.
 - **`data`** — ajv's optional verbose mode adds the offending raw value to each error. We never include it; the offender is at `instancePath` in the source data.
 
-Consumers that forward errors across a trust boundary (worker → untrusted client) should consider stripping `params.pattern` and `params.allowedValues` too — both reveal schema details. The SDK gives you the data; the privacy policy is yours.
+Consumers that forward errors across a trust boundary (from a worker to an untrusted client) should consider stripping `params.pattern` and `params.allowedValues` too — both reveal schema details. The SDK gives you the data; the privacy policy is yours.
 
 ### When it runs
 
@@ -356,7 +372,7 @@ ajv throws at schema-compile time when the pattern's regex is unparseable. We mi
 
 `mutate.js`'s `buildDefault` seeds new array items with `""` / `false` / `[]` / `{}` so consumers have something to bind to. These are not real user values:
 
-- Empty string, whitespace-only string, empty array, empty object → all considered absent.
+- An empty string, a whitespace-only string, an empty array and an empty object are all considered absent.
 - Constraints (`enum`, `pattern`, `minLength`, etc.) do not fire on absent values.
 - A `required` field whose value is absent produces a `required` error at the **parent's** pointer with `params.missingProperty` naming the empty field.
 
@@ -376,9 +392,9 @@ Save applies the same rule. `convertJsonToHtml` skips every value `isDataEmpty` 
 
 `coerceData` walks both trees in lockstep and casts primitive leaves to the schema's declared kind:
 
-- `'1'` against `integer` / `number` → `1`
-- `'true'` / `'false'` against `boolean` → `true` / `false`
-- `42` against `string` → `"42"`
+- `'1'` against `integer` or `number` becomes `1`.
+- `'true'` or `'false'` against `boolean` becomes `true` or `false`.
+- `42` against `string` becomes `"42"`.
 - Un-coercible values (e.g. `"abc"` against `integer`) pass through so the validator still flags them with a clear message
 - `null` / `undefined`, unknown kinds, and shape mismatches pass through
 
@@ -394,7 +410,7 @@ Schema `default` values are **materialized into the document at load time** when
 
 | Stage | Rule |
 |---|---|
-| **Load** | If `isDataEmpty(parsed.data)` → write schema defaults into `data` (recursively). A primitive with an explicit `default` materializes to that value. A boolean without an explicit default materializes to `false`. Other primitives without a default stay absent. Otherwise leave `data` alone. |
+| **Load** | If `isDataEmpty(parsed.data)`, write schema defaults into `data` recursively. A primitive with an explicit `default` materializes to that value. A boolean without an explicit default materializes to `false`. Other primitives without a default stay absent. Otherwise leave `data` alone. |
 | **Render** | Consumer shows `node.value`. If `undefined`, show empty (or `false` for boolean). Renderers never read `node.defaultValue`. |
 | **Save** | The writer leaves out every value `isDataEmpty` reports (empty strings, null, undefined, whitespace-only strings and empty branches), and values whose codec writes nothing, such as rich text without text. `false` is kept. |
 

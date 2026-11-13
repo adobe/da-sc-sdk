@@ -6,8 +6,8 @@ Runnable Node scripts that exercise each major API surface of `da-sc-sdk`. Use t
 | ---- | ------------- | -------- |
 | [`validate-schema.js`](./validate-schema.js) | Check whether a schema is well-formed. No data, no state. | `validateSchema` |
 | [`validate-data.js`](./validate-data.js) | Validate data against a schema. No state, no save, no DOM. | `validateData` |
-| [`edit.js`](./edit.js) | Stateful editing: create an engine, mutate, observe via `onChange`. | `createEngine` |
-| [`roundtrip.js`](./roundtrip.js) | JSON → DA-format HTML → JSON. Lossless wire-format codec. | `convertJsonToHtml`, `convertHtmlToJson` |
+| [`edit.js`](./edit.js) | Stateful editing: create an engine, mutate, observe via `onChange`, and save with the engine's model so asset fields are written as images or links. | `createEngine`, `convertJsonToHtml` |
+| [`roundtrip.js`](./roundtrip.js) | Converts JSON to DA-format HTML and back without loss. | `convertJsonToHtml`, `convertHtmlToJson` |
 
 ## Running
 

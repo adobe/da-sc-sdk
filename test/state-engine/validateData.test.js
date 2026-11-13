@@ -12,6 +12,7 @@
 
 import { expect } from '@esm-bundle/chai';
 import { validateData } from '../../src/state-engine/index.js';
+import { TYPES } from '../../src/types/index.js';
 
 describe('validateData', () => {
   it('returns valid=true and an empty errors map for a clean document', () => {
@@ -167,5 +168,166 @@ describe('validateData', () => {
     for (const error of Object.values(result.errors)) {
       expect(error).to.not.have.property('schemaPath');
     }
+  });
+  describe('assets', () => {
+    const schema = {
+      type: 'object',
+      required: ['hero'],
+      properties: {
+        hero: { $ref: TYPES.image.url, title: 'Hero' },
+        gallery: { type: 'array', items: { $ref: TYPES.image.url } },
+      },
+    };
+
+    it('accepts an asset with a source', () => {
+      const result = validateData({ schema, data: { hero: { src: './media_ab12.jpg' } } });
+      expect(result.errors).to.deep.equal({});
+      expect(result.valid).to.equal(true);
+    });
+
+    it('flags a missing required asset as a field', () => {
+      const result = validateData({ schema, data: { hero: { src: '', altText: '' } } });
+      expect(result.errors).to.deep.equal({
+        '/data/hero': {
+          keyword: 'required',
+          instancePath: '/data/hero',
+          params: { missingProperty: 'hero' },
+          message: 'This field is required.',
+        },
+      });
+    });
+
+    it('flags alt text without a source on the source', () => {
+      const result = validateData({
+        schema,
+        data: { hero: { src: './media_ab12.jpg' }, gallery: [{ altText: 'No image' }] },
+      });
+      expect(result.errors).to.deep.equal({
+        '/data/gallery/0/src': {
+          keyword: 'required',
+          instancePath: '/data/gallery/0/src',
+          params: { missingProperty: 'src' },
+          message: 'This field is required.',
+        },
+      });
+    });
+
+    it('flags alt text without a source on a required asset once', () => {
+      const result = validateData({ schema, data: { hero: { altText: 'No image' } } });
+      expect(Object.keys(result.errors)).to.deep.equal(['/data/hero/src']);
+    });
+
+    describe('with required alt text', () => {
+      const altSchema = {
+        type: 'object',
+        properties: {
+          hero: { $ref: TYPES.image.url, required: ['altText'] },
+          datasheet: { $ref: TYPES.file.url },
+        },
+      };
+
+      it('flags an image without alt text on the alt text', () => {
+        const result = validateData({ schema: altSchema, data: { hero: { src: './media_ab12.jpg' } } });
+        expect(result.errors).to.deep.equal({
+          '/data/hero/altText': {
+            keyword: 'required',
+            instancePath: '/data/hero/altText',
+            params: { missingProperty: 'altText' },
+            message: 'This field is required.',
+          },
+        });
+      });
+
+      it('accepts an image with alt text, an absent image and a file without alt text', () => {
+        [
+          { hero: { src: './media_ab12.jpg', altText: 'A hero' } },
+          {},
+          { hero: { src: '', altText: '' } },
+          { datasheet: { src: './media_ab12.pdf' } },
+        ].forEach((data) => {
+          expect(validateData({ schema: altSchema, data }).errors).to.deep.equal({});
+        });
+      });
+
+      it('treats whitespace-only alt text without a source as no image', () => {
+        const result = validateData({ schema: altSchema, data: { hero: { altText: ' ' } } });
+        expect(result.errors).to.deep.equal({});
+      });
+
+      it('flags whitespace-only alt text when the image has a source', () => {
+        const result = validateData({
+          schema: altSchema, data: { hero: { src: './media_ab12.jpg', altText: '  ' } },
+        });
+        expect(Object.keys(result.errors)).to.deep.equal(['/data/hero/altText']);
+      });
+
+      it('requires alt text in array items and nested objects', () => {
+        const result = validateData({
+          schema: {
+            type: 'object',
+            properties: {
+              gallery: { type: 'array', items: { $ref: TYPES.image.url, required: ['altText'] } },
+              card: {
+                type: 'object',
+                properties: { image: { $ref: TYPES.image.url, required: ['altText'] } },
+              },
+            },
+          },
+          data: {
+            gallery: [{ src: './media_ab12.jpg', altText: 'One' }, { src: './media_cd34.jpg' }],
+            card: { image: { src: './media_ab12.jpg' } },
+          },
+        });
+        expect(Object.keys(result.errors)).to.deep.equal([
+          '/data/gallery/1/altText',
+          '/data/card/image/altText',
+        ]);
+      });
+    });
+
+    it('flags a source and alt text that are not strings', () => {
+      const result = validateData({ schema, data: { hero: { src: 42, altText: true } } });
+      expect(Object.fromEntries(Object.entries(result.errors).map(([k, e]) => [k, e.keyword])))
+        .to.deep.equal({ '/data/hero/src': 'type', '/data/hero/altText': 'type' });
+    });
+
+    it('flags an asset given as a string or array on its source', () => {
+      ['./media_ab12.jpg', ['./media_ab12.jpg']].forEach((hero) => {
+        const result = validateData({ schema, data: { hero } });
+        expect(Object.keys(result.errors), JSON.stringify(hero)).to.deep.equal(['/data/hero/src']);
+      });
+    });
+
+    it('accepts a media bus path or an http(s) URL as the source', () => {
+      [
+        './media_ab12.jpg',
+        ' ./media_ab12.jpg?width=750&format=jpg ',
+        'https://content.da.live/org/site/hero.png',
+        'http://example.com/hero.jpg',
+      ].forEach((src) => {
+        expect(validateData({ schema, data: { hero: { src } } }).valid, src).to.equal(true);
+      });
+    });
+
+    it('flags any other source on the source', () => {
+      // eslint-disable-next-line no-script-url
+      const scriptUrl = 'javascript:alert(1)';
+      [scriptUrl, 'data:image/png;base64,AAAA', '/content/dam/hero.png', './hero.png'].forEach((src) => {
+        const { errors } = validateData({ schema, data: { hero: { src } } });
+        expect(errors['/data/hero/src']?.keyword, src).to.equal('pattern');
+      });
+    });
+
+    it('flags a missing required file and a file without a source', () => {
+      const fileSchema = {
+        type: 'object',
+        required: ['datasheet'],
+        properties: { datasheet: { $ref: TYPES.file.url } },
+      };
+      expect(Object.keys(validateData({ schema: fileSchema, data: {} }).errors))
+        .to.deep.equal(['/data/datasheet']);
+      expect(validateData({ schema: fileSchema, data: { datasheet: { src: './media_ab12.pdf' } } }).valid)
+        .to.equal(true);
+    });
   });
 });

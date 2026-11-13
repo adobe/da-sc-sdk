@@ -74,13 +74,15 @@ function addBlock({ key, innerHtml, writer }) {
 
 // A primitive as its codec writes it, or null for markup without text. Markup
 // goes into a block of its own, referenced with its semantic type, so the
-// reader decodes it without a schema.
+// reader decodes it without a schema. `parent` is the object holding the value,
+// whose type picks the codec of a property such as an image's `src`.
 function primitiveHtml({
-  key, value, pointer, writer,
+  key, value, pointer, parent, writer,
 }) {
-  const node = writer.byPointer?.[pointer];
-  const codec = codecFor({ node });
-  const html = codec.toHtml({ value });
+  const { byPointer, options } = writer;
+  const node = byPointer?.[pointer];
+  const codec = codecFor({ node, parentNode: byPointer?.[parent?.pointer], key });
+  const html = codec.toHtml({ value, parentValue: parent?.value, options });
   if (!codec.fromHtml) {
     return html;
   }
@@ -96,7 +98,11 @@ function entryRowsHtml({ value, pointer, writer }) {
   return Object.entries(value).map(([key, entryValue]) => {
     // eslint-disable-next-line no-use-before-define
     const cellHtml = valueCell({
-      key, value: entryValue, pointer: childPointer({ pointer, key }), writer,
+      key,
+      value: entryValue,
+      pointer: childPointer({ pointer, key }),
+      parent: { value, pointer },
+      writer,
     });
     return cellHtml === null ? '' : row({ key, cellHtml });
   }).join('');
@@ -115,11 +121,11 @@ function objectBlock({
 // An object or a primitive as the text of a cell or a list item, or null when
 // it writes nothing. An object goes into a block of its own.
 function inlineHtml({
-  key, value, pointer, writer,
+  key, value, pointer, parent, writer,
 }) {
   if (!isJsonObject(value)) {
     return primitiveHtml({
-      key, value, pointer, writer,
+      key, value, pointer, parent, writer,
     });
   }
   const blockId = objectBlock({
@@ -171,7 +177,7 @@ function listBlockReference({
 
 // The value column of a row, or null when the row has no value column.
 function valueCell({
-  key, value, pointer, writer,
+  key, value, pointer, parent, writer,
 }) {
   if (value === null || isLeftOut({ value, pointer })) {
     return null;
@@ -189,7 +195,7 @@ function valueCell({
     return html === null ? null : `<div>${html}</div>`;
   }
   const html = inlineHtml({
-    key, value, pointer, writer,
+    key, value, pointer, parent, writer,
   });
   return html === null ? null : `<div><p>${html}</p></div>`;
 }
@@ -213,10 +219,11 @@ function dataBlock({ schemaName, data, writer }) {
   return block({ className: schemaName, innerHtml });
 }
 
-// `writer` collects the nested blocks and finds each value's model node.
-export default function json2html({ json, byPointer }) {
+// `writer` collects the nested blocks, finds each value's model node and
+// carries the options codecs read.
+export default function json2html({ json, byPointer, externalImagesAsLinks }) {
   const { metadata, data } = json;
-  const writer = { blocks: [], byPointer };
+  const writer = { blocks: [], byPointer, options: { externalImagesAsLinks } };
   const formBlockHtml = formBlock({ metadata, writer });
   const dataBlockHtml = dataBlock({ schemaName: metadata.schemaName, data, writer });
   const mainInner = `${formBlockHtml}${dataBlockHtml}${writer.blocks.join('')}`;
@@ -275,12 +282,13 @@ function verifyInput({ json, model }) {
 }
 
 // See index.d.ts for the public contract.
-export function convertJsonToHtml({ json, model } = {}) {
+export function convertJsonToHtml({ json, model, config } = {}) {
+  const { externalImagesAsLinks = false } = config ?? {};
   const error = verifyInput({ json, model });
   if (error) {
     return { error };
   }
 
-  const html = json2html({ json, byPointer: model?.byPointer });
+  const html = json2html({ json, byPointer: model?.byPointer, externalImagesAsLinks });
   return { html };
 }

@@ -18,13 +18,13 @@ export const modelOf = (schema, json) => createEngine({ schema, document: json }
 
 // Saves `json` the way the editor does: the engine's document with its model,
 // built from `schema`. Without a schema, `json` is saved without a model.
-export function save({ json, schema }) {
+export function save({ json, schema, config }) {
   if (schema === undefined) {
-    return convertJsonToHtml({ json });
+    return convertJsonToHtml({ json, config });
   }
 
   const { document, model } = createEngine({ schema, document: json }).getState();
-  return convertJsonToHtml({ json: document, model });
+  return convertJsonToHtml({ json: document, model, config });
 }
 
 // What save keeps of a value: the value without its empty leaves, or undefined
