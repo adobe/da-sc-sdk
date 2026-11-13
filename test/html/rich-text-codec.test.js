@@ -16,7 +16,7 @@ import { convertHtmlToJson } from '../../src/html/html2json.js';
 import { createEngine } from '../../src/state-engine/index.js';
 import { save } from './test-utils.js';
 
-const RICH = { type: 'string', 'x-semantic-type': 'html' };
+const RICH = { type: 'string', 'x-semantic-type': 'rich-text' };
 
 const schema = {
   type: 'object',
@@ -53,7 +53,7 @@ describe('rich-text codec', () => {
         json: doc({ title: '<b>x</b>', body: '<p>Hello <strong>bold</strong></p><ul><li>a</li></ul>' }),
         schema,
       });
-      expect(html).to.include('<div><div><h3>body</h3></div><div><p>self://html#body-1</p></div></div>');
+      expect(html).to.include('<div><div><h3>body</h3></div><div><p>self://rich-text#body-1</p></div></div>');
       expect(html).to.include('<div class="body body-1"><div><div><p>Hello <strong>bold</strong></p><ul><li>a</li></ul></div></div></div>');
       expect(html).to.include('<div><p>&lt;b&gt;x&lt;/b&gt;</p></div>');
     });
@@ -93,7 +93,7 @@ describe('rich-text codec', () => {
 
     it('writes rich-text array items as typed references', () => {
       const { html } = save({ json: doc({ notes: ['<p>n1</p>', 'n2'] }), schema });
-      expect(html).to.include('<ul><li>self://html#notes-1</li><li>self://html#notes-2</li></ul>');
+      expect(html).to.include('<ul><li>self://rich-text#notes-1</li><li>self://rich-text#notes-2</li></ul>');
       expect(html).to.include('<div class="notes notes-1"><div><div><p>n1</p></div></div></div>');
       expect(html).to.include('<div class="notes notes-2"><div><div><p>n2</p></div></div></div>');
     });
@@ -118,7 +118,7 @@ describe('rich-text codec', () => {
         <main><div>
           <div class="da-form"><div><div><p>x-schema-name</p></div><div><p>article</p></div></div></div>
           <div class="article">
-            <div><div><p>body</p></div><div><p>self://html#body-1</p></div></div>
+            <div><div><p>body</p></div><div><p>self://rich-text#body-1</p></div></div>
           </div>
           <div class="body body-1">
             <div>

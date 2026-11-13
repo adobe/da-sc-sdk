@@ -210,7 +210,7 @@ anything else is ignored.
 
 | Keyword | Type | Applies to | Effect |
 | ------- | ---- | ---------- | ------ |
-| `x-semantic-type` | string | `string` | Declares the semantic kind of a `string` value. Defined values: `long-text` (long-form, multi-line text) and `html` (rich text as a formatted HTML subset). |
+| `x-semantic-type` | string | `string` | Declares the semantic kind of a `string` value. Defined values: `long-text` (long-form, multi-line text) and `rich-text` (formatted HTML subset). |
 
 #### `x-semantic-type`
 
@@ -223,13 +223,13 @@ single-line value.
 
 - Valid only on `string`; on any other type it is ignored.
 - If `enum` or a supported `format` is also present, that keyword applies and `x-semantic-type` has no effect (it is vendor glue; the standard keyword wins).
-- `long-text` and `html` are the defined values; any other value is ignored.
-- Does not affect validation — `minLength`, `maxLength`, and `pattern` apply independently (for `html` they count the stored markup).
+- `long-text` and `rich-text` are the defined values; any other value is ignored.
+- Does not affect validation — `minLength`, `maxLength`, and `pattern` apply independently (for `rich-text` they count the stored markup).
 
-`html` declares that the string holds rich text, formatted text stored as a canonical HTML subset. The subset is part of what EDS keeps when it delivers a page, and [src/html/rich-text/allowlist.js](../src/html/rich-text/allowlist.js) lists it. The rich-text editor mirrors that list.
+`rich-text` declares that the string holds formatted text stored as a canonical HTML subset. The subset is part of what EDS keeps when it delivers a page, and [src/html/rich-text/allowlist.js](../src/html/rich-text/allowlist.js) lists it. The rich-text editor mirrors that list.
 
 ```json
-{ "type": "string", "title": "Body", "x-semantic-type": "html" }
+{ "type": "string", "title": "Body", "x-semantic-type": "rich-text" }
 ```
 
 | Allowed markup | Notes |
@@ -244,12 +244,12 @@ single-line value.
 - Marks are written the way EDS writes them, so a value read back from a delivered page equals the stored one. Marks on the same text nest in the order `del`, `em`, `strong`, `a`, `u`, `sub`, `sup`, `code`, outermost first. Neighbouring identical marks merge, and spaces at the start or end of a mark move outside it, except in `code`.
 - EDS changes the text in two cases, which the SDK does not copy. It puts spaces around a mark inside a word, so `a<strong>b</strong>c` is delivered as `a <strong>b</strong> c`, and it drops a `<br>` at the end of a mark.
 
-Each value with text content is stored in a block of its own. The block has one row with one cell, and that cell holds the markup. The value's cell, or its list item inside an array, holds the reference `self://html#<key>-<id>`. The key is lowercased, and `<id>` numbers the blocks of a document in the order they are written.
+Each value with text content is stored in a block of its own. The block has one row with one cell, and that cell holds the markup. The value's cell, or its list item inside an array, holds the reference `self://rich-text#<key>-<id>`. The key is lowercased, and `<id>` numbers the blocks of a document in the order they are written.
 
 ```html
 <div class="article">
-  <div><div><h3>body</h3></div><div><p>self://html#body-1</p></div></div>
-  <div><div><h3>notes</h3></div><div><ul><li>self://html#notes-2</li></ul></div></div>
+  <div><div><h3>body</h3></div><div><p>self://rich-text#body-1</p></div></div>
+  <div><div><h3>notes</h3></div><div><ul><li>self://rich-text#notes-2</li></ul></div></div>
 </div>
 <div class="body body-1"><div><div><p>Hello <strong>bold</strong></p></div></div></div>
 <div class="notes notes-2"><div><div><p>A note</p></div></div></div>

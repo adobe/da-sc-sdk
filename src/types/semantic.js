@@ -12,16 +12,16 @@
 
 /**
  * The `x-semantic-type` values the SDK recognizes.
- * @type {Readonly<{ longText: 'long-text', html: 'html' }>}
+ * @type {Readonly<{ longText: 'long-text', richText: 'rich-text' }>}
  */
 export const SEMANTIC_TYPES = Object.freeze({
   longText: 'long-text',
-  html: 'html',
+  richText: 'rich-text',
 });
 
 const KIND_BY_SEMANTIC_TYPE = new Map([
   [SEMANTIC_TYPES.longText, 'string'],
-  [SEMANTIC_TYPES.html, 'string'],
+  [SEMANTIC_TYPES.richText, 'string'],
 ]);
 
 /**

@@ -156,7 +156,7 @@ export interface ModelNode {
   // Primitives with `enum`:
   enumValues?: unknown[];
   // String primitives with `x-semantic-type` (vendor presentation hint):
-  semanticType?: 'long-text' | 'html';
+  semanticType?: 'long-text' | 'rich-text';
   // Unsupported-kind extras:
   unsupported?: {
     reason: string;
