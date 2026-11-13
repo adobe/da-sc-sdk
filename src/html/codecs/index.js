@@ -10,23 +10,35 @@
  * governing permissions and limitations under the License.
  */
 
-// Codecs write values as DA markup. A semantic type, such as `rich-text`,
-// registers a codec for its values here. Everything else is text.
+// Codecs write the properties of a typed value, such as an image's `src`, as
+// DA markup. A new type adds its property codecs here. A semantic type, such as
+// `rich-text`, registers a codec for the whole value. Everything else is text.
 //
 // A codec with `fromHtml` reads its value from a cell's nodes instead of from
 // their text. Its markup is written into a block of its own, referenced with
 // its semantic type, as `self://<semantic-type>#<key>-<id>`.
 
+import { TYPES } from '../../types/index.js';
 import { SEMANTIC_TYPES } from '../../types/semantic.js';
+import { fileCodecs, imageCodecs } from './asset.js';
 import richText from './rich-text.js';
 import text from './text.js';
+
+const CODECS_BY_TYPE = new Map([
+  [TYPES.image.name, imageCodecs],
+  [TYPES.file.name, fileCodecs],
+]);
 
 const CODECS_BY_SEMANTIC_TYPE = new Map([
   [SEMANTIC_TYPES.richText, richText],
 ]);
 
-// `node` is the value's model node.
-export function codecFor({ node }) {
+// `node` is the value's model node, `parentNode` the node of the object holding it.
+export function codecFor({ node, parentNode, key }) {
+  const codecs = CODECS_BY_TYPE.get(parentNode?.typeName);
+  if (codecs && Object.hasOwn(codecs, key)) {
+    return codecs[key];
+  }
   return CODECS_BY_SEMANTIC_TYPE.get(node?.semanticType) ?? text;
 }
 

@@ -37,11 +37,12 @@ export { validateSchema } from './state-engine/index.js';
 export { validateData } from './state-engine/index.js';
 
 // Converts JSON to DA wire-format HTML, as the engine saves it.
-// `convertJsonToHtml({ json, model? })` returns `{ html } | { error }`.
+// `convertJsonToHtml({ json, model?, config? })` returns `{ html } | { error }`.
 export { convertJsonToHtml } from './html/json2html.js';
 
-// DA wire-format HTML → JSON. Symmetric pair with `convertJsonToHtml`.
-// `convertHtmlToJson({ html })` returns `{ json } | { error }`.
+// Converts DA wire-format HTML to JSON. Symmetric pair with `convertJsonToHtml`.
+// `convertHtmlToJson({ html, config? })` returns `{ json } | { error }`.
+// With the page URL as `config.baseUrl`, media bus images come back as absolute URLs.
 export { convertHtmlToJson } from './html/html2json.js';
 
 // A schema other validators can use offline. `bundleSchema({ schema })` returns
