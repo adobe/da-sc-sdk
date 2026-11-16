@@ -22,9 +22,8 @@ import { richTextFromNodes } from '../../../src/html/rich-text/index.js';
 // it and save the page's .plain.html as richText.eds.html.
 
 // Cases where EDS changes the text itself, which the SDK does not copy. EDS
-// puts spaces around a mark inside a word and drops a line break at the end
-// of a mark.
-const EDS_TEXT_CHANGES = ['split-mark', 'link-split', 'br-end-mark'];
+// puts spaces around a mark inside a word.
+const EDS_TEXT_CHANGES = ['split-mark', 'link-split'];
 
 function elementChildren(node) {
   return (node.children ?? []).filter((child) => child.type === 'element');

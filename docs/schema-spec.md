@@ -241,8 +241,8 @@ single-line value.
 
 - Values are sanitized to this subset on both write and read: unknown wrappers are unwrapped, active content (`script`, `iframe`, `img`, event handlers, …) is dropped, loose inline content is wrapped in `<p>`, and empty paragraphs, headings, quotes and items are removed.
 - Plain text without markup (e.g. a former `long-text` value) is converted into paragraphs split on blank lines, with single newlines kept as `<br>`.
-- Marks are written the way EDS writes them, so a value read back from a delivered page equals the stored one. Marks on the same text nest in the order `s`, `em`, `strong`, `a`, `u`, `sub`, `sup`, `code`, outermost first. Neighbouring identical marks merge, and spaces at the start or end of a mark move outside it, except in `code`.
-- EDS changes the text in two cases, which the SDK does not copy. It puts spaces around a mark inside a word, so `a<strong>b</strong>c` is delivered as `a <strong>b</strong> c`, and it drops a `<br>` at the end of a mark.
+- Marks are written the way EDS writes them, so a value read back from a delivered page equals the stored one. Marks on the same text nest in the order `s`, `em`, `strong`, `a`, `u`, `sub`, `sup`, `code`, outermost first. Neighbouring identical marks merge, and spaces at the start or end of a mark move outside it, except in `code`. Line breaks stay outside marks, as the DA editor writes them.
+- EDS changes the text in one case, which the SDK does not copy. It puts spaces around a mark inside a word, so `a<strong>b</strong>c` is delivered as `a <strong>b</strong> c`.
 
 Each value with text content is stored in a block of its own. The block has one row with one cell, and that cell holds the markup. The value's cell, or its list item inside an array, holds the reference `self://rich-text#<key>-<id>`. The key is lowercased, and `<id>` numbers the blocks of a document in the order they are written.
 

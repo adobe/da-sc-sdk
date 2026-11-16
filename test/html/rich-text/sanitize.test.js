@@ -51,6 +51,11 @@ describe('rich-text sanitizer', () => {
         .to.equal('<p><strong>ab</strong> <a href="/x">c</a><a href="/y">d</a></p>');
     });
 
+    it('keeps line breaks outside marks', () => {
+      expect(sanitizeRichText('<p><strong>a<br>b</strong> <em>c<br></em>d</p>'))
+        .to.equal('<p><strong>a</strong><br><strong>b</strong> <em>c</em><br>d</p>');
+    });
+
     it('moves spaces at the edges of a mark outside it, except in code', () => {
       expect(sanitizeRichText('<p>a<em> b </em>c<strong>d&nbsp;</strong>e<code> f </code>g</p>'))
         .to.equal('<p>a <em>b</em> c<strong>d</strong>\u00a0e<code> f </code>g</p>');
