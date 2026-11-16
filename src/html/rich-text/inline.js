@@ -99,8 +99,9 @@ function toLeaves(nodes, marks = []) {
     if (!isElement(node)) {
       return [];
     }
+    // A line break stays outside marks, so editing the value keeps its form.
     if (node.tagName === ALLOWLIST.lineBreak) {
-      return [{ isBreak: true, marks }];
+      return [{ isBreak: true, marks: [] }];
     }
 
     const mark = markOf(node);

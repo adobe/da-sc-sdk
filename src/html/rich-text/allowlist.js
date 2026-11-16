@@ -10,15 +10,14 @@
  * governing permissions and limitations under the License.
  */
 
-// The rich text the SDK keeps, a subset of the HTML that EDS keeps when it
-// renders a page from DA.
+// The rich-text the SDK keeps.
 export const ALLOWLIST = Object.freeze({
   paragraph: 'p',
   headings: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
   quote: 'blockquote',
   lists: ['ul', 'ol'],
   listItem: 'li',
-  marks: ['del', 'em', 'strong', 'a', 'u', 'sub', 'sup', 'code'],
+  marks: ['s', 'em', 'strong', 'a', 'u', 'sub', 'sup', 'code'],
   lineBreak: 'br',
   link: {
     tagName: 'a',
@@ -28,8 +27,8 @@ export const ALLOWLIST = Object.freeze({
   aliases: {
     b: 'strong',
     i: 'em',
-    s: 'del',
-    strike: 'del',
+    del: 's',
+    strike: 's',
   },
 });
 

@@ -17,7 +17,7 @@ import { sanitizeRichText, richTextFromNodes } from '../../../src/html/rich-text
 describe('rich-text sanitizer', () => {
   describe('sanitizeRichText', () => {
     it('keeps canonical markup unchanged', () => {
-      const html = '<p>Hello <strong>bold</strong> <em>it</em> <u>u</u> <del>s</del> <a href="https://adobe.com">link</a><br>next</p><ul><li>one<ul><li>nested</li></ul></li></ul><ol><li>two</li></ol>';
+      const html = '<p>Hello <strong>bold</strong> <em>it</em> <u>u</u> <s>s</s> <a href="https://adobe.com">link</a><br>next</p><ul><li>one<ul><li>nested</li></ul></li></ul><ol><li>two</li></ol>';
       expect(sanitizeRichText(html)).to.equal(html);
     });
 
@@ -27,8 +27,8 @@ describe('rich-text sanitizer', () => {
     });
 
     it('normalizes equivalent tags', () => {
-      expect(sanitizeRichText('<p><b>a</b> <i>b</i> <strike>c</strike> <s>d</s></p>'))
-        .to.equal('<p><strong>a</strong> <em>b</em> <del>c</del> <del>d</del></p>');
+      expect(sanitizeRichText('<p><b>a</b> <i>b</i> <strike>c</strike> <del>d</del> <s>e</s></p>'))
+        .to.equal('<p><strong>a</strong> <em>b</em> <s>c</s> <s>d</s> <s>e</s></p>');
     });
 
     it('nests marks on the same text in the order EDS writes them', () => {
@@ -37,8 +37,8 @@ describe('rich-text sanitizer', () => {
     });
 
     it('keeps code innermost even when it covers more text', () => {
-      expect(sanitizeRichText('<p><code>x</code><del><code>y</code></del> <code>a</code><a href="/b"><code>b</code></a></p>'))
-        .to.equal('<p><code>x</code><del><code>y</code></del> <code>a</code><a href="/b"><code>b</code></a></p>');
+      expect(sanitizeRichText('<p><code>x</code><s><code>y</code></s> <code>a</code><a href="/b"><code>b</code></a></p>'))
+        .to.equal('<p><code>x</code><s><code>y</code></s> <code>a</code><a href="/b"><code>b</code></a></p>');
     });
 
     it('keeps a mark over more text outside the marks over less', () => {
@@ -49,6 +49,11 @@ describe('rich-text sanitizer', () => {
     it('merges neighbouring identical marks', () => {
       expect(sanitizeRichText('<p><strong>a</strong><strong>b</strong> <a href="/x">c</a><a href="/y">d</a></p>'))
         .to.equal('<p><strong>ab</strong> <a href="/x">c</a><a href="/y">d</a></p>');
+    });
+
+    it('keeps line breaks outside marks', () => {
+      expect(sanitizeRichText('<p><strong>a<br>b</strong> <em>c<br></em>d</p>'))
+        .to.equal('<p><strong>a</strong><br><strong>b</strong> <em>c</em><br>d</p>');
     });
 
     it('moves spaces at the edges of a mark outside it, except in code', () => {
