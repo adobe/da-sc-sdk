@@ -1,3 +1,10 @@
+## [0.6.1](https://github.com/adobe/da-sc-sdk/compare/v0.6.0...v0.6.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* normalize rich-text strikethrough and line breaks ([#23](https://github.com/adobe/da-sc-sdk/issues/23)) ([189b8fe](https://github.com/adobe/da-sc-sdk/commit/189b8fec3a7857538c7154e7b897dc614704fbc4))
+
 # [0.6.0](https://github.com/adobe/da-sc-sdk/compare/v0.5.0...v0.6.0) (2026-11-13)
 
 
