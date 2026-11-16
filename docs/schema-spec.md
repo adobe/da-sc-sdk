@@ -236,12 +236,12 @@ single-line value.
 | -------------- | ----- |
 | `<p>`, `<h1>`–`<h6>`, `<ul>`, `<ol>`, `<li>` | Block structure. Lists may nest inside `<li>`; headings inside `<li>` are flattened to text. |
 | `<blockquote>` | Holds paragraphs, headings, lists and nested quotes. Loose text inside is wrapped in `<p>`. |
-| `<strong>`, `<em>`, `<u>`, `<del>`, `<code>`, `<sup>`, `<sub>`, `<br>` | Inline formatting. `b`, `i`, `s` and `strike` become `strong`, `em` and `del`. `<pre>` becomes a paragraph with its line breaks as `<br>`. |
+| `<strong>`, `<em>`, `<u>`, `<s>`, `<code>`, `<sup>`, `<sub>`, `<br>` | Inline formatting. `b`, `i`, `del` and `strike` become `strong`, `em` and `s`, the tags the DA editor uses. EDS delivers `<s>` as `<del>`, which reads back as `<s>`. `<pre>` becomes a paragraph with its line breaks as `<br>`. |
 | `<a href title>` | The `href` is dropped when its protocol runs script (`javascript:`, `data:`, `vbscript:`) or starts a Windows app (`ms-…:`, `search:`, `search-ms:`). Relative links and other protocols, including custom app schemes, are kept. An optional `title` is kept with whitespace collapsed and trimmed (empty titles are dropped); other attributes are dropped. |
 
 - Values are sanitized to this subset on both write and read: unknown wrappers are unwrapped, active content (`script`, `iframe`, `img`, event handlers, …) is dropped, loose inline content is wrapped in `<p>`, and empty paragraphs, headings, quotes and items are removed.
 - Plain text without markup (e.g. a former `long-text` value) is converted into paragraphs split on blank lines, with single newlines kept as `<br>`.
-- Marks are written the way EDS writes them, so a value read back from a delivered page equals the stored one. Marks on the same text nest in the order `del`, `em`, `strong`, `a`, `u`, `sub`, `sup`, `code`, outermost first. Neighbouring identical marks merge, and spaces at the start or end of a mark move outside it, except in `code`.
+- Marks are written the way EDS writes them, so a value read back from a delivered page equals the stored one. Marks on the same text nest in the order `s`, `em`, `strong`, `a`, `u`, `sub`, `sup`, `code`, outermost first. Neighbouring identical marks merge, and spaces at the start or end of a mark move outside it, except in `code`.
 - EDS changes the text in two cases, which the SDK does not copy. It puts spaces around a mark inside a word, so `a<strong>b</strong>c` is delivered as `a <strong>b</strong> c`, and it drops a `<br>` at the end of a mark.
 
 Each value with text content is stored in a block of its own. The block has one row with one cell, and that cell holds the markup. The value's cell, or its list item inside an array, holds the reference `self://rich-text#<key>-<id>`. The key is lowercased, and `<id>` numbers the blocks of a document in the order they are written.

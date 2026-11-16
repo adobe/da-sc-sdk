@@ -13,7 +13,7 @@
 import { expect } from '@esm-bundle/chai';
 import { readFile } from '@web/test-runner-commands';
 import { fromHtml } from 'hast-util-from-html';
-import { ALLOWED_TAG_NAMES } from '../../../src/html/rich-text/allowlist.js';
+import { ALLOWED_TAG_NAMES, ALLOWLIST } from '../../../src/html/rich-text/allowlist.js';
 import { richTextFromNodes } from '../../../src/html/rich-text/index.js';
 
 // richText.da.html holds rich text as the SDK stores it, one value per block
@@ -79,10 +79,12 @@ describe('rich-text allowlist', () => {
     delivered = valueCells(await readFile({ path: '../mocks/richText.eds.html' }));
   });
 
-  it('lists only tags EDS keeps', () => {
+  it('lists only tags EDS keeps, or delivers as an alias the SDK reads back', () => {
     const deliveredTags = new Set();
     delivered.forEach((cell) => tagNamesOf(cell, deliveredTags));
-    const droppedByEds = ALLOWED_TAG_NAMES.filter((tagName) => !deliveredTags.has(tagName));
+    const readAs = (tagName) => ALLOWLIST.aliases[tagName] ?? tagName;
+    const keptTags = new Set([...deliveredTags].map(readAs));
+    const droppedByEds = ALLOWED_TAG_NAMES.filter((tagName) => !keptTags.has(tagName));
     expect(droppedByEds).to.deep.equal([]);
   });
 
