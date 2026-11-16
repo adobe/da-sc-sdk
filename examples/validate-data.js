@@ -28,10 +28,10 @@ const candidate = {
 const result = validateData({ schema, data: candidate });
 
 console.log('valid   :', result.valid);
-// → false (because the data has constraint violations below)
+// Prints false, because the data violates the constraints below.
 
 console.log('errors  :', result.errors);
-// → {
+// Prints {
 //     '/data/name':   { keyword: 'minLength', instancePath: '/data/name',
 //                       params: { limit: 2 },
 //                       message: 'Must be at least 2 characters.' },
@@ -47,7 +47,7 @@ console.log('errors  :', result.errors);
 // so consumers act on it directly — no pointer arithmetic.
 
 console.log('issues  :', result.schemaIssues);
-// → [] (the schema itself is fine; only the data is invalid)
+// Prints [], because the schema is fine and only the data is invalid.
 //
 // `validateSchema({ schema })` returns the same `valid` + `schemaIssues`
 // shape, minus `errors`. Both validators are intentionally symmetric.

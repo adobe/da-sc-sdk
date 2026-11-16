@@ -1,4 +1,4 @@
-// JSON ↔ HTML roundtrip — the DA wire-format codec.
+// Round trip between JSON and HTML with the DA wire-format codec.
 //
 // Use this pattern when you need to import structured data INTO the DA
 // HTML format, or extract data OUT of saved DA HTML. Interactive editors use
@@ -22,9 +22,10 @@ const original = {
   },
 };
 
-// JSON → HTML. The metadata block becomes the `<div class="da-form">`,
+// JSON to HTML. The metadata block becomes the `<div class="da-form">`,
 // the data block becomes `<div class="project">`, and nested objects/arrays
-// become referenced child blocks.
+// become referenced child blocks. Without a model every value is written as
+// text; see edit.js for passing the engine's model so asset fields are written as images or links.
 const { html, error } = convertJsonToHtml({ json: original });
 if (error) {
   console.error('convertJsonToHtml failed:', error);
@@ -36,7 +37,7 @@ console.log(`${html.slice(0, 200)}...`);
 console.log(`length: ${html.length} chars`);
 console.log();
 
-// HTML → JSON. Parses the HTML, walks the block structure, reconstructs
+// HTML to JSON. Parses the HTML, walks the block structure, reconstructs
 // the data. Useful for "import this saved document" workflows.
 const { json: reloaded, error: parseError } = convertHtmlToJson({ html });
 if (parseError) {
@@ -51,4 +52,4 @@ console.log();
 // The roundtrip is lossless for valid data.
 const ok = JSON.stringify(original) === JSON.stringify(reloaded);
 console.log(`roundtrip identical? ${ok}`);
-// → true
+// Prints true

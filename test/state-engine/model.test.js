@@ -12,6 +12,7 @@
 
 import { expect } from '@esm-bundle/chai';
 import { buildModel, nodeAt } from '../../src/state-engine/model.js';
+import { TYPES } from '../../src/types/index.js';
 
 const objectDef = (children, extra = {}) => ({
   key: 'data', kind: 'object', label: 'Data', children, ...extra,
@@ -80,6 +81,29 @@ describe('buildModel', () => {
     const def = objectDef([stringDef('body', { semanticType: 'long-text' })]);
     const model = buildModel({ definition: def, document: { data: { body: 'hi' } } });
     expect(nodeAt({ model, pointer: '/data/body' })?.semanticType).to.equal('long-text');
+  });
+
+  it('builds an asset as an object of src and altText that carries its type URL', () => {
+    const hero = { src: './media_example.png', altText: 'A hero' };
+    const def = objectDef([{
+      ...objectDef([stringDef('src'), stringDef('altText')]),
+      key: 'hero',
+      typeRef: TYPES.image.url,
+      typeName: 'image',
+    }, {
+      ...objectDef([stringDef('src')]),
+      key: 'sheet',
+      typeRef: TYPES.file.url,
+      typeName: 'file',
+    }]);
+    const model = buildModel({ definition: def, document: { data: { hero } } });
+    expect(nodeAt({ model, pointer: '/data/hero' })?.typeRef).to.equal(TYPES.image.url);
+    expect(nodeAt({ model, pointer: '/data/sheet' })?.typeRef).to.equal(TYPES.file.url);
+    expect(nodeAt({ model, pointer: '/data/hero' })?.typeName).to.equal('image');
+    expect(nodeAt({ model, pointer: '/data/hero/src' })).to.not.have.property('typeRef');
+    expect(nodeAt({ model, pointer: '/data/hero' })?.value).to.deep.equal(hero);
+    expect(nodeAt({ model, pointer: '/data/hero/src' })?.value).to.equal(hero.src);
+    expect(nodeAt({ model, pointer: '/data/hero/altText' })?.value).to.equal(hero.altText);
   });
 
   it('exposes itemLabel from the item definition on array nodes', () => {

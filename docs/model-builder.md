@@ -89,6 +89,13 @@ Every node carries the same base fields, plus kind-specific extras.
   // string with date/time format:
   format:      '…',        // 'date' | 'time' | 'date-time' — editor renders a date/time control
 
+  // string with x-semantic-type:
+  semanticType: '…',       // 'long-text' — editor picks the control
+
+  // object with a $ref to a type, rendered as one field:
+  typeRef:      '…',       // the type URL, such as …/image/v1.0.0.json
+  typeName:     '…',       // 'image' | 'file' — the same for every version of a type
+
   // unsupported:
   unsupported: { reason, feature, compositionKeyword, variants, schemaPath },
 }
@@ -172,11 +179,13 @@ Each example shows the input schema, the input document, and the resulting model
   ],
 }
 
-// model.byPointer (plain object)
-'/data'         → root
-'/data/name'    → children[0]
-'/data/age'     → children[1]
-'/data/enabled' → children[2]
+// model.byPointer, a plain object
+{
+  '/data':         root,
+  '/data/name':    root.children[0],
+  '/data/age':     root.children[1],
+  '/data/enabled': root.children[2],
+}
 ```
 
 ### 4.2. Array of primitives
@@ -332,7 +341,7 @@ JSON Pointer escapes `/` as `~1` and `~` as `~0`.
 '/data/c~0d'   // 'c~d'
 ```
 
-Use `appendPointer`, `unescapePointerSegment`, and friends from [state-engine/pointer.js](../src/state-engine/pointer.js) — never concatenate raw segments.
+Build pointers with `appendPointer` from [shared/pointer.js](../src/shared/pointer.js) and read them with `parsePointer` from [state-engine/pointer.js](../src/state-engine/pointer.js). Never concatenate raw segments.
 
 ---
 
@@ -340,10 +349,11 @@ Use `appendPointer`, `unescapePointerSegment`, and friends from [state-engine/po
 
 | Consumer | Read pattern |
 |---|---|
-| `editor.js` — field rendering | Recursive walk over `root` → `children` → `items`. Each node carries everything the renderer needs (`kind`, `label`, `enumValues`, `validation`, `value`). DOM elements carry `data-pointer="…"` for round-trip identification. |
+| `editor.js` — field rendering | Recursive walk over `root`, its `children` and their `items`. Each node carries everything the renderer needs (`kind`, `label`, `enumValues`, `validation`, `value`). DOM elements carry `data-pointer="…"` for round-trip identification. |
 | `sidebar.js` — navigation | Recursive walk; only renders nodes where `kind === 'object'` or `kind === 'array'`. Selecting a node emits its `pointer`. |
 | `validation.js` | `traverse(root)` visits every node and adds ajv-style errors (`{ keyword, instancePath, params, message }`) to a pointer-keyed map. The map is exposed as `state.validation.errors`. |
-| DOM ↔ data | `byPointer[pointer]` for `O(1)` lookup. Used by scroll-into-view, error highlighting, and any UI that needs to jump from a click target back to its node. |
+| DOM and data | `byPointer[pointer]` for `O(1)` lookup. Used by scroll-into-view, error highlighting, and any UI that needs to jump from a click target back to its node. |
+| `convertJsonToHtml` | Looks up each value's parent in `byPointer` and writes the `src` of image and file fields as images or links (see [lifecycle.md §3.3](./lifecycle.md)). |
 | `mutate.js` | Mutations operate on the document by pointer (`applySet`, `applyAdd`, etc.). After the mutation, `buildModel` runs again — the new model reflects the new document. |
 
 The model is read-only from a consumer's perspective. Mutations always go through `engine.setField` / `engine.addItem` / etc., which mutate the document and rebuild the model. Never edit nodes in place.
@@ -355,7 +365,7 @@ The model is read-only from a consumer's perspective. Mutations always go throug
 - **Pointer is canonical addressing.** Every node has exactly one pointer. The renderer, validator, error map, and DOM all key off it.
 - **`value` matches the schema kind.** Because `coerceData` runs inside `createEngine` before `buildModel`, a `kind: 'integer'` node's value is a `number`, not a `string`. See [architecture.md §13](./architecture.md).
 - **`buildModel` does not deep-clone.** It owns the passed `document` after the call (the rule lives at [state-engine/model.js:69](../src/state-engine/model.js)). Callers (`createEngine`, `mutate.js`) deep-clone before handing it over.
-- **Pure function.** No previous-model threading, no hidden state. Same inputs → structurally identical outputs.
+- **Pure function.** No previous-model threading, no hidden state. The same inputs give structurally identical outputs.
 - **Cost is `O(N)` in document size.** No quadratic walks, no per-keystroke serialization. See [performance-review.md §2.1](./performance-review.md) for the budget.
 
 ---

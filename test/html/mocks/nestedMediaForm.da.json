@@ -1,0 +1,45 @@
+{
+  "metadata": {
+    "schemaName": "table-tennis-player",
+    "title": "Ilya Moreau, Table Tennis Player"
+  },
+  "data": {
+    "name": "Ilya Moreau",
+    "nationality": "Canada",
+    "ranking": 37,
+    "age": 30,
+    "handedness": "Right",
+    "bio": "An imagined competitor who builds long rallies and turns defensive positions into sudden attacks.",
+    "playingStyle": {
+      "grip": "Penhold",
+      "styleType": "All-round",
+      "strengths": [
+        "Consistency",
+        "Backhand control",
+        "Counterplay",
+        "Velocity"
+      ]
+    },
+    "equipment": {
+      "blade": "Flexible five-ply wood blade",
+      "forehandRubber": "Spin-focused forehand rubber",
+      "backhandRubber": "Control backhand rubber"
+    },
+    "competition": {
+      "seed": 4,
+      "group": "B",
+      "debutYear": 2017
+    },
+    "media": {
+      "profileImage": {
+        "src": "https://content.da.live/org/site/players/.ilya-moreau/racket.jpg",
+        "alt": "Red table tennis paddle beside a white ball on a blue table",
+        "credit": {
+          "name": "Sample Photographer",
+          "url": "https://photos.example.com/photo-1"
+        },
+        "licenseUrl": "https://photos.example.com/license"
+      }
+    }
+  }
+}
