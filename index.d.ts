@@ -1,7 +1,7 @@
 // TypeScript declarations for `da-sc-sdk`.
 //
 // Hand-maintained alongside `src/index.js`. If a public signature changes,
-// update this file. The 5 public functions are at the bottom; supporting
+// update this file. The public functions are at the bottom; supporting
 // types are at the top.
 
 // ─── Documents ─────────────────────────────────────────────────────────────
@@ -212,7 +212,12 @@ export interface Engine {
   moveItem(pointer: JsonPointer, fromIndex: number, toIndex: number): EditorState;
 }
 
-// ─── Public API: the 5 exports ─────────────────────────────────────────────
+// ─── Shared schemas ────────────────────────────────────────────────────────
+
+/** A shared schema, such as an image. Its `$id` is its public URL. */
+export type SharedSchema = Readonly<Record<string, unknown>> & { readonly $id: string };
+
+// ─── Public API ────────────────────────────────────────────────────────────
 
 /**
  * Create a schema-constrained JSON state engine. Compiles the schema,
@@ -286,3 +291,22 @@ export function convertJsonToHtml(options: {
 export function convertHtmlToJson(options?: {
   html: string;
 }): { json: Document } | { error: string };
+
+/**
+ * The shared schema at a path.
+ *
+ * @param options The lookup input.
+ * @param options.path The path of the schema's `$id`.
+ * @returns `{ schema }`, or `{ error }` for a path without a schema or a path
+ *   that is not a string.
+ */
+export function getSharedSchemaByPath(options?: {
+  path: string;
+}): { schema: SharedSchema } | { error: string };
+
+/**
+ * Every version of every shared schema.
+ *
+ * @returns `{ schemas }`.
+ */
+export function getSharedSchemas(): { schemas: readonly SharedSchema[] };

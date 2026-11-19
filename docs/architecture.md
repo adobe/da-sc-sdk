@@ -35,6 +35,7 @@ da-sc-sdk/
         index.js          normalizes and serializes the rest in the canonical form
     types/            the types both state-engine/ and html/ read, and the shared schemas
       index.js          registry of every shared schema version by path, frozen
+      lookup.js         the public API for shared schemas
       semantic.js       the x-semantic-type values and the JSON type each applies to
       shared/           the shared schemas as JS modules
         index.js          the catalog, every version listed once
@@ -63,7 +64,7 @@ da-sc-sdk/
 | `src/types/` | `src/shared/` |
 | `src/state-engine/` | `src/types/`, `src/shared/`, and no external packages |
 | `src/html/` | `src/types/`, `src/shared/`, `hast-util-from-html` (parse5) for parsing and `hast-util-sanitize` for rich text. No DOM for writing. |
-| `src/index.js` | `src/state-engine/`, `src/html/` |
+| `src/index.js` | `src/state-engine/`, `src/html/`, `src/types/` |
 
 `state-engine/` has no DOM, no Lit, no browser dependency. It runs unchanged in Node, browsers, MCP servers, and any other ESM runtime. The boundary is enforced by zero external imports — there is nothing in `state-engine/` for a build tool to fail to resolve.
 
@@ -111,9 +112,9 @@ Per-entry shape (the values in the map) is ajv-style: `{ keyword, instancePath, 
 
 Note: there is no `saveStatus` field. The engine doesn't persist; consumers that do maintain their own status outside the engine.
 
-### Public API — five exports
+### Public API
 
-The SDK exposes exactly five named exports from `'da-sc-sdk'`. The surface is narrow on purpose; additions go through deliberate semver minors.
+The SDK exposes only the named exports below from `'da-sc-sdk'`. The surface is narrow on purpose; additions go through deliberate semver minors.
 
 | Function | Source | Purpose |
 | -------- | ------ | ------- |
@@ -122,12 +123,14 @@ The SDK exposes exactly five named exports from `'da-sc-sdk'`. The surface is na
 | `validateData({ schema, data })` | [src/state-engine/index.js](../src/state-engine/index.js) | Data-against-schema validation. Returns `{ valid, errors, schemaIssues }`. `errors` is a pointer-keyed map of ajv-style entries. `valid` is `true` iff both `schemaIssues` and `errors` are empty. Symmetric with `validateSchema`: both validators expose `valid` + `schemaIssues`; `validateData` adds `errors`. |
 | `convertJsonToHtml({ json, model? })` | [src/html/json2html.js](../src/html/json2html.js) | JSON to DA wire-format HTML. Skips empty values. With the engine's model, values of a semantic type are written in their stored form (see [schema-spec.md](./schema-spec.md#x-semantic-type)). Without a model, every value is text. A model not built from `json` is an error. Returns `{ html } \| { error }`. |
 | `convertHtmlToJson({ html })` | [src/html/html2json.js](../src/html/html2json.js) | DA wire-format HTML to JSON. Each value reads as the text of its cell. A `self://<semantic-type>#…` reference reads with the codec of that type. Returns `{ json } \| { error }`. |
+| `getSharedSchemaByPath({ path })` | [src/types/lookup.js](../src/types/lookup.js) | The shared schema whose `$id` has this path, such as `/schemas/shared/image/v1.0.0.json`. Exact match, so a server passes the path of its request on any hostname. Returns `{ schema }`, or `{ error }`. |
+| `getSharedSchemas()` | [src/types/lookup.js](../src/types/lookup.js) | Every version of every shared schema. Returns `{ schemas }`. |
 
 ### Everything else is internal — and unreachable
 
 `src/state-engine/pointer.js`, `src/state-engine/mutate.js`, `src/state-engine/model.js`, `src/shared/clone.js`, `src/state-engine/validation.js`, `src/state-engine/schema.js`, `src/html/json2html.js`, plus the `compileSchema` / `coerceData` / `materializeDefaults` / `isDataEmpty` / `HTMLConverter` symbols inside them — all internal.
 
-The `package.json` `exports` map exposes only `.` (the main entry). Per the Node ESM spec, this **blocks every other subpath** — a consumer attempting `import x from 'da-sc-sdk/src/state-engine/schema.js'` gets `ERR_PACKAGE_PATH_NOT_EXPORTED`. The vendored bundle (`dist/index.js`) only re-exports the five public functions. There is no path-based escape hatch.
+The `package.json` `exports` map exposes only `.` (the main entry). Per the Node ESM spec, this **blocks every other subpath**. A consumer attempting `import x from 'da-sc-sdk/src/state-engine/schema.js'` gets `ERR_PACKAGE_PATH_NOT_EXPORTED`. The vendored bundle (`dist/index.js`) only re-exports the public functions. There is no path-based escape hatch.
 
 The only code that reaches internals is the SDK's own tests via relative paths into `src/` — that's white-box testing, not API consumption.
 

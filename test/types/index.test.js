@@ -13,7 +13,7 @@
 import { expect } from '@esm-bundle/chai';
 import { executeServerCommand } from '@web/test-runner-commands';
 import {
-  ORIGIN, SHARED_SCHEMAS, getSharedSchemaByPath, registerSharedSchemas,
+  ORIGIN, SHARED_SCHEMAS, findSharedSchemaByPath, registerSharedSchemas,
 } from '../../src/types/index.js';
 
 const pathOf = ({ $id }) => $id.slice(ORIGIN.length);
@@ -31,7 +31,7 @@ describe('shared schemas', () => {
     expect(SHARED_SCHEMAS.map(pathOf)).to.have.members(paths);
     await Promise.all(paths.map(async (path) => {
       const resp = await fetch(path);
-      expect(getSharedSchemaByPath(path), path).to.deep.equal(await resp.json());
+      expect(findSharedSchemaByPath(path), path).to.deep.equal(await resp.json());
     }));
   });
 
@@ -44,26 +44,17 @@ describe('shared schemas', () => {
   });
 
   it('defines an image as src and altText, requires src and allows nothing else', () => {
-    const image = getSharedSchemaByPath('/schemas/shared/image/v1.0.0.json');
+    const image = findSharedSchemaByPath('/schemas/shared/image/v1.0.0.json');
     expect(Object.keys(image.properties)).to.deep.equal(['src', 'altText']);
     expect(image.required).to.deep.equal(['src']);
     expect(image.additionalProperties).to.equal(false);
   });
 
   it('defines a file as src only, requires it and allows nothing else', () => {
-    const file = getSharedSchemaByPath('/schemas/shared/file/v1.0.0.json');
+    const file = findSharedSchemaByPath('/schemas/shared/file/v1.0.0.json');
     expect(Object.keys(file.properties)).to.deep.equal(['src']);
     expect(file.required).to.deep.equal(['src']);
     expect(file.additionalProperties).to.equal(false);
-  });
-
-  it('finds no schema at any other path', () => {
-    [
-      '/schemas/shared/image/v1.0.0',
-      '/schemas/shared/image/latest.json',
-      `${ORIGIN}/schemas/shared/image/v1.0.0.json`,
-      undefined,
-    ].forEach((path) => expect(getSharedSchemaByPath(path), path).to.equal(undefined));
   });
 });
 

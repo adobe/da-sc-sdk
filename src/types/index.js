@@ -26,7 +26,7 @@ const PATH = /^\/schemas\/shared\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\/v(?:0|[1-9]\d
 const MAX_NAME_LENGTH = 64;
 
 /**
- * The path of a shared schema's `$id`, such as `/schemas/shared/image/v1.0.0.json`.
+ * The path of a shared schema's `$id`.
  * @param {{ $id?: unknown }} schema A shared schema.
  * @returns {string} The path.
  * @throws {Error} On an `$id` that is not a shared schema URL, or a name that is too long.
@@ -69,10 +69,10 @@ const BY_PATH = registerSharedSchemas(schemas);
 export const SHARED_SCHEMAS = Object.freeze([...BY_PATH.values()]);
 
 /**
- * The shared schema at a path, such as `/schemas/shared/image/v1.0.0.json`.
+ * The shared schema at a path.
  * @param {string} path The path of the schema's `$id`.
  * @returns {object | undefined} The schema, or undefined.
  */
-export function getSharedSchemaByPath(path) {
+export function findSharedSchemaByPath(path) {
   return BY_PATH.get(path);
 }
