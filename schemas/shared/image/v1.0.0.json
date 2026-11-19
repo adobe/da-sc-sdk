@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://headless.adobe.net/schemas/shared/image/v1.0.0.json",
+  "title": "Image",
+  "description": "An image, referenced by its source, with a text alternative.",
+  "type": "object",
+  "properties": {
+    "src": {
+      "type": "string",
+      "title": "Source",
+      "description": "The http(s) URL or media bus path of the asset."
+    },
+    "altText": {
+      "type": "string",
+      "title": "Alt text",
+      "description": "A text alternative for the image."
+    }
+  },
+  "required": [
+    "src"
+  ],
+  "additionalProperties": false
+}

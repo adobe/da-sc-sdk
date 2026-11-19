@@ -33,16 +33,23 @@ da-sc-sdk/
         allowlist.js      the tags and attributes rich text keeps, a subset of what EDS keeps
         sanitize.js       removes active content, unsafe links and other attributes with hast-util-sanitize
         index.js          normalizes and serializes the rest in the canonical form
-    types/            the types both state-engine/ and html/ read
+    types/            the types both state-engine/ and html/ read, and the shared schemas
+      index.js          registry of every shared schema version by path, frozen
       semantic.js       the x-semantic-type values and the JSON type each applies to
+      shared/           the shared schemas as JS modules
+        index.js          the catalog, every version listed once
+        <name>/v<x>.<y>.<z>.js  one module per version, identical to its file in schemas/shared/
     shared/           helpers every layer may use
       clone.js          single deepClone util
       empty.js          isDataEmpty, the one rule for empty values (validation, defaults, save)
       equal.js          isDeepEqual, JSON equality regardless of key order
+      freeze.js         deepFreeze, freezes a value and everything inside it
       object.js         isJsonObject, the check for a non-null, non-array object
       pointer.js        appendPointer, how the model and the writer address a value
   dist/
     index.js          self-contained ESM bundle for vendor / CDN consumers
+  schemas/
+    shared/           the published shared schemas, one immutable file per version (see schemas/README.md)
   test/               mirrors src/ — one .test.js per module + roundtrip suite
 ```
 
@@ -59,6 +66,8 @@ da-sc-sdk/
 | `src/index.js` | `src/state-engine/`, `src/html/` |
 
 `state-engine/` has no DOM, no Lit, no browser dependency. It runs unchanged in Node, browsers, MCP servers, and any other ESM runtime. The boundary is enforced by zero external imports — there is nothing in `state-engine/` for a build tool to fail to resolve.
+
+`types/` also holds the shared schemas, each as a JS module identical to its published JSON file in `schemas/shared/`. The modules hold literal values only, and the registry in `types/index.js` freezes them and checks each `$id` at load.
 
 `html/` is environment-agnostic. The `JSON → HTML` direction in [src/html/json2html.js](../src/html/json2html.js) is a pure string builder — template literals + a small text/attribute escape helper. No DOM, no async, no peer dependency. The `HTML → JSON` direction uses `hast-util-from-html`, a pure-JS parse5 wrapper with no DOM or Node-built-in dependency. The whole SDK runs in Cloudflare Workers, Deno, Bun, and other V8-isolate environments without modification.
 
