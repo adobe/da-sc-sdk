@@ -13,6 +13,7 @@
 import { deepClone } from '../../shared/clone.js';
 import { DATA_POINTER } from '../../shared/pointer.js';
 import { isSupportedSemanticType } from '../../types/semantic.js';
+import { ISSUE_REASONS, issueMessage } from './issues.js';
 
 function unionRequired(base = [], next = []) {
   return Array.from(new Set([...(base ?? []), ...(next ?? [])]));
@@ -89,7 +90,7 @@ function resolveNode({
       return {
         ...resolved,
         $ref: undefined,
-        unsupportedRef: { reason: 'external-ref', ref },
+        unsupportedRef: { reason: ISSUE_REASONS.externalRef, ref },
         schemaPath,
       };
     }
@@ -104,7 +105,7 @@ function resolveNode({
         return {
           ...resolved,
           $ref: undefined,
-          unsupportedRef: { reason: 'unresolved-ref', ref },
+          unsupportedRef: { reason: ISSUE_REASONS.unresolvedRef, ref },
           schemaPath,
         };
       }
@@ -265,7 +266,7 @@ function inferKind(schema = {}) {
     const u = schema.unsupportedComposition ?? {};
     const keyword = u.compositionKeyword ?? 'unknown';
     return unsupportedKind({
-      reason: 'unsupported-composition',
+      reason: ISSUE_REASONS.unsupportedComposition,
       feature: keyword,
       variants: u.variants ?? 0,
       schemaPath: u.schemaPath ?? '/',
@@ -274,8 +275,8 @@ function inferKind(schema = {}) {
 
   if (Array.isArray(schema?.type)) {
     return unsupportedKind({
-      reason: 'type-as-array',
-      feature: 'type-as-array',
+      reason: ISSUE_REASONS.typeAsArray,
+      feature: ISSUE_REASONS.typeAsArray,
       details: { type: schema.type },
     });
   }
@@ -283,41 +284,16 @@ function inferKind(schema = {}) {
   if (typeof schema?.type === 'string') {
     if (SUPPORTED_TYPES.has(schema.type)) { return { kind: schema.type }; }
     return unsupportedKind({
-      reason: 'unsupported-type',
+      reason: ISSUE_REASONS.unsupportedType,
       feature: schema.type,
       details: { type: schema.type },
     });
   }
 
   return unsupportedKind({
-    reason: 'missing-type',
-    feature: 'missing-type',
+    reason: ISSUE_REASONS.missingType,
+    feature: ISSUE_REASONS.missingType,
   });
-}
-
-// Human-readable summary of an issue, derived from its machine `reason` and
-// `details`. `reason` stays the contract consumers branch on; `message` is the
-// convenience string. Location-independent (consumers add it from `schemaPath`),
-// period-terminated to match the data-validation error voice.
-function issueMessage({ reason, details }) {
-  switch (reason) {
-    case 'missing-type':
-      return 'A type is required.';
-    case 'type-as-array':
-      return 'The type must be a single value, not an array.';
-    case 'unsupported-type':
-      return `The type "${details?.type ?? ''}" is not supported.`;
-    case 'unsupported-composition':
-      return `Composition "${details?.keyword ?? ''}" is not supported.`;
-    case 'external-ref':
-      return `External reference "${details?.ref ?? ''}" is not supported; use a local "#/…" reference.`;
-    case 'unresolved-ref':
-      return `Reference "${details?.ref ?? ''}" could not be resolved.`;
-    case 'invalid-pattern':
-      return 'The pattern is not a valid regular expression.';
-    default:
-      return 'This schema construct is not supported.';
-  }
 }
 
 function compileNode({
@@ -340,8 +316,8 @@ function compileNode({
     } catch {
       const details = { pattern: schema.pattern };
       issues.push({
-        reason: 'invalid-pattern',
-        message: issueMessage({ reason: 'invalid-pattern', details }),
+        reason: ISSUE_REASONS.invalidPattern,
+        message: issueMessage({ reason: ISSUE_REASONS.invalidPattern, details }),
         schemaPath,
         pointer,
         details,
@@ -368,7 +344,7 @@ function compileNode({
     const feature = u.feature ?? keyword;
     // Composition folds its keyword + branch count into details; every other
     // reason keeps its own details blob ({ type } / { ref } / null).
-    const issueDetails = reason === 'unsupported-composition'
+    const issueDetails = reason === ISSUE_REASONS.unsupportedComposition
       ? { keyword, variants: u.variants ?? 0 }
       : (u.details ?? null);
     issues.push({
@@ -403,8 +379,8 @@ function compileNode({
       const keyword = u.compositionKeyword ?? 'unknown';
       const details = { keyword, variants: u.variants ?? 0 };
       issues.push({
-        reason: 'unsupported-composition',
-        message: issueMessage({ reason: 'unsupported-composition', details }),
+        reason: ISSUE_REASONS.unsupportedComposition,
+        message: issueMessage({ reason: ISSUE_REASONS.unsupportedComposition, details }),
         schemaPath,
         pointer,
         details,
