@@ -82,6 +82,26 @@ describe('buildModel', () => {
     expect(nodeAt({ model, pointer: '/data/body' })?.semanticType).to.equal('long-text');
   });
 
+  it('builds a shared schema value as an object that carries the shared schema name', () => {
+    const hero = { src: './media_example.png', altText: 'A hero' };
+    const definition = objectDef([{
+      ...objectDef([stringDef('src'), stringDef('altText')]),
+      key: 'hero',
+      sharedSchemaName: 'image',
+    }, {
+      ...objectDef([stringDef('src')]),
+      key: 'sheet',
+      sharedSchemaName: 'file',
+    }]);
+    const model = buildModel({ definition, document: { data: { hero } } });
+    expect(nodeAt({ model, pointer: '/data/hero' })?.sharedSchemaName).to.equal('image');
+    expect(nodeAt({ model, pointer: '/data/sheet' })?.sharedSchemaName).to.equal('file');
+    expect(nodeAt({ model, pointer: '/data/hero/src' })).to.not.have.property('sharedSchemaName');
+    expect(nodeAt({ model, pointer: '/data/hero' })?.value).to.deep.equal(hero);
+    expect(nodeAt({ model, pointer: '/data/hero/src' })?.value).to.equal(hero.src);
+    expect(nodeAt({ model, pointer: '/data/hero/altText' })?.value).to.equal(hero.altText);
+  });
+
   it('exposes itemLabel from the item definition on array nodes', () => {
     const def = objectDef([
       arrayDef('contacts', { ...objectDef([stringDef('name')]), label: 'Contact' }),

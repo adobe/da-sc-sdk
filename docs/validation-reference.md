@@ -85,6 +85,7 @@ matches the control:
 | ------------- | ------- |
 | scalar | `This field is required.` |
 | object | `This section is required.` |
+| shared schema value | `This field is required.` |
 | array | `Must contain at least one item with content.` (or the `minItems` count) |
 
 ### 2.5 Arrays: present once they have rows; counted by content

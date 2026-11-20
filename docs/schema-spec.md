@@ -18,11 +18,11 @@ A conformant schema satisfies every rule below.
 | R1 | Every node must declare `type` explicitly. Inference from `properties`, `items`, or `enum` is not relied upon. |
 | R2 | `type` must be exactly one of: `"string"`, `"number"`, `"integer"`, `"boolean"`, `"object"`, `"array"`. |
 | R3 | `type` must not be an array (no `["string", "null"]`). |
-| R4 | Every node must define `title`. |
+| R4 | Every node must define `title`. For a shared schema, set it adjacent to the `$ref`. |
 | R5 | Every `object` node defines its fields via `properties`. |
 | R6 | Every `array` node defines its element schema via `items` (a single schema object, not an array). |
 | R7 | Repeated shapes are factored into `$defs` and referenced via `$ref`. |
-| R8 | `$ref` values must be same-document JSON Pointers (`#/...`). |
+| R8 | `$ref` values must be same-document JSON Pointers (`#/...`) or the `$id` of a shared schema (see [Shared schemas](#shared-schemas)). |
 | R9 | Property keys must begin with a letter (`a–z`, `A–Z`) and contain only letters, digits (`0–9`), and hyphens (`-`). |
 | R10 | The property keys `metadata` and `section-metadata` are reserved. They must not appear in `properties`. |
 | R11 | The root schema may declare `type: "object"` or `type: "array"`. |
@@ -356,7 +356,7 @@ An empty value is absent (§7): an optional date/time field may be left blank, a
 | `type`        | string | Rules R1–R3. |
 | `properties`  | object | Required on every `object`. |
 | `items`       | object | Required on every `array`. A single schema, not an array. |
-| `$ref`        | string | Same-document only (`#/...`). |
+| `$ref`        | string | Same-document (`#/...`), or the `$id` of a shared schema. |
 | `$defs`       | object | Container for reusable schemas referenced via `$ref`. |
 
 `$ref` and `$defs`:
@@ -382,6 +382,55 @@ An empty value is absent (§7): an optional date/time field may be left blank, a
   }
 }
 ```
+
+### Shared schemas
+
+A shared schema is a common shape, such as an image, that the SDK publishes
+(see [schemas/README.md](../schemas/README.md)). Reference it with its `$id`.
+
+```json
+{
+  "type": "object",
+  "title": "Product",
+  "properties": {
+    "hero": {
+      "$ref": "https://headless.adobe.net/schemas/shared/image/v1.0.0.json",
+      "title": "Hero image",
+      "required": ["altText"]
+    }
+  }
+}
+```
+
+The SDK holds every shared schema and never fetches one. A `$ref` to a version
+this SDK doesn't have is a schema issue (`external-ref`) whose message asks to
+update the SDK.
+
+The field's value has the shape of the shared schema. The model node of the
+field has `sharedSchemaName`, such as `image`, so an editor can render it as one
+control.
+
+The shared schema owns its shape. Only these keywords may be adjacent to the
+`$ref`.
+
+| Keyword | Effect |
+| ------- | ------ |
+| `title` | The label of the field (R4). The shared schema's own title is not used. |
+| `description` | Help text, as on any field. |
+| `readOnly` | The value can't be changed. |
+| `default` | A value in the shape of the shared schema. |
+| `required` | Makes optional properties of the shared schema required, such as `["altText"]` for an image. |
+
+Any other keyword that could change the value, such as `type`, `properties` or
+`additionalProperties`, is a schema issue (`unsupported-adjacent-keywords`), and
+`details.keywords` names them. So is a `required` that names other properties.
+This also applies to keywords adjacent to a local `$ref` that resolves to a
+shared schema. `$comment`, `examples`, `deprecated`,
+`writeOnly` and `x-*` keywords are ignored.
+
+A shared schema value whose properties are all empty has no value (§7). A
+required one that is empty is flagged as a field, `"This field is required."`,
+and its own required properties are checked only once it has a value.
 
 ---
 

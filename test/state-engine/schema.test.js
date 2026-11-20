@@ -11,7 +11,9 @@
  */
 
 import { expect } from '@esm-bundle/chai';
-import { compileSchema } from '../../src/state-engine/schema.js';
+import { compileSchema } from '../../src/state-engine/schema/index.js';
+import file from '../../src/types/shared/file/v1.0.0.js';
+import image from '../../src/types/shared/image/v1.0.0.js';
 
 describe('compileSchema', () => {
   describe('basic types', () => {
@@ -92,6 +94,235 @@ describe('compileSchema', () => {
         properties: { body: { type: 'array', items: { type: 'string' }, 'x-semantic-type': 'rich-text' } },
       });
       expect(definition.children[0].semanticType).to.equal(undefined);
+    });
+
+    it('compiles an image as an object with the SDK-defined src and altText fields, src required', () => {
+      const { definition, issues } = compileSchema({
+        type: 'object',
+        required: ['hero'],
+        properties: { hero: { $ref: image.$id, title: 'Hero' } },
+      });
+      const hero = definition.children[0];
+      expect(issues).to.deep.equal([]);
+      expect(hero).to.include({
+        kind: 'object', sharedSchemaName: 'image', label: 'Hero', required: true,
+      });
+      expect(hero.children.map(({ key, kind, label, required }) => ({
+        key, kind, label, required,
+      }))).to.deep.equal([
+        { key: 'src', kind: 'string', label: 'Source', required: true },
+        { key: 'altText', kind: 'string', label: 'Alt text', required: false },
+      ]);
+    });
+
+    it('compiles a file as an object with only the SDK-defined src field', () => {
+      const { definition, issues } = compileSchema({
+        type: 'object',
+        properties: { datasheet: { $ref: file.$id, title: 'Datasheet' } },
+      });
+      const datasheet = definition.children[0];
+      expect(issues).to.deep.equal([]);
+      expect(datasheet).to.include({
+        kind: 'object', sharedSchemaName: 'file', label: 'Datasheet',
+      });
+      expect(datasheet.children.map((child) => child.key)).to.deep.equal(['src']);
+    });
+
+    it('requires the alt text of an image when required lists it next to the $ref', () => {
+      const { definition, issues } = compileSchema({
+        type: 'object',
+        properties: { hero: { $ref: image.$id, required: ['altText'] } },
+      });
+      expect(issues).to.deep.equal([]);
+      expect(definition.children[0].children.map(({ key, required }) => ({ key, required })))
+        .to.deep.equal([
+          { key: 'src', required: true },
+          { key: 'altText', required: true },
+        ]);
+    });
+
+    it('requires the alt text through a $defs entry and at the local reference', () => {
+      const { definition, issues } = compileSchema({
+        type: 'object',
+        $defs: {
+          Logo: { $ref: image.$id, title: 'Logo', required: ['altText'] },
+          Photo: { $ref: image.$id },
+        },
+        properties: {
+          logo: { $ref: '#/$defs/Logo' },
+          photo: { $ref: '#/$defs/Photo', required: ['altText'] },
+          gallery: { type: 'array', items: { $ref: image.$id, required: ['altText'] } },
+        },
+      });
+      expect(issues).to.deep.equal([]);
+      const altRequired = (node) => node.children.find((child) => child.key === 'altText').required;
+      const [logo, photo, gallery] = definition.children;
+      expect(altRequired(logo)).to.equal(true);
+      expect(altRequired(photo)).to.equal(true);
+      expect(altRequired(gallery.item)).to.equal(true);
+    });
+
+    it('keeps annotations next to a shared schema $ref', () => {
+      const { definition, issues } = compileSchema({
+        type: 'object',
+        properties: {
+          hero: {
+            $ref: image.$id,
+            title: 'Hero',
+            description: 'The main image',
+            readOnly: true,
+            default: null,
+            $comment: 'note',
+            examples: [],
+            'x-hint': 1,
+          },
+        },
+      });
+      const hero = definition.children[0];
+      expect(issues).to.deep.equal([]);
+      expect(hero).to.include({
+        kind: 'object', sharedSchemaName: 'image', label: 'Hero', description: 'The main image', readonly: true,
+      });
+      expect(hero.children.map((child) => child.key)).to.deep.equal(['src', 'altText']);
+    });
+
+    it('reports keywords next to an image reference that would change the image', () => {
+      const { definition, issues } = compileSchema({
+        type: 'object',
+        properties: {
+          hero: {
+            $ref: image.$id,
+            title: 'Hero',
+            type: 'object',
+            properties: { caption: { type: 'string' } },
+          },
+        },
+      });
+      expect(issues).to.deep.equal([{
+        reason: 'unsupported-adjacent-keywords',
+        message: 'Only these keywords can be adjacent to the image $ref (title, description, readOnly, default, required: ["altText"]). Remove "type", "properties".',
+        schemaPath: '/properties/hero',
+        pointer: '/data/hero',
+        details: { ref: image.$id, keywords: ['type', 'properties'] },
+      }]);
+      expect(definition.children[0]).to.include({ kind: 'unsupported', readonly: true });
+    });
+
+    it('reports a required next to an image that lists anything but altText once', () => {
+      [['src'], ['altText', 'src'], ['altText', 'altText'], [], 'altText'].forEach((required) => {
+        const { issues } = compileSchema({
+          type: 'object',
+          properties: { hero: { $ref: image.$id, required } },
+        });
+        expect(issues.map((issue) => [issue.reason, issue.details.keywords])).to.deep.equal([
+          ['unsupported-adjacent-keywords', ['required']],
+        ]);
+      });
+    });
+
+    it('reports any keyword but annotations next to a file reference', () => {
+      const { issues } = compileSchema({
+        type: 'object',
+        properties: { datasheet: { $ref: file.$id, required: ['altText'], type: 'object' } },
+      });
+      expect(issues).to.deep.equal([{
+        reason: 'unsupported-adjacent-keywords',
+        message: 'Only these keywords can be adjacent to the file $ref (title, description, readOnly, default). Remove "required", "type".',
+        schemaPath: '/properties/datasheet',
+        pointer: '/data/datasheet',
+        details: { ref: file.$id, keywords: ['required', 'type'] },
+      }]);
+    });
+
+    it('reports keywords next to a shared schema $ref inside $defs and array items', () => {
+      const { issues } = compileSchema({
+        type: 'object',
+        $defs: { Logo: { $ref: image.$id, required: ['src'] } },
+        properties: {
+          logo: { $ref: '#/$defs/Logo' },
+          gallery: { type: 'array', items: { $ref: image.$id, additionalProperties: true } },
+        },
+      });
+      expect(issues.map(({ reason, schemaPath, pointer, details }) => ({
+        reason, schemaPath, pointer, keywords: details.keywords,
+      }))).to.deep.equal([
+        {
+          reason: 'unsupported-adjacent-keywords', schemaPath: '/$defs/Logo', pointer: '/data/logo', keywords: ['required'],
+        },
+        {
+          reason: 'unsupported-adjacent-keywords', schemaPath: '/properties/gallery/items', pointer: '/data/gallery/0', keywords: ['additionalProperties'],
+        },
+      ]);
+    });
+
+    it('reports keywords next to a local $ref to a shared schema', () => {
+      const { issues } = compileSchema({
+        type: 'object',
+        $defs: { Datasheet: { $ref: file.$id, title: 'Datasheet' } },
+        properties: { sheet: { $ref: '#/$defs/Datasheet', title: 'Sheet', required: ['altText'] } },
+      });
+      const summary = issues.map(({ reason, schemaPath, details }) => ({
+        reason, schemaPath, details,
+      }));
+      expect(summary).to.deep.equal([{
+        reason: 'unsupported-adjacent-keywords',
+        schemaPath: '/properties/sheet',
+        details: { ref: file.$id, keywords: ['required'] },
+      }]);
+    });
+
+    it('labels an untitled shared schema value with its key, not the shared schema title', () => {
+      const { definition } = compileSchema({
+        type: 'object',
+        properties: { hero: { $ref: image.$id } },
+      });
+      expect(definition.children[0].label).to.equal('hero');
+    });
+
+    it('compiles a shared schema value reached through a local $defs $ref', () => {
+      const { definition, issues } = compileSchema({
+        type: 'object',
+        $defs: { Logo: { $ref: image.$id, title: 'Logo' } },
+        properties: { logo: { $ref: '#/$defs/Logo' } },
+      });
+      expect(issues).to.deep.equal([]);
+      expect(definition.children[0]).to.include({ sharedSchemaName: 'image', label: 'Logo' });
+    });
+
+    it('compiles an array of shared schema values', () => {
+      const { definition } = compileSchema({
+        type: 'object',
+        properties: {
+          gallery: { type: 'array', items: { $ref: image.$id } },
+          files: { type: 'array', items: { $ref: file.$id } },
+        },
+      });
+      const [gallery, files] = definition.children;
+      expect(gallery.item).to.include({ kind: 'object', sharedSchemaName: 'image' });
+      expect(gallery.item.children.map((child) => child.key)).to.deep.equal(['src', 'altText']);
+      expect(files.item).to.include({ kind: 'object', sharedSchemaName: 'file' });
+      expect(files.item.children.map((child) => child.key)).to.deep.equal(['src']);
+    });
+
+    it('reports external references other than the shared schemas', () => {
+      const { issues } = compileSchema({
+        type: 'object',
+        properties: { hero: { $ref: 'https://example.com/schemas/image.json' } },
+      });
+      expect(issues.map((issue) => issue.reason)).to.deep.equal(['external-ref']);
+      expect(issues[0].message).to.include(image.$id).and.include(file.$id);
+    });
+
+    it('asks to update the SDK for a shared schema version it does not have', () => {
+      const reference = image.$id.replace('v1.0.0', 'v9.0.0');
+      const { issues } = compileSchema({
+        type: 'object',
+        properties: { hero: { $ref: reference } },
+      });
+      expect(issues.map(({ reason, message }) => ({ reason, message }))).to.deep.equal([{
+        reason: 'external-ref',
+        message: `Shared schema "${reference}" is not in this version of the SDK. Update @adobe/da-sc-sdk to use it.`,
+      }]);
     });
 
     it('lets enum win over x-semantic-type', () => {

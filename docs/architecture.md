@@ -19,7 +19,10 @@ da-sc-sdk/
     index.js          curated public re-exports
     state-engine/             headless editing engine
       index.js          createEngine() — public API; validateData, isDataEmpty, materializeDefaults, coerceData
-      schema.js         resolveSchema + compileSchema ($ref/$defs resolution, composition handling)
+      schema/           the schema compiler
+        index.js          resolveSchema + compileSchema ($ref/$defs resolution, composition handling)
+        issues.js         the reasons of schema issues and their messages
+        shared-schema.js  resolves $refs to shared schemas and decides which keywords may be adjacent
       model.js          buildModel + pointer→node Map, in one pass
       mutate.js         setField, addItem, insertItem, removeItem, moveItem
       pointer.js        RFC 6901 ops + definitionAt
@@ -33,16 +36,24 @@ da-sc-sdk/
         allowlist.js      the tags and attributes rich text keeps, a subset of what EDS keeps
         sanitize.js       removes active content, unsafe links and other attributes with hast-util-sanitize
         index.js          normalizes and serializes the rest in the canonical form
-    types/            the types both state-engine/ and html/ read
+    types/            the types both state-engine/ and html/ read, and the shared schemas
+      index.js          registry of every shared schema version by path, frozen
+      lookup.js         the public API for shared schemas
       semantic.js       the x-semantic-type values and the JSON type each applies to
+      shared/           the shared schemas as JS modules
+        index.js          the catalog, every version listed once
+        <name>/v<x>.<y>.<z>.js  one module per version, identical to its file in schemas/shared/
     shared/           helpers every layer may use
       clone.js          single deepClone util
       empty.js          isDataEmpty, the one rule for empty values (validation, defaults, save)
       equal.js          isDeepEqual, JSON equality regardless of key order
+      freeze.js         deepFreeze, freezes a value and everything inside it
       object.js         isJsonObject, the check for a non-null, non-array object
       pointer.js        appendPointer, how the model and the writer address a value
   dist/
     index.js          self-contained ESM bundle for vendor / CDN consumers
+  schemas/
+    shared/           the published shared schemas, one immutable file per version (see schemas/README.md)
   test/               mirrors src/ — one .test.js per module + roundtrip suite
 ```
 
@@ -56,9 +67,11 @@ da-sc-sdk/
 | `src/types/` | `src/shared/` |
 | `src/state-engine/` | `src/types/`, `src/shared/`, and no external packages |
 | `src/html/` | `src/types/`, `src/shared/`, `hast-util-from-html` (parse5) for parsing and `hast-util-sanitize` for rich text. No DOM for writing. |
-| `src/index.js` | `src/state-engine/`, `src/html/` |
+| `src/index.js` | `src/state-engine/`, `src/html/`, `src/types/` |
 
 `state-engine/` has no DOM, no Lit, no browser dependency. It runs unchanged in Node, browsers, MCP servers, and any other ESM runtime. The boundary is enforced by zero external imports — there is nothing in `state-engine/` for a build tool to fail to resolve.
+
+`types/` also holds the shared schemas, each as a JS module identical to its published JSON file in `schemas/shared/`. The modules hold literal values only, and the registry in `types/index.js` freezes them and checks each `$id` at load.
 
 `html/` is environment-agnostic. The `JSON → HTML` direction in [src/html/json2html.js](../src/html/json2html.js) is a pure string builder — template literals + a small text/attribute escape helper. No DOM, no async, no peer dependency. The `HTML → JSON` direction uses `hast-util-from-html`, a pure-JS parse5 wrapper with no DOM or Node-built-in dependency. The whole SDK runs in Cloudflare Workers, Deno, Bun, and other V8-isolate environments without modification.
 
@@ -102,9 +115,9 @@ Per-entry shape (the values in the map) is ajv-style: `{ keyword, instancePath, 
 
 Note: there is no `saveStatus` field. The engine doesn't persist; consumers that do maintain their own status outside the engine.
 
-### Public API — five exports
+### Public API
 
-The SDK exposes exactly five named exports from `'da-sc-sdk'`. The surface is narrow on purpose; additions go through deliberate semver minors.
+The SDK exposes only the named exports below from `'da-sc-sdk'`. The surface is narrow on purpose; additions go through deliberate semver minors.
 
 | Function | Source | Purpose |
 | -------- | ------ | ------- |
@@ -113,12 +126,14 @@ The SDK exposes exactly five named exports from `'da-sc-sdk'`. The surface is na
 | `validateData({ schema, data })` | [src/state-engine/index.js](../src/state-engine/index.js) | Data-against-schema validation. Returns `{ valid, errors, schemaIssues }`. `errors` is a pointer-keyed map of ajv-style entries. `valid` is `true` iff both `schemaIssues` and `errors` are empty. Symmetric with `validateSchema`: both validators expose `valid` + `schemaIssues`; `validateData` adds `errors`. |
 | `convertJsonToHtml({ json, model? })` | [src/html/json2html.js](../src/html/json2html.js) | JSON to DA wire-format HTML. Skips empty values. With the engine's model, values of a semantic type are written in their stored form (see [schema-spec.md](./schema-spec.md#x-semantic-type)). Without a model, every value is text. A model not built from `json` is an error. Returns `{ html } \| { error }`. |
 | `convertHtmlToJson({ html })` | [src/html/html2json.js](../src/html/html2json.js) | DA wire-format HTML to JSON. Each value reads as the text of its cell. A `self://<semantic-type>#…` reference reads with the codec of that type. Returns `{ json } \| { error }`. |
+| `getSharedSchemaByPath({ path })` | [src/types/lookup.js](../src/types/lookup.js) | The shared schema whose `$id` has this path, such as `/schemas/shared/image/v1.0.0.json`. Exact match, so a server passes the path of its request on any hostname. Returns `{ schema }`, or `{ error }`. |
+| `getSharedSchemas()` | [src/types/lookup.js](../src/types/lookup.js) | Every version of every shared schema. Returns `{ schemas }`. |
 
 ### Everything else is internal — and unreachable
 
-`src/state-engine/pointer.js`, `src/state-engine/mutate.js`, `src/state-engine/model.js`, `src/shared/clone.js`, `src/state-engine/validation.js`, `src/state-engine/schema.js`, `src/html/json2html.js`, plus the `compileSchema` / `coerceData` / `materializeDefaults` / `isDataEmpty` / `HTMLConverter` symbols inside them — all internal.
+`src/state-engine/pointer.js`, `src/state-engine/mutate.js`, `src/state-engine/model.js`, `src/shared/clone.js`, `src/state-engine/validation.js`, `src/state-engine/schema/index.js`, `src/html/json2html.js`, plus the `compileSchema` / `coerceData` / `materializeDefaults` / `isDataEmpty` / `HTMLConverter` symbols inside them — all internal.
 
-The `package.json` `exports` map exposes only `.` (the main entry). Per the Node ESM spec, this **blocks every other subpath** — a consumer attempting `import x from 'da-sc-sdk/src/state-engine/schema.js'` gets `ERR_PACKAGE_PATH_NOT_EXPORTED`. The vendored bundle (`dist/index.js`) only re-exports the five public functions. There is no path-based escape hatch.
+The `package.json` `exports` map exposes only `.` (the main entry). Per the Node ESM spec, this **blocks every other subpath**. A consumer attempting `import x from 'da-sc-sdk/src/state-engine/schema/index.js'` gets `ERR_PACKAGE_PATH_NOT_EXPORTED`. The vendored bundle (`dist/index.js`) only re-exports the public functions. There is no path-based escape hatch.
 
 The only code that reaches internals is the SDK's own tests via relative paths into `src/` — that's white-box testing, not API consumption.
 
@@ -165,7 +180,7 @@ A `kind: 'unsupported'` node means the field's shape is defined by a construct t
 
 The pointer→node Map is built during the same traversal that builds the tree — no follow-up pass.
 
-When adding a new field type, add a new `kind` value to `schema.js`'s `inferKind`. Never fall through to a default.
+When adding a new field type, add a new `kind` value to `schema/index.js`'s `inferKind`. Never fall through to a default.
 
 ---
 
@@ -219,12 +234,12 @@ JSON Pointer is positional, so pointers change when items move. Pointers are the
 
 The SDK applies two independent contracts to a schema:
 
-- **Compiler editability** — `schema.js` + `model.js` decide what the SDK can *render and edit*. This is an allowlist: an unsupported construct produces a `kind: 'unsupported'` node (or an `unsupportedComposition` flag on a still-editable object).
+- **Compiler editability** — `schema/index.js` + `model.js` decide what the SDK can *render and edit*. This is an allowlist: an unsupported construct produces a `kind: 'unsupported'` node (or an `unsupportedComposition` flag on a still-editable object).
 - **Validator correctness** — `validation.js` enforces only the keywords listed in [schema-spec.md](./schema-spec.md). It walks the model; any keyword outside the allowlist is silently ignored. The contract is the documentation, not the JSON Schema spec.
 
 The schema-spec also defines **authoring rules** (property key pattern, reserved keys `metadata` / `section-metadata`) that the runtime does not police. Authors and code generators are expected to follow them; behavior on violation is undefined.
 
-Compiler resolution (in `schema.js`):
+Compiler resolution (in `schema/index.js`):
 
 - `$ref` — internal refs only (`#/...`). External or unresolved refs produce an unsupported node.
 - `type` must be one of `string` / `number` / `integer` / `boolean` / `object` / `array`. Anything else produces an unsupported node.
@@ -234,7 +249,7 @@ When an unsupported construct is found on a node:
 - **Node has direct `properties`** (composition alongside a full property map): compiled as `kind: 'object'` with an `unsupportedComposition` flag. Properties are fully editable.
 - **Otherwise**: compiled as `kind: 'unsupported'`. The stored value passes through untouched.
 
-`compileSchema` returns `{ schema, definition, editable, issues }`. `issues` lists every node the compiler could not model with structured reason codes (`unsupported-composition`, `unsupported-type`, `type-as-array`, `missing-type`, `external-ref`, `unresolved-ref`); `editable` is `false` iff `issues` is non-empty. `issues` is also exposed on every state snapshot as `state.schemaIssues`.
+`compileSchema` returns `{ schema, definition, editable, issues }`. `issues` lists every node the compiler could not model with structured reason codes (`unsupported-composition`, `unsupported-type`, `type-as-array`, `missing-type`, `external-ref`, `unresolved-ref`, `unsupported-adjacent-keywords`, `invalid-pattern`); `editable` is `false` iff `issues` is non-empty. `issues` is also exposed on every state snapshot as `state.schemaIssues`.
 
 ---
 
@@ -350,7 +365,7 @@ Keywords and messages are owned by `validation.js` and stable across edits — s
 
 ### Invalid `pattern` is a schema issue, not a data error
 
-ajv throws at schema-compile time when the pattern's regex is unparseable. We mirror that: `schema.js` calls `new RegExp(pattern)` during compile; on failure it pushes `{ reason: 'invalid-pattern', details: { pattern } }` to `schemaIssues` and drops the pattern from the node's validation. The data validator never tries to use an invalid pattern. Pre-flight the schema with `validateSchema()` and surface `invalid-pattern` issues to the schema author.
+ajv throws at schema-compile time when the pattern's regex is unparseable. We mirror that: `schema/index.js` calls `new RegExp(pattern)` during compile; on failure it pushes `{ reason: 'invalid-pattern', details: { pattern } }` to `schemaIssues` and drops the pattern from the node's validation. The data validator never tries to use an invalid pattern. Pre-flight the schema with `validateSchema()` and surface `invalid-pattern` issues to the schema author.
 
 ### Form-empty values
 

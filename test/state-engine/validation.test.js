@@ -12,7 +12,7 @@
 
 import { expect } from '@esm-bundle/chai';
 import { validateDocument } from '../../src/state-engine/validation.js';
-import { compileSchema } from '../../src/state-engine/schema.js';
+import { compileSchema } from '../../src/state-engine/schema/index.js';
 import { buildModel } from '../../src/state-engine/model.js';
 import { prune } from '../html/test-utils.js';
 

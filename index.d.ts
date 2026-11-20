@@ -1,83 +1,94 @@
-// TypeScript declarations for `da-sc-sdk`.
-//
-// Hand-maintained alongside `src/index.js`. If a public signature changes,
-// update this file. The 5 public functions are at the bottom; supporting
-// types are at the top.
-
-// ─── Documents ─────────────────────────────────────────────────────────────
+/*
+ * Copyright 2026 Adobe. All rights reserved.
+ * This file is licensed to you under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License. You may obtain a copy
+ * of the License at http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under
+ * the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+ * OF ANY KIND, either express or implied. See the License for the specific language
+ * governing permissions and limitations under the License.
+ */
 
 /**
- * A DA structured-content document. The shape the SDK loads, mutates, and
- * serializes. Always `{ metadata, data }`; `metadata.schemaName` identifies
- * the schema the document was authored against.
+ * Headless SDK for DA structured content. It edits and validates
+ * schema-driven JSON documents, converts them to and from DA HTML, and
+ * provides shared schemas that custom schemas can reference.
+ *
+ * @packageDocumentation
+ */
+
+// #region Documents
+
+/**
+ * A DA structured content document, the shape the SDK loads, changes and
+ * writes. `metadata.schemaName` names the schema it follows, and `data` holds
+ * the content.
  */
 export interface Document {
   metadata: {
-    /** Identifies which schema this document was authored against. Required
-     *  for `convertJsonToHtml` (becomes the outer block's class name). */
+    /** The schema the document follows. */
     schemaName: string;
     [key: string]: unknown;
   };
-  /** The user-editable payload. Shape is determined by the schema. */
+  /** The content, shaped by the schema. */
   data?: unknown;
 }
 
-/** RFC 6901 JSON Pointer into the document, rooted at `/data`. */
+/** An RFC 6901 JSON Pointer into the document, rooted at `/data`. */
 export type JsonPointer = string;
 
-// ─── Schema issues (compile-time) ──────────────────────────────────────────
+// #endregion
 
-/** Reasons a schema cannot be fully compiled by the SDK. */
+// #region Diagnostics
+
+/** Why the SDK can't fully compile a schema. */
 export type SchemaIssueReason =
-  | 'unsupported-composition'   // allOf / oneOf / anyOf without sibling properties
-  | 'unsupported-type'          // a `type` value the SDK doesn't model
-  | 'type-as-array'             // `type: ['string', 'null']` (nullable types not supported)
-  | 'missing-type'              // a node with no `type` declared
-  | 'external-ref'              // a `$ref` that isn't a same-document `#/...`
-  | 'unresolved-ref'            // a `#/...` ref that doesn't resolve
-  | 'invalid-pattern';          // a `pattern` value that isn't a valid regex
+  | 'unsupported-composition'   // `allOf`, `oneOf` or `anyOf` without sibling `properties`
+  | 'unsupported-type'          // a `type` the SDK doesn't model
+  | 'type-as-array'             // `type` as an array, such as `['string', 'null']`
+  | 'missing-type'              // a node without `type`
+  | 'external-ref'              // a `$ref` that is neither `#/...` nor a shared schema `$id`
+  | 'unresolved-ref'            // a `#/...` `$ref` that points to nothing
+  | 'unsupported-adjacent-keywords' // keywords adjacent to a shared schema `$ref` that would change it
+  | 'invalid-pattern';          // a `pattern` that isn't a valid regular expression
 
+/** A problem the SDK found in a schema. */
 export interface SchemaIssue {
-  /** Machine code for what's wrong — branch on this. */
+  /** What is wrong, as a stable code. */
   reason: SchemaIssueReason;
-  /**
-   * Human-readable summary of the issue, derived from `reason`/`details`.
-   * Location-independent (add location from `schemaPath`/`pointer`).
-   */
+  /** A readable summary of the issue. `schemaPath` and `pointer` give its location. */
   message: string;
   /**
-   * RFC 6901 pointer to the offending construct in the *schema source*, rooted
-   * at the schema (`/`). `$ref`s are re-rooted at their target, so an issue
-   * inside a `$def` points at the def (`/$defs/YearAchievement`) rather than the
-   * inlined usage site. This is the location to fix.
+   * Where to fix the issue, as an RFC 6901 pointer into the schema. An issue
+   * inside a `$defs` entry points at that entry, such as `/$defs/Address`,
+   * not at the place that references it.
    */
   schemaPath: string;
   /**
-   * RFC 6901 pointer to where the issue manifests in a *data instance*, rooted
-   * at `/data` (array positions as `0`, `$ref`s resolved away). The SDK's
-   * canonical addressing — the same space the model and data errors use.
+   * Where the issue affects the data, as an RFC 6901 pointer rooted at `/data`,
+   * with `$ref`s resolved and array items as `0`. The model and validation
+   * errors use the same pointers.
    */
   pointer: string;
-  /**
-   * Structured, reason-specific context:
-   * `type-as-array`/`unsupported-type` → `{ type }`,
-   * `unsupported-composition` → `{ keyword, variants }`,
-   * `external-ref`/`unresolved-ref` → `{ ref }`,
-   * `invalid-pattern` → `{ pattern }`,
-   * `missing-type` → `null`.
-   */
+  /** More about the issue, or `null` for a missing type. */
   details: {
+    /** The unsupported `type`. */
     type?: string | string[];
+    /** The composition keyword. */
     keyword?: 'allOf' | 'oneOf' | 'anyOf';
+    /** How many schemas the composition lists. */
     variants?: number;
+    /** The `$ref` the issue is about. */
     ref?: string;
+    /** The invalid `pattern`. */
     pattern?: string;
+    /** The keywords adjacent to a shared schema `$ref` to remove. */
+    keywords?: string[];
   } | null;
 }
 
-// ─── Validation errors (data-against-schema) ───────────────────────────────
-
-/** JSON Schema keywords the SDK emits as validation errors. */
+/** The JSON Schema keywords a validation error can be about. */
 export type ValidationKeyword =
   | 'required'
   | 'type'
@@ -91,35 +102,34 @@ export type ValidationKeyword =
   | 'maxItems';
 
 /**
- * A single validation error. Shape mirrors ajv's per-entry shape with two
- * deliberate deviations:
- *
- *   1. `schemaPath` is omitted (would leak schema structure).
- *   2. `required` errors are emitted at the CHILD pointer (where the missing
- *      field would be), not the parent. `params.missingProperty` names the
- *      missing field.
+ * A validation error, shaped like an ajv error with two differences. It has
+ * no `schemaPath`, so it doesn't reveal how the schema is built. A `required`
+ * error sits at the pointer of the missing field rather than its parent, and
+ * `params.missingProperty` names that field.
  */
 export interface ValidationError {
   keyword: ValidationKeyword;
-  /** RFC 6901 pointer into the data, rooted at `/data`. */
+  /** Where the error is, as an RFC 6901 pointer rooted at `/data`. */
   instancePath: JsonPointer;
-  /** Keyword-specific structured context (e.g. `{ limit: 3 }` for
-   *  `minLength`, `{ allowedValues: [...] }` for `enum`). */
+  /** Details for the keyword, such as `{ limit: 3 }` for `minLength` or
+   *  `{ allowedValues }` for `enum`. */
   params: Record<string, unknown>;
-  /** Human-readable sentence. Capitalized, period-terminated. */
+  /** A readable sentence that ends with a period. */
   message: string;
 }
 
 /**
- * Pointer-keyed map of validation errors. One error per pointer (the first
- * failing check wins). UI consumers do `errors[pointer]?.message`; agents
- * iterate via `Object.values(errors)`.
+ * Validation errors by pointer, at most one per pointer from the first check
+ * that fails. Read one with `errors[pointer]?.message`, or all of them with
+ * `Object.values(errors)`.
  */
 export type ErrorsByPointer = Record<JsonPointer, ValidationError>;
 
-// ─── Model (runtime tree) ──────────────────────────────────────────────────
+// #endregion
 
-/** Field kinds the SDK can model. */
+// #region Model
+
+/** The kinds of field the SDK can model. */
 export type NodeKind =
   | 'string'
   | 'number'
@@ -129,35 +139,42 @@ export type NodeKind =
   | 'array'
   | 'unsupported';
 
+/** A field of the document, as its schema describes it. */
 export interface ModelNode {
-  /** Schema property key (`"name"`, `"tags"`, `"0"`, …) or `"data"` at root. */
+  /** The property name or array index, such as `name` or `0`, or `data` at the root. */
   key: string;
   kind: NodeKind;
   /** RFC 6901 pointer to this node's value, rooted at `/data`. */
   pointer: JsonPointer;
-  /** schema.title or the key as fallback. */
+  /** The schema's `title`, or the key if it has none. */
   label: string;
-  /** schema.description — field help text; present only when the schema sets it. */
+  /** The schema's `description`, set only when the schema has one. */
   description?: string;
   required: boolean;
   readonly: boolean;
   defaultValue?: unknown;
-  /** Picked subset of validation keywords from the schema. */
+  /** The schema's validation keywords that apply to this field. */
   validation: Record<string, unknown>;
-  /** Current value from the document at this pointer. */
+  /** The current value at `pointer`. */
   value: unknown;
-  // Object-kind extras:
+  // Objects
   children?: ModelNode[];
-  // Array-kind extras:
+  // Arrays
   items?: ModelNode[];
   minItems?: number;
   maxItems?: number;
   itemLabel?: string;
-  // Primitives with `enum`:
+  // Fields with `enum`
   enumValues?: unknown[];
-  // String primitives with `x-semantic-type` (vendor presentation hint):
+  // Strings with `x-semantic-type`
   semanticType?: 'long-text' | 'rich-text';
-  // Unsupported-kind extras:
+  /**
+   * The name of the shared schema the field references, such as `image`, the
+   * same in every version. Editors render such a field as one control,
+   * although it is an object.
+   */
+  sharedSchemaName?: string;
+  // Unsupported fields
   unsupported?: {
     reason: string;
     feature: string;
@@ -173,16 +190,21 @@ export interface ModelNode {
   };
 }
 
+/** The fields of a document, built from its schema. */
 export interface Model {
+  /** The node of `data`. */
   root: ModelNode;
-  /** Plain object keyed by JSON Pointer for O(1) lookup. */
+  /** Every node by its pointer. */
   byPointer: Record<JsonPointer, ModelNode>;
-  /** The normalized document the model was built from (do not mutate). */
+  /** The normalized document the model was built from. Don't change it. */
   document: Document;
 }
 
-// ─── State (what getState / onChange callers see) ──────────────────────────
+// #endregion
 
+// #region State
+
+/** The engine's state, as plain JSON. */
 export interface EditorState {
   document: Document | null;
   model: Model | null;
@@ -190,66 +212,67 @@ export interface EditorState {
   schemaIssues: SchemaIssue[];
 }
 
-// ─── Engine (the object createEngine returns) ──────────────────────────────
+// #endregion
 
+// #region Engine
+
+/** Edits one document against one schema. Each change returns the new state. */
 export interface Engine {
-  /** Returns the current state snapshot. Plain JSON, safe to `JSON.stringify`. */
+  /** Returns the current state. */
   getState(): EditorState;
 
-  /** Set a primitive value at `pointer`. */
+  /** Sets the primitive value at `pointer`. */
   setField(pointer: JsonPointer, value: unknown): EditorState;
 
-  /** Append a new item to the array at `pointer`. */
+  /** Adds an item to the end of the array at `pointer`. */
   addItem(pointer: JsonPointer): EditorState;
 
-  /** Insert a new item BEFORE the item at `pointer`. */
+  /** Inserts an item before the item at `pointer`. */
   insertItem(pointer: JsonPointer): EditorState;
 
-  /** Remove the item at `pointer`. */
+  /** Removes the item at `pointer`. */
   removeItem(pointer: JsonPointer): EditorState;
 
-  /** Move an array item from `fromIndex` to `toIndex` within the array at `pointer`. */
+  /** Moves the item at `fromIndex` to `toIndex` in the array at `pointer`. */
   moveItem(pointer: JsonPointer, fromIndex: number, toIndex: number): EditorState;
 }
 
-// ─── Public API: the 5 exports ─────────────────────────────────────────────
+// #endregion
+
+// #region Shared schemas
+
+/** A shared schema, such as an image. Its `$id` is its public URL. */
+export type SharedSchema = Readonly<Record<string, unknown>> & { readonly $id: string };
+
+// #endregion
+
+// #region Public API
 
 /**
- * Create a schema-constrained JSON state engine. Compiles the schema,
- * parses the document, builds the initial model and validation — all
- * synchronously, before returning.
- *
- * `onChange` is NOT called during initialization. Read the initial state via
- * `engine.getState()`; `onChange` only fires for subsequent mutations.
- *
- * To start over with a different (schema, document), create a new engine.
+ * Creates an engine for a document and its schema. It compiles the schema,
+ * reads the document, and builds the model and validation before it returns.
+ * Read the initial state with `getState()`. For another document or schema,
+ * create a new engine.
  */
 export function createEngine(options?: {
   schema?: unknown;
   document?: Document | null;
-  /** Called after every mutation (not at creation). Read via `engine.getState()`. */
+  /** Called after each change, not at creation. Read the state with `getState()`. */
   onChange?: () => void;
 }): Engine;
 
 /**
- * Schema-only validation. Checks whether a schema is well-formed per the
- * SDK's schema dialect — without involving any data.
- *
- * `valid` is true iff `schemaIssues` is empty.
+ * Checks a schema against what the SDK supports, without any data. `valid` is
+ * true when `schemaIssues` is empty.
  */
 export function validateSchema(options?: {
   schema: unknown;
 }): { valid: boolean; schemaIssues: SchemaIssue[] };
 
 /**
- * Data validation against a schema. Returns ajv-shaped errors (minus
- * `schemaPath`) keyed by pointer, plus any schema issues found while
- * compiling.
- *
- * `valid` is true iff BOTH `schemaIssues` AND `errors` are empty — a
- * document can't be valid against a broken schema. Symmetric with
- * `validateSchema`: both validators expose `valid` + `schemaIssues`;
- * `validateData` adds `errors` for data-level failures.
+ * Validates data against a schema. `errors` lists the data's errors by pointer,
+ * and `schemaIssues` the schema's problems. `valid` is true only when both are
+ * empty, because data can't be valid against a broken schema.
  */
 export function validateData(options?: {
   schema: unknown;
@@ -257,15 +280,14 @@ export function validateData(options?: {
 }): { valid: boolean; errors: ErrorsByPointer; schemaIssues: SchemaIssue[] };
 
 /**
- * Converts JSON to DA wire-format HTML, without empty values, as the editor
- * saves it. Symmetric pair with `convertHtmlToJson`.
+ * Converts a document to DA HTML as the editor saves it, without empty values.
  *
  * @param options The conversion input.
  * @param options.json The document to convert.
  * @param options.model The model from the same `getState()` as the document.
- *   Its nodes pick how each value is written. Values of a semantic type are
- *   written in their stored form, see schema-spec.md. Without it, every value
- *   is written as text.
+ *   It decides how each value is written, such as a semantic type in its
+ *   stored form, see schema-spec.md. Without it, every value is written as
+ *   text.
  * @returns `{ html }`, or `{ error }` for invalid JSON or a model of another
  *   schema or of other data.
  */
@@ -275,14 +297,35 @@ export function convertJsonToHtml(options: {
 }): { html: string } | { error: string };
 
 /**
- * Converts DA wire-format HTML to JSON. Symmetric pair with `convertJsonToHtml`.
- * Each value reads as the text of its cell. A `self://<semantic-type>#…`
- * reference reads with the codec of that type, see schema-spec.md.
+ * Converts DA HTML to a document. Each value reads as the text of its cell,
+ * and a `self://<semantic-type>#…` reference reads with the codec of that
+ * type, see schema-spec.md.
  *
  * @param options The conversion input.
- * @param options.html The DA wire-format HTML.
+ * @param options.html The DA HTML.
  * @returns `{ json }`, or `{ error }` for empty or malformed HTML.
  */
 export function convertHtmlToJson(options?: {
   html: string;
 }): { json: Document } | { error: string };
+
+/**
+ * Returns the shared schema at a path.
+ *
+ * @param options The lookup input.
+ * @param options.path The path of the schema's `$id`.
+ * @returns `{ schema }`, or `{ error }` for a path without a schema or a path
+ *   that is not a string.
+ */
+export function getSharedSchemaByPath(options?: {
+  path: string;
+}): { schema: SharedSchema } | { error: string };
+
+/**
+ * Returns all shared schemas, with every version of each.
+ *
+ * @returns `{ schemas }`.
+ */
+export function getSharedSchemas(): { schemas: readonly SharedSchema[] };
+
+// #endregion

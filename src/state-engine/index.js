@@ -10,7 +10,7 @@
  * governing permissions and limitations under the License.
  */
 
-import { compileSchema } from './schema.js';
+import { compileSchema } from './schema/index.js';
 import { buildModel, nodeAt } from './model.js';
 import { validateDocument } from './validation.js';
 import { definitionAt, getParentPointer } from './pointer.js';

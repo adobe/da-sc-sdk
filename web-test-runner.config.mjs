@@ -6,8 +6,28 @@
 // in roundtrip tests, `@esm-bundle/chai` for assertions). Coverage is
 // scoped to `src/`; thresholds enforce the SDK's quality bar.
 
+import { readdirSync } from 'node:fs';
+
+/**
+ * Server command `list-shared-schemas`. Returns the path of every JSON file in
+ * `schemas/shared/`, such as `/schemas/shared/image/v1.0.0.json`, because tests
+ * in the browser can't list a folder.
+ */
+const listSharedSchemas = {
+  name: 'list-shared-schemas',
+  executeCommand({ command }) {
+    if (command !== 'list-shared-schemas') {
+      return undefined;
+    }
+    return readdirSync('schemas/shared', { recursive: true })
+      .filter((file) => file.endsWith('.json'))
+      .map((file) => `/schemas/shared/${file}`);
+  },
+};
+
 export default {
   files: 'test/**/*.test.js',
+  plugins: [listSharedSchemas],
   nodeResolve: true,
   coverage: true,
   coverageConfig: {

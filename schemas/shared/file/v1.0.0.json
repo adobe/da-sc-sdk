@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://headless.adobe.net/schemas/shared/file/v1.0.0.json",
+  "title": "File",
+  "description": "A file, such as a PDF, referenced by its source.",
+  "type": "object",
+  "properties": {
+    "src": {
+      "type": "string",
+      "title": "Source",
+      "description": "The http(s) URL or media bus path of the asset."
+    }
+  },
+  "required": [
+    "src"
+  ],
+  "additionalProperties": false
+}
