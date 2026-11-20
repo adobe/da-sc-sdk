@@ -48,8 +48,9 @@ export type SchemaIssueReason =
   | 'unsupported-type'          // a `type` the SDK doesn't model
   | 'type-as-array'             // `type` as an array, such as `['string', 'null']`
   | 'missing-type'              // a node without `type`
-  | 'external-ref'              // a `$ref` that doesn't start with `#/`
+  | 'external-ref'              // a `$ref` that is neither `#/...` nor a shared schema `$id`
   | 'unresolved-ref'            // a `#/...` `$ref` that points to nothing
+  | 'unsupported-adjacent-keywords' // keywords adjacent to a shared schema `$ref` that would change it
   | 'invalid-pattern';          // a `pattern` that isn't a valid regular expression
 
 /** A problem the SDK found in a schema. */
@@ -78,10 +79,12 @@ export interface SchemaIssue {
     keyword?: 'allOf' | 'oneOf' | 'anyOf';
     /** How many schemas the composition lists. */
     variants?: number;
-    /** The `$ref` that can't be resolved. */
+    /** The `$ref` the issue is about. */
     ref?: string;
     /** The invalid `pattern`. */
     pattern?: string;
+    /** The keywords adjacent to a shared schema `$ref` to remove. */
+    keywords?: string[];
   } | null;
 }
 
@@ -165,6 +168,12 @@ export interface ModelNode {
   enumValues?: unknown[];
   // Strings with `x-semantic-type`
   semanticType?: 'long-text' | 'rich-text';
+  /**
+   * The name of the shared schema the field references, such as `image`, the
+   * same in every version. Editors render such a field as one control,
+   * although it is an object.
+   */
+  sharedSchemaName?: string;
   // Unsupported fields
   unsupported?: {
     reason: string;

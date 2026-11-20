@@ -26,13 +26,22 @@ const PATH = /^\/schemas\/shared\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\/v(?:0|[1-9]\d
 const MAX_NAME_LENGTH = 64;
 
 /**
+ * The path of a URL on the shared schema origin.
+ * @param {unknown} id A URL.
+ * @returns {string | undefined} The path, or undefined for another URL.
+ */
+function pathOfId(id) {
+  return typeof id === 'string' && id.startsWith(ORIGIN) ? id.slice(ORIGIN.length) : undefined;
+}
+
+/**
  * The path of a shared schema's `$id`.
  * @param {{ $id?: unknown }} schema A shared schema.
  * @returns {string} The path.
  * @throws {Error} On an `$id` that is not a shared schema URL, or a name that is too long.
  */
 function pathOf({ $id }) {
-  const path = typeof $id === 'string' && $id.startsWith(ORIGIN) ? $id.slice(ORIGIN.length) : '';
+  const path = pathOfId($id) ?? '';
   const name = PATH.exec(path)?.[1];
   if (!name) {
     throw new Error(`Shared schema $id ${$id} is not ${ORIGIN}${PATH_FORM}.`);
@@ -75,4 +84,25 @@ export const SHARED_SCHEMAS = Object.freeze([...BY_PATH.values()]);
  */
 export function findSharedSchemaByPath(path) {
   return BY_PATH.get(path);
+}
+
+/**
+ * The shared schema whose `$id` is `id`.
+ * @param {unknown} id A URL.
+ * @returns {object | undefined} The schema, or undefined.
+ */
+export function findSharedSchemaById(id) {
+  const path = pathOfId(id);
+  return path === undefined ? undefined : findSharedSchemaByPath(path);
+}
+
+/**
+ * Parses the name from a URL in the form of a shared schema `$id`. It reads only
+ * the URL, so it also works for versions this SDK doesn't have yet.
+ * @param {unknown} id A URL.
+ * @returns {string | undefined} The name, or undefined for another URL.
+ */
+export function parseSharedSchemaName(id) {
+  const path = pathOfId(id);
+  return path === undefined ? undefined : PATH.exec(path)?.[1];
 }

@@ -13,7 +13,8 @@
 import { expect } from '@esm-bundle/chai';
 import { executeServerCommand } from '@web/test-runner-commands';
 import {
-  ORIGIN, SHARED_SCHEMAS, findSharedSchemaByPath, registerSharedSchemas,
+  ORIGIN, SHARED_SCHEMAS, findSharedSchemaById, findSharedSchemaByPath, registerSharedSchemas,
+  parseSharedSchemaName,
 } from '../../src/types/index.js';
 
 const pathOf = ({ $id }) => $id.slice(ORIGIN.length);
@@ -98,5 +99,32 @@ describe('registerSharedSchemas', () => {
   it('throws on a duplicate $id', () => {
     const $id = `${ORIGIN}/schemas/shared/image/v1.0.0.json`;
     expect(() => registerSharedSchemas([schema($id), schema($id)])).to.throw('registered twice');
+  });
+});
+
+describe('findSharedSchemaById', () => {
+  it('finds a shared schema by its $id, and none for any other value', () => {
+    SHARED_SCHEMAS.forEach((schema) => {
+      expect(findSharedSchemaById(schema.$id), schema.$id).to.equal(schema);
+    });
+    [
+      `${ORIGIN}/schemas/shared/image/v9.0.0.json`,
+      `${ORIGIN}.example/schemas/shared/image/v1.0.0.json`,
+      'https://example.com/schemas/shared/image/v1.0.0.json',
+      '/schemas/shared/image/v1.0.0.json',
+      undefined,
+    ].forEach((id) => expect(findSharedSchemaById(id), String(id)).to.equal(undefined));
+  });
+});
+
+describe('parseSharedSchemaName', () => {
+  it('parses the name of a shared schema $id, also of a version this SDK lacks', () => {
+    expect(parseSharedSchemaName(`${ORIGIN}/schemas/shared/image/v1.0.0.json`)).to.equal('image');
+    expect(parseSharedSchemaName(`${ORIGIN}/schemas/shared/video-clip/v9.0.0.json`)).to.equal('video-clip');
+    [
+      `${ORIGIN}/schemas/image/v1.0.0.json`,
+      'https://example.com/schemas/shared/image/v1.0.0.json',
+      undefined,
+    ].forEach((id) => expect(parseSharedSchemaName(id), String(id)).to.equal(undefined));
   });
 });
