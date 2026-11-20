@@ -13,15 +13,15 @@
 import { DATA_POINTER, appendPointer } from '../shared/pointer.js';
 import { isJsonObject } from '../shared/object.js';
 
-function objectValue(value) {
-  if (isJsonObject(value)) { return value; }
-  return {};
-}
-
-function buildNode({
-  definition, pointer, value, byPointer,
-}) {
-  const base = {
+/**
+ * The fields every node has, read from its definition.
+ * @param {object} definition The compiled definition of the field.
+ * @param {string} pointer The pointer of the node.
+ * @param {unknown} value The value at the pointer.
+ * @returns {object} The common fields of the node.
+ */
+function commonFields(definition, pointer, value) {
+  return {
     key: definition.key,
     kind: definition.kind,
     pointer,
@@ -32,82 +32,144 @@ function buildNode({
     validation: definition.validation ?? {},
     value,
   };
+}
 
-  if (definition.unsupported) { base.unsupported = definition.unsupported; }
-  if (definition.unsupportedComposition) {
-    base.unsupportedComposition = definition.unsupportedComposition;
-  }
-  if (Array.isArray(definition.enumValues)) { base.enumValues = definition.enumValues; }
-  if (definition.semanticType) { base.semanticType = definition.semanticType; }
-  if (definition.format) { base.format = definition.format; }
-  if (definition.description !== undefined) { base.description = definition.description; }
+/**
+ * The fields a node has only when its definition sets them.
+ * @param {object} definition The compiled definition of the field.
+ * @returns {object} The optional fields that are set.
+ */
+function optionalFields(definition) {
+  return {
+    ...(definition.unsupported && { unsupported: definition.unsupported }),
+    ...(definition.unsupportedComposition && {
+      unsupportedComposition: definition.unsupportedComposition,
+    }),
+    ...(Array.isArray(definition.enumValues) && { enumValues: definition.enumValues }),
+    ...(definition.semanticType && { semanticType: definition.semanticType }),
+    ...(definition.format && { format: definition.format }),
+    ...(definition.description !== undefined && { description: definition.description }),
+  };
+}
 
-  let node;
+/**
+ * Builds the child node of each property of an object.
+ * @param {object} options The object and where it is.
+ * @param {object} options.definition The compiled definition of the object.
+ * @param {string} options.pointer The pointer of the object.
+ * @param {unknown} options.value The object's value. Any other value counts as empty.
+ * @param {object} options.byPointer Collects every node by its pointer.
+ * @returns {object[]} The child nodes, in the order of the properties.
+ */
+function buildChildren({
+  definition, pointer, value, byPointer,
+}) {
+  const object = isJsonObject(value) ? value : {};
+  return (definition.children ?? []).map((child) => (
+    // eslint-disable-next-line no-use-before-define
+    buildNode({
+      definition: child,
+      pointer: appendPointer({ pointer, segment: child.key }),
+      value: object[child.key],
+      byPointer,
+    })
+  ));
+}
 
+/**
+ * Builds the node of each item of an array.
+ * @param {object} options The array and where it is.
+ * @param {object} options.definition The compiled definition of the array.
+ * @param {string} options.pointer The pointer of the array.
+ * @param {unknown} options.value The array's value. Any other value counts as empty.
+ * @param {object} options.byPointer Collects every node by its pointer.
+ * @returns {object[]} The item nodes, in order.
+ */
+function buildItems({
+  definition, pointer, value, byPointer,
+}) {
+  const array = Array.isArray(value) ? value : [];
+  return array.map((item, index) => (
+    // eslint-disable-next-line no-use-before-define
+    buildNode({
+      definition: definition.item,
+      pointer: appendPointer({ pointer, segment: index }),
+      value: item,
+      byPointer,
+    })
+  ));
+}
+
+/**
+ * Builds the node of a field and, for an object or array, its descendants.
+ * Adds every node it builds to `byPointer`, children before their parent.
+ * @param {object} options The field and where it is.
+ * @param {object} options.definition The compiled definition of the field.
+ * @param {string} options.pointer The pointer of the field.
+ * @param {unknown} options.value The value at the pointer.
+ * @param {object} options.byPointer Collects every node by its pointer.
+ * @returns {object} The node.
+ */
+function buildNode({
+  definition, pointer, value, byPointer,
+}) {
+  const fields = { ...commonFields(definition, pointer, value), ...optionalFields(definition) };
+  const context = {
+    definition, pointer, value, byPointer,
+  };
+
+  let node = fields;
   if (definition.kind === 'object') {
-    const objValue = objectValue(value);
-    const children = (definition.children ?? []).map((childDef) => {
-      const childPointer = appendPointer({ pointer, segment: childDef.key });
-      return buildNode({
-        definition: childDef,
-        pointer: childPointer,
-        value: objValue[childDef.key],
-        byPointer,
-      });
-    });
-    node = { ...base, children };
+    node = { ...fields, children: buildChildren(context) };
   } else if (definition.kind === 'array') {
-    const arrValue = Array.isArray(value) ? value : [];
-    const items = arrValue.map((itemValue, index) => {
-      const itemPointer = appendPointer({ pointer, segment: index });
-      return buildNode({
-        definition: definition.item,
-        pointer: itemPointer,
-        value: itemValue,
-        byPointer,
-      });
-    });
-
     node = {
-      ...base,
+      ...fields,
       minItems: definition.minItems,
       maxItems: definition.maxItems,
       itemLabel: definition.item?.label ?? '',
-      items,
+      items: buildItems(context),
     };
-  } else {
-    node = base;
   }
 
   byPointer[pointer] = node;
   return node;
 }
 
-// Contract: `document` is owned by buildModel after this call. Callers must pass
-// a fresh object (mutate.js / parseDocument both deep-clone before passing in),
-// otherwise their reference would alias with the model's stored document.
-//
-// `byPointer` is a plain object — `byPointer[pointer]` is the O(1) lookup.
-// Plain object (not Map) so the state snapshot is JSON-serializable end-to-end:
-// `JSON.stringify(state)` works without custom replacers, and the same shape
-// reaches consumers in any runtime.
+/**
+ * Builds the model of a document from its compiled schema.
+ *
+ * The model keeps `document` as it is, so pass a copy the caller no longer
+ * changes. `mutate.js` and `parseDocument` both pass a deep clone. `byPointer`
+ * is a plain object rather than a Map, so the state stays serializable with
+ * `JSON.stringify`.
+ * @param {object} options The schema and the document.
+ * @param {object | null} options.definition The compiled schema.
+ * @param {object | null} [options.document] The document.
+ * @returns {{ root: object, byPointer: object, document: object } | null} The
+ *   model, or null without a definition.
+ */
 export function buildModel({ definition, document }) {
   if (!definition) { return null; }
 
-  const normalizedDoc = document ?? {};
-  const rootValue = normalizedDoc?.data ?? {};
+  const modelDocument = document ?? {};
   const byPointer = {};
-
   const root = buildNode({
     definition,
     pointer: DATA_POINTER,
-    value: rootValue,
+    value: modelDocument.data ?? {},
     byPointer,
   });
 
-  return { root, byPointer, document: normalizedDoc };
+  return { root, byPointer, document: modelDocument };
 }
 
+/**
+ * The node at a pointer.
+ * @param {object} options The model and the pointer.
+ * @param {object | null} options.model The model.
+ * @param {string} options.pointer The pointer.
+ * @returns {object | null} The node, or null if the model has none there.
+ */
 export function nodeAt({ model, pointer }) {
   return model?.byPointer?.[pointer] ?? null;
 }
