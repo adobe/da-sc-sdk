@@ -11,7 +11,7 @@
  */
 
 import { expect } from '@esm-bundle/chai';
-import { compileSchema } from '../../src/state-engine/schema.js';
+import { compileSchema } from '../../src/state-engine/schema/index.js';
 
 describe('compileSchema', () => {
   describe('basic types', () => {

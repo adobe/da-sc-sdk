@@ -10,9 +10,9 @@
  * governing permissions and limitations under the License.
  */
 
-import { deepClone } from '../shared/clone.js';
-import { DATA_POINTER } from '../shared/pointer.js';
-import { isSupportedSemanticType } from '../types/semantic.js';
+import { deepClone } from '../../shared/clone.js';
+import { DATA_POINTER } from '../../shared/pointer.js';
+import { isSupportedSemanticType } from '../../types/semantic.js';
 
 function unionRequired(base = [], next = []) {
   return Array.from(new Set([...(base ?? []), ...(next ?? [])]));

@@ -19,7 +19,8 @@ da-sc-sdk/
     index.js          curated public re-exports
     state-engine/             headless editing engine
       index.js          createEngine() — public API; validateData, isDataEmpty, materializeDefaults, coerceData
-      schema.js         resolveSchema + compileSchema ($ref/$defs resolution, composition handling)
+      schema/           the schema compiler
+        index.js          resolveSchema + compileSchema ($ref/$defs resolution, composition handling)
       model.js          buildModel + pointer→node Map, in one pass
       mutate.js         setField, addItem, insertItem, removeItem, moveItem
       pointer.js        RFC 6901 ops + definitionAt
@@ -128,9 +129,9 @@ The SDK exposes only the named exports below from `'da-sc-sdk'`. The surface is 
 
 ### Everything else is internal — and unreachable
 
-`src/state-engine/pointer.js`, `src/state-engine/mutate.js`, `src/state-engine/model.js`, `src/shared/clone.js`, `src/state-engine/validation.js`, `src/state-engine/schema.js`, `src/html/json2html.js`, plus the `compileSchema` / `coerceData` / `materializeDefaults` / `isDataEmpty` / `HTMLConverter` symbols inside them — all internal.
+`src/state-engine/pointer.js`, `src/state-engine/mutate.js`, `src/state-engine/model.js`, `src/shared/clone.js`, `src/state-engine/validation.js`, `src/state-engine/schema/index.js`, `src/html/json2html.js`, plus the `compileSchema` / `coerceData` / `materializeDefaults` / `isDataEmpty` / `HTMLConverter` symbols inside them — all internal.
 
-The `package.json` `exports` map exposes only `.` (the main entry). Per the Node ESM spec, this **blocks every other subpath**. A consumer attempting `import x from 'da-sc-sdk/src/state-engine/schema.js'` gets `ERR_PACKAGE_PATH_NOT_EXPORTED`. The vendored bundle (`dist/index.js`) only re-exports the public functions. There is no path-based escape hatch.
+The `package.json` `exports` map exposes only `.` (the main entry). Per the Node ESM spec, this **blocks every other subpath**. A consumer attempting `import x from 'da-sc-sdk/src/state-engine/schema/index.js'` gets `ERR_PACKAGE_PATH_NOT_EXPORTED`. The vendored bundle (`dist/index.js`) only re-exports the public functions. There is no path-based escape hatch.
 
 The only code that reaches internals is the SDK's own tests via relative paths into `src/` — that's white-box testing, not API consumption.
 
@@ -177,7 +178,7 @@ A `kind: 'unsupported'` node means the field's shape is defined by a construct t
 
 The pointer→node Map is built during the same traversal that builds the tree — no follow-up pass.
 
-When adding a new field type, add a new `kind` value to `schema.js`'s `inferKind`. Never fall through to a default.
+When adding a new field type, add a new `kind` value to `schema/index.js`'s `inferKind`. Never fall through to a default.
 
 ---
 
@@ -231,12 +232,12 @@ JSON Pointer is positional, so pointers change when items move. Pointers are the
 
 The SDK applies two independent contracts to a schema:
 
-- **Compiler editability** — `schema.js` + `model.js` decide what the SDK can *render and edit*. This is an allowlist: an unsupported construct produces a `kind: 'unsupported'` node (or an `unsupportedComposition` flag on a still-editable object).
+- **Compiler editability** — `schema/index.js` + `model.js` decide what the SDK can *render and edit*. This is an allowlist: an unsupported construct produces a `kind: 'unsupported'` node (or an `unsupportedComposition` flag on a still-editable object).
 - **Validator correctness** — `validation.js` enforces only the keywords listed in [schema-spec.md](./schema-spec.md). It walks the model; any keyword outside the allowlist is silently ignored. The contract is the documentation, not the JSON Schema spec.
 
 The schema-spec also defines **authoring rules** (property key pattern, reserved keys `metadata` / `section-metadata`) that the runtime does not police. Authors and code generators are expected to follow them; behavior on violation is undefined.
 
-Compiler resolution (in `schema.js`):
+Compiler resolution (in `schema/index.js`):
 
 - `$ref` — internal refs only (`#/...`). External or unresolved refs produce an unsupported node.
 - `type` must be one of `string` / `number` / `integer` / `boolean` / `object` / `array`. Anything else produces an unsupported node.
@@ -362,7 +363,7 @@ Keywords and messages are owned by `validation.js` and stable across edits — s
 
 ### Invalid `pattern` is a schema issue, not a data error
 
-ajv throws at schema-compile time when the pattern's regex is unparseable. We mirror that: `schema.js` calls `new RegExp(pattern)` during compile; on failure it pushes `{ reason: 'invalid-pattern', details: { pattern } }` to `schemaIssues` and drops the pattern from the node's validation. The data validator never tries to use an invalid pattern. Pre-flight the schema with `validateSchema()` and surface `invalid-pattern` issues to the schema author.
+ajv throws at schema-compile time when the pattern's regex is unparseable. We mirror that: `schema/index.js` calls `new RegExp(pattern)` during compile; on failure it pushes `{ reason: 'invalid-pattern', details: { pattern } }` to `schemaIssues` and drops the pattern from the node's validation. The data validator never tries to use an invalid pattern. Pre-flight the schema with `validateSchema()` and surface `invalid-pattern` issues to the schema author.
 
 ### Form-empty values
 

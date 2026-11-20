@@ -32,7 +32,7 @@ The compiler also exposes the *resolved* schema (`schema` in the return value) f
 
 ## 2. Public surface
 
-`compileSchema(rawSchema)` from [state-engine/schema.js](../src/state-engine/schema.js).
+`compileSchema(rawSchema)` from [state-engine/schema/index.js](../src/state-engine/schema/index.js).
 
 | Input | Type |
 |---|---|
@@ -449,7 +449,7 @@ Compilation is one-shot per engine — it is *not* on the keystroke hot path. Co
 
 When the spec gains a new type, three places in the compiler need to update:
 
-1. **`SUPPORTED_TYPES`** at [state-engine/schema.js](../src/state-engine/schema.js) — add the new type string.
+1. **`SUPPORTED_TYPES`** at [state-engine/schema/index.js](../src/state-engine/schema/index.js) — add the new type string.
 2. **`inferKind`** — return `{ kind: '<new>' }` for the new type. The default `SUPPORTED_TYPES.has(...)` branch already handles primitive kinds; only add a special case if your new kind needs structural recursion (like `object`/`array`).
 3. **`compileNode`** — if the new kind has recursive children or extra metadata (similar to `properties`/`items`/`minItems`), add a branch that builds the node accordingly.
 
