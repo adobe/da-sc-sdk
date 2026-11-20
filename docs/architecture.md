@@ -21,6 +21,8 @@ da-sc-sdk/
       index.js          createEngine() — public API; validateData, isDataEmpty, materializeDefaults, coerceData
       schema/           the schema compiler
         index.js          resolveSchema + compileSchema ($ref/$defs resolution, composition handling)
+        issues.js         the reasons of schema issues and their messages
+        shared-schema.js  resolves $refs to shared schemas and decides which keywords may be adjacent
       model.js          buildModel + pointer→node Map, in one pass
       mutate.js         setField, addItem, insertItem, removeItem, moveItem
       pointer.js        RFC 6901 ops + definitionAt
@@ -247,7 +249,7 @@ When an unsupported construct is found on a node:
 - **Node has direct `properties`** (composition alongside a full property map): compiled as `kind: 'object'` with an `unsupportedComposition` flag. Properties are fully editable.
 - **Otherwise**: compiled as `kind: 'unsupported'`. The stored value passes through untouched.
 
-`compileSchema` returns `{ schema, definition, editable, issues }`. `issues` lists every node the compiler could not model with structured reason codes (`unsupported-composition`, `unsupported-type`, `type-as-array`, `missing-type`, `external-ref`, `unresolved-ref`); `editable` is `false` iff `issues` is non-empty. `issues` is also exposed on every state snapshot as `state.schemaIssues`.
+`compileSchema` returns `{ schema, definition, editable, issues }`. `issues` lists every node the compiler could not model with structured reason codes (`unsupported-composition`, `unsupported-type`, `type-as-array`, `missing-type`, `external-ref`, `unresolved-ref`, `unsupported-adjacent-keywords`, `invalid-pattern`); `editable` is `false` iff `issues` is non-empty. `issues` is also exposed on every state snapshot as `state.schemaIssues`.
 
 ---
 

@@ -89,6 +89,9 @@ Every node carries the same base fields, plus kind-specific extras.
   // string with date/time format:
   format:      '…',        // 'date' | 'time' | 'date-time' — editor renders a date/time control
 
+  // object with a $ref to a shared schema:
+  sharedSchemaName: '…',   // such as 'image', the same in every version. The editor renders one control
+
   // unsupported:
   unsupported: { reason, feature, compositionKeyword, variants, schemaPath },
 }
