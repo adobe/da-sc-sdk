@@ -59,7 +59,7 @@ function isNonConstraining(key) {
  */
 function isAllowedSharedSchemaRequired(required, reference) {
   const allowed = requirablePropertiesOf(reference);
-  return Array.isArray(required) && required.length > 0
+  return Array.isArray(required)
     && new Set(required).size === required.length
     && required.every((name) => allowed.includes(name));
 }

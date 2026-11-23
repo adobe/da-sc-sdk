@@ -209,7 +209,7 @@ describe('compileSchema', () => {
     });
 
     it('reports a required next to an image that lists anything but altText once', () => {
-      [['src'], ['altText', 'src'], ['altText', 'altText'], [], 'altText'].forEach((required) => {
+      [['src'], ['altText', 'src'], ['altText', 'altText'], 'altText'].forEach((required) => {
         const { issues } = compileSchema({
           type: 'object',
           properties: { hero: { $ref: image.$id, required } },
@@ -218,6 +218,14 @@ describe('compileSchema', () => {
           ['unsupported-adjacent-keywords', ['required']],
         ]);
       });
+    });
+
+    it('accepts an empty required next to a shared schema $ref', () => {
+      const { issues } = compileSchema({
+        type: 'object',
+        properties: { hero: { $ref: image.$id, title: 'Hero', required: [] } },
+      });
+      expect(issues).to.deep.equal([]);
     });
 
     it('reports any keyword but annotations next to a file reference', () => {
