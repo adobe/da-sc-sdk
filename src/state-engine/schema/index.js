@@ -489,7 +489,7 @@ function compileNode({
         schema: itemSchema,
         required: false,
         labelFallback: itemSchema?.title ?? label,
-        pointer: `${pointer}/0`,
+        pointer: appendPointer({ pointer, segment: 0 }),
         issues,
       }),
     };
