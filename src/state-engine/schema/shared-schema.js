@@ -29,9 +29,6 @@ const NON_CONSTRAINING_KEYWORDS = new Set([
   ...KEPT_SHARED_SCHEMA_REF_ANNOTATIONS, 'examples', 'deprecated', 'writeOnly',
 ]);
 
-/** Keys the resolver adds to a node it has already resolved. */
-const RESOLVER_MARKERS = new Set(['schemaPath', 'sharedSchemaRef', 'unsupportedRef', 'unsupportedComposition']);
-
 /**
  * The optional properties of a shared schema, which a schema may require next to
  * its `$ref`.
@@ -47,11 +44,10 @@ function requirablePropertiesOf(reference) {
 /**
  * Whether a keyword next to a shared schema `$ref` leaves the shared schema unchanged.
  * @param {string} key The keyword.
- * @returns {boolean} True for annotations, resolver markers, `$` keywords and `x-` keywords.
+ * @returns {boolean} True for annotations, `$` keywords and `x-` keywords.
  */
 function isNonConstraining(key) {
-  return NON_CONSTRAINING_KEYWORDS.has(key) || RESOLVER_MARKERS.has(key)
-    || key.startsWith('$') || key.startsWith('x-');
+  return NON_CONSTRAINING_KEYWORDS.has(key) || key.startsWith('$') || key.startsWith('x-');
 }
 
 /**
