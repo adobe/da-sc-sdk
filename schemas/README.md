@@ -29,8 +29,7 @@ shape goes into a new version.
 
 1. Add the JSON file at `shared/<name>/v<major>.<minor>.<patch>.json`.
 2. Add an identical JS module at
-   `src/types/shared/<name>/v<major>.<minor>.<patch>.js`, with literal values
-   only. `src/types/shared/index.js` explains why.
+   `src/types/shared/<name>/v<major>.<minor>.<patch>.js` that imports nothing.
 3. Import the module in `src/types/shared/index.js` and add it to the list
    there. The registry in `src/types/index.js` stays unchanged.
 
