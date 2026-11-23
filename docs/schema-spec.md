@@ -15,7 +15,7 @@ A conformant schema satisfies every rule below.
 
 | # | Rule |
 | - | ---- |
-| R1 | Every node must declare `type` explicitly. Inference from `properties`, `items`, or `enum` is not relied upon. |
+| R1 | Every node must declare `type` explicitly. Inference from `properties`, `items`, or `enum` is not relied upon. A node with a shared schema `$ref` leaves it out, since the shared schema declares it. |
 | R2 | `type` must be exactly one of: `"string"`, `"number"`, `"integer"`, `"boolean"`, `"object"`, `"array"`. |
 | R3 | `type` must not be an array (no `["string", "null"]`). |
 | R4 | Every node must define `title`. For a shared schema, set it adjacent to the `$ref`. |
