@@ -65,15 +65,14 @@ Runnable scripts in [examples/](./examples/).
 
 Top-level functions:
 
-| Function                | Purpose                                              | Returns                           |
-| ----------------------- | ---------------------------------------------------- | --------------------------------- |
-| `createEngine`          | Stateful editing (UI editors, agents holding state). | `Engine`                          |
-| `validateSchema`        | Lint a schema before binding to it.                  | `{ valid, schemaIssues }`         |
-| `validateData`          | Check data against a schema.                         | `{ valid, errors, schemaIssues }` |
-| `convertJsonToHtml`     | Convert JSON → DA wire-format HTML.                  | `{ html } \| { error }`           |
-| `convertHtmlToJson`     | Convert DA HTML → JSON.                              | `{ json } \| { error }`           |
-| `getSharedSchemaByPath` | Get the shared schema at a path.                     | `{ schema } \| { error }`         |
-| `getSharedSchemas`      | List every version of every shared schema.           | `{ schemas }`                     |
+| Function            | Purpose                                              | Returns                           |
+| ------------------- | ---------------------------------------------------- | --------------------------------- |
+| `createEngine`      | Stateful editing (UI editors, agents holding state). | `Engine`                          |
+| `validateSchema`    | Lint a schema before binding to it.                  | `{ valid, schemaIssues }`         |
+| `validateData`      | Check data against a schema.                         | `{ valid, errors, schemaIssues }` |
+| `convertJsonToHtml` | Convert JSON → DA wire-format HTML.                  | `{ html } \| { error }`           |
+| `convertHtmlToJson` | Convert DA HTML → JSON.                              | `{ json } \| { error }`           |
+| `getSharedSchema`   | Get a shared schema by name and version.             | `{ schema } \| { error }`         |
 
 `createEngine` compiles a schema + initial document into a stateful, mutable handle.
 
@@ -172,28 +171,26 @@ Shared schemas describe common shapes, such as an image or a file. Each version
 is published at its `$id` and never changes.
 [schemas/README.md](schemas/README.md) describes the versions.
 
-Look a schema up by the path of its `$id`. A server that serves the schemas,
-such as da-sc, passes the path of the request:
+Look a schema up by its name and version. A server that serves the schemas,
+such as da-sc, reads both from its route, such as
+`/schemas/shared/image/v1.0.0.json`:
 
 ```js
-import { getSharedSchemaByPath } from "@adobe/da-sc-sdk";
+import { getSharedSchema } from "@adobe/da-sc-sdk";
 
-const result = getSharedSchemaByPath({ path: new URL(request.url).pathname });
+const result = getSharedSchema({ name: "image", version: "1.0.0" });
 if ("error" in result) {
   return notFound();
 }
 return new Response(JSON.stringify(result.schema), { status: 200, headers: SCHEMA_HEADERS });
 ```
 
-The path matches exactly, so the same code serves every hostname.
-`getSharedSchemas()` returns `{ schemas }`, every version of every shared schema.
-
 ## Error handling
 
 The SDK reports validation, conversion, and mutation failures through return values rather than exceptions. Truly invalid arguments (wrong types, malformed pointers) may still surface as runtime errors.
 
 - **Validators** (`validateSchema`, `validateData`) — check `result.valid`. When `false`, inspect `result.schemaIssues` for schema-level problems and `result.errors` for data-level problems (the latter is a `{ [pointer]: ValidationError }` map).
-- **Converters and lookup** (`convertJsonToHtml`, `convertHtmlToJson`, `getSharedSchemaByPath`). Destructure with a fallback: `const { html, error } = convertJsonToHtml(...)`. The `error` field is set on empty or malformed input; otherwise the success field (`html` or `json`) is set.
+- **Converters and lookup** (`convertJsonToHtml`, `convertHtmlToJson`, `getSharedSchema`). Destructure with a fallback: `const { html, error } = convertJsonToHtml(...)`. The `error` field is set on empty or malformed input; otherwise the success field (`html` or `json`) is set.
 - **Engine** — if the schema is malformed, `createEngine` still returns a handle but `getState().schemaIssues` will be non-empty and mutations no-op. Check `schemaIssues.length === 0` before relying on the engine.
 
 ## TypeScript

@@ -38,7 +38,7 @@ da-sc-sdk/
         index.js          normalizes and serializes the rest in the canonical form
     types/            the types both state-engine/ and html/ read, and the shared schemas
       index.js          registry of every shared schema version by path, frozen
-      lookup.js         the public API for shared schemas
+      lookup.js         getSharedSchema, the public lookup of a shared schema
       semantic.js       the x-semantic-type values and the JSON type each applies to
       shared/           the shared schemas as JS modules
         index.js          the catalog, every version listed once
@@ -126,8 +126,7 @@ The SDK exposes only the named exports below from `'da-sc-sdk'`. The surface is 
 | `validateData({ schema, data })` | [src/state-engine/index.js](../src/state-engine/index.js) | Data-against-schema validation. Returns `{ valid, errors, schemaIssues }`. `errors` is a pointer-keyed map of ajv-style entries. `valid` is `true` iff both `schemaIssues` and `errors` are empty. Symmetric with `validateSchema`: both validators expose `valid` + `schemaIssues`; `validateData` adds `errors`. |
 | `convertJsonToHtml({ json, model? })` | [src/html/json2html.js](../src/html/json2html.js) | JSON to DA wire-format HTML. Skips empty values. With the engine's model, values of a semantic type are written in their stored form (see [schema-spec.md](./schema-spec.md#x-semantic-type)). Without a model, every value is text. A model not built from `json` is an error. Returns `{ html } \| { error }`. |
 | `convertHtmlToJson({ html })` | [src/html/html2json.js](../src/html/html2json.js) | DA wire-format HTML to JSON. Each value reads as the text of its cell. A `self://<semantic-type>#…` reference reads with the codec of that type. Returns `{ json } \| { error }`. |
-| `getSharedSchemaByPath({ path })` | [src/types/lookup.js](../src/types/lookup.js) | The shared schema whose `$id` has this path, such as `/schemas/shared/image/v1.0.0.json`. Exact match, so a server passes the path of its request on any hostname. Returns `{ schema }`, or `{ error }`. |
-| `getSharedSchemas()` | [src/types/lookup.js](../src/types/lookup.js) | Every version of every shared schema. Returns `{ schemas }`. |
+| `getSharedSchema({ name, version })` | [src/types/lookup.js](../src/types/lookup.js) | The shared schema with a name and version, such as `{ name: 'image', version: '1.0.0' }`. A server reads both from its route, so the lookup is independent of hostname and path. Returns `{ schema }`, or `{ error }`. |
 
 ### Everything else is internal — and unreachable
 

@@ -11,53 +11,56 @@
  */
 
 import { expect } from '@esm-bundle/chai';
-import { getSharedSchemaByPath, getSharedSchemas } from '../../src/index.js';
-import { ORIGIN } from '../../src/types/index.js';
+import { getSharedSchema } from '../../src/index.js';
 import catalog from '../../src/types/shared/index.js';
 import image from '../../src/types/shared/image/v1.0.0.js';
 
-const IMAGE_PATH = image.$id.slice(ORIGIN.length);
+// The name and version of a shared schema, read from its `$id`.
+function nameAndVersion({ $id }) {
+  const [, name, version] = $id.match(/\/([^/]+)\/v([^/]+)\.json$/);
+  return { name, version };
+}
 
-describe('getSharedSchemaByPath', () => {
-  it('returns the frozen schema at a path, the same object on every call', () => {
-    const { schema } = getSharedSchemaByPath({ path: IMAGE_PATH });
+const IMAGE = nameAndVersion(image);
+
+describe('getSharedSchema', () => {
+  it('returns the frozen schema with a name and version, the same object on every call', () => {
+    const { schema } = getSharedSchema(IMAGE);
     expect(schema).to.equal(image);
     expect(Object.isFrozen(schema)).to.equal(true);
-    expect(getSharedSchemaByPath({ path: IMAGE_PATH }).schema).to.equal(schema);
+    expect(getSharedSchema(IMAGE).schema).to.equal(schema);
   });
 
-  it('returns an error for a path without a schema', () => {
+  it('returns an error for a name and version without a schema', () => {
     [
-      '/schemas/shared/image/v1.0.0',
-      '/schemas/shared/image/latest.json',
-      '/schemas/shared/image/v9.9.9.json',
-      image.$id,
-      `${IMAGE_PATH}?draft`,
-    ].forEach((path) => {
-      expect(getSharedSchemaByPath({ path }), path).to.deep.equal({ error: 'No shared schema has this path.' });
+      { ...IMAGE, version: '9.9.9' },
+      { ...IMAGE, version: `v${IMAGE.version}` },
+      { ...IMAGE, version: '1.0' },
+      { ...IMAGE, name: 'Image' },
+      { ...IMAGE, name: 'zx9-qk' },
+      { name: `${IMAGE.name}/v${IMAGE.version}.json`, version: '' },
+    ].forEach((options) => {
+      expect(getSharedSchema(options), JSON.stringify(options))
+        .to.deep.equal({ error: 'No shared schema has this name and version.' });
     });
   });
 
-  it('returns an error for a path that is not a string, or no options', () => {
-    [undefined, null, 42, new URL(`https://example.com${IMAGE_PATH}`)].forEach((path) => {
-      expect(getSharedSchemaByPath({ path }), String(path)).to.deep.equal({ error: 'The path must be a string.' });
+  it('returns an error for a name or version that is not a string, or no options', () => {
+    [
+      { version: IMAGE.version },
+      { name: IMAGE.name },
+      { ...IMAGE, version: 1 },
+      { ...IMAGE, name: null },
+    ].forEach((options) => {
+      expect(getSharedSchema(options), JSON.stringify(options))
+        .to.deep.equal({ error: 'The name and version must be strings.' });
     });
-    expect(getSharedSchemaByPath()).to.deep.equal({ error: 'The path must be a string.' });
-  });
-});
-
-describe('getSharedSchemas', () => {
-  it('returns every schema in a frozen list, the same on every call', () => {
-    const { schemas } = getSharedSchemas();
-    expect(schemas).to.have.members(catalog);
-    expect(Object.isFrozen(schemas)).to.equal(true);
-    expect(getSharedSchemas().schemas).to.equal(schemas);
+    expect(getSharedSchema()).to.deep.equal({ error: 'The name and version must be strings.' });
   });
 
-  it('lists the schemas that getSharedSchemaByPath finds', () => {
-    getSharedSchemas().schemas.forEach((schema) => {
-      const { pathname } = new URL(schema.$id);
-      expect(getSharedSchemaByPath({ path: pathname }).schema, pathname).to.equal(schema);
+  it('finds every shared schema by its name and version', () => {
+    catalog.forEach((schema) => {
+      expect(getSharedSchema(nameAndVersion(schema)).schema, schema.$id).to.equal(schema);
     });
   });
 });

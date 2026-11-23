@@ -10,25 +10,17 @@
  * governing permissions and limitations under the License.
  */
 
-import { SHARED_SCHEMAS, findSharedSchemaByPath } from './index.js';
+import { findSharedSchema } from './index.js';
 
 /**
- * The shared schema at a path.
- * @param {{ path?: unknown }} [options]
+ * The shared schema with a name and version.
+ * @param {{ name?: unknown, version?: unknown }} [options]
  * @returns {{ schema: object } | { error: string }}
  */
-export function getSharedSchemaByPath({ path } = {}) {
-  if (typeof path !== 'string') {
-    return { error: 'The path must be a string.' };
+export function getSharedSchema({ name, version } = {}) {
+  if (typeof name !== 'string' || typeof version !== 'string') {
+    return { error: 'The name and version must be strings.' };
   }
-  const schema = findSharedSchemaByPath(path);
-  return schema ? { schema } : { error: 'No shared schema has this path.' };
-}
-
-/**
- * Every version of every shared schema.
- * @returns {{ schemas: readonly object[] }}
- */
-export function getSharedSchemas() {
-  return { schemas: SHARED_SCHEMAS };
+  const schema = findSharedSchema({ name, version });
+  return schema ? { schema } : { error: 'No shared schema has this name and version.' };
 }

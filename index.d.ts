@@ -310,22 +310,17 @@ export function convertHtmlToJson(options?: {
 }): { json: Document } | { error: string };
 
 /**
- * Returns the shared schema at a path.
+ * Returns the shared schema with a name and version.
  *
  * @param options The lookup input.
- * @param options.path The path of the schema's `$id`.
- * @returns `{ schema }`, or `{ error }` for a path without a schema or a path
- *   that is not a string.
+ * @param options.name The name, such as `image`.
+ * @param options.version The version, such as `1.0.0`.
+ * @returns `{ schema }`, or `{ error }` when no shared schema has this name and
+ *   version, or either is not a string.
  */
-export function getSharedSchemaByPath(options?: {
-  path: string;
+export function getSharedSchema(options?: {
+  name: string;
+  version: string;
 }): { schema: SharedSchema } | { error: string };
-
-/**
- * Returns all shared schemas, with every version of each.
- *
- * @returns `{ schemas }`.
- */
-export function getSharedSchemas(): { schemas: readonly SharedSchema[] };
 
 // #endregion

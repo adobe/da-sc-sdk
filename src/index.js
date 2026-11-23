@@ -45,7 +45,6 @@ export { convertJsonToHtml } from './html/json2html.js';
 export { convertHtmlToJson } from './html/html2json.js';
 
 // Shared schemas, such as an image, that customer schemas reference by `$id`.
-// `getSharedSchemaByPath({ path })` returns `{ schema } | { error }` for a
-// path. `getSharedSchemas()` returns `{ schemas }`, every version of every
-// shared schema.
-export { getSharedSchemaByPath, getSharedSchemas } from './types/lookup.js';
+// `getSharedSchema({ name, version })` returns `{ schema } | { error }`, such
+// as for `{ name: 'image', version: '1.0.0' }`.
+export { getSharedSchema } from './types/lookup.js';

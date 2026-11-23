@@ -16,8 +16,11 @@ import schemas from './shared/index.js';
 /** The origin of every shared schema `$id`, which is this origin plus the schema's path. */
 export const ORIGIN = 'https://headless.adobe.net';
 
+/** The folder of every shared schema path. */
+const PATH_PREFIX = '/schemas/shared';
+
 /** The form of a shared schema path. */
-const PATH_FORM = '/schemas/shared/<name>/v<major>.<minor>.<patch>.json';
+const PATH_FORM = `${PATH_PREFIX}/<name>/v<major>.<minor>.<patch>.json`;
 
 /** A shared schema path. */
 const PATH = /^\/schemas\/shared\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\/v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.json$/;
@@ -84,6 +87,17 @@ export const SHARED_SCHEMAS = Object.freeze([...BY_PATH.values()]);
  */
 export function findSharedSchemaByPath(path) {
   return BY_PATH.get(path);
+}
+
+/**
+ * The shared schema with a name and version.
+ * @param {object} options The name and version.
+ * @param {string} options.name The name, such as `image`.
+ * @param {string} options.version The version, such as `1.0.0`.
+ * @returns {object | undefined} The schema, or undefined.
+ */
+export function findSharedSchema({ name, version }) {
+  return findSharedSchemaByPath(`${PATH_PREFIX}/${name}/v${version}.json`);
 }
 
 /**
