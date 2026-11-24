@@ -48,6 +48,7 @@ function optionalFields(definition) {
     ...(Array.isArray(definition.enumValues) && { enumValues: definition.enumValues }),
     ...(definition.semanticType && { semanticType: definition.semanticType }),
     ...(definition.sharedSchemaName && { sharedSchemaName: definition.sharedSchemaName }),
+    ...(definition.additionalProperties === false && { additionalProperties: false }),
     ...(definition.format && { format: definition.format }),
     ...(definition.description !== undefined && { description: definition.description }),
   };

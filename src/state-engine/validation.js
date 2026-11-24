@@ -20,13 +20,15 @@
 //
 //   - `keyword`     — the JSON Schema keyword that failed (`minLength`,
 //                     `pattern`, `enum`, `required`, `type`, `minimum`,
-//                     `maximum`, `minItems`, `maxItems`). Stable vocabulary;
+//                     `maximum`, `minItems`, `maxItems`,
+//                     `additionalProperties`). Stable vocabulary;
 //                     matches what ajv would emit.
 //   - `instancePath` — RFC 6901 pointer into the data, rooted at `/data`.
 //                     Duplicated here so iteration (`Object.values(errors)`)
 //                     yields entries that carry their own pointer.
 //   - `params`      — keyword-specific structured info (`limit`, `pattern`,
-//                     `allowedValues`, `missingProperty`, `type`).
+//                     `allowedValues`, `missingProperty`, `additionalProperty`,
+//                     `type`).
 //   - `message`     — human-readable sentence. Capitalized, period-terminated,
 //                     no shouty caps. UI consumers render `.message` directly.
 //
@@ -47,7 +49,8 @@
 // surfaces on `schemaIssues`, not here.
 
 import { isDataEmpty } from '../shared/empty.js';
-import { DATA_POINTER } from '../shared/pointer.js';
+import { isJsonObject } from '../shared/object.js';
+import { DATA_POINTER, appendPointer } from '../shared/pointer.js';
 
 // First error per pointer wins. Helper makes that rule explicit at every
 // call site instead of buried in the walk.
@@ -297,6 +300,27 @@ function emitRequiredForChildren({ node, errors }) {
   }
 }
 
+/**
+ * Reports each property of an object that its schema doesn't allow, at the
+ * pointer of that property. Only shared schema values close their properties.
+ * @param {object} options The node and the errors to add to.
+ * @param {object} options.node A model node.
+ * @param {object} options.errors The errors by pointer.
+ */
+function emitAdditionalProperties({ node, errors }) {
+  if (node.additionalProperties !== false || !isJsonObject(node.value) || isDataEmpty(node.value)) {
+    return;
+  }
+  const keys = new Set(node.children.map((child) => child.key));
+  Object.keys(node.value).filter((key) => !keys.has(key)).forEach((key) => {
+    pushError(errors, appendPointer({ pointer: node.pointer, segment: key }), {
+      keyword: 'additionalProperties',
+      params: { additionalProperty: key },
+      message: 'This property is not allowed.',
+    });
+  });
+}
+
 function validateNodeValue({ node, errors }) {
   if (!node || !node.pointer) { return; }
   // Unsupported subtrees are not rendered; values pass through unvalidated.
@@ -329,6 +353,7 @@ function traverse(node, errors) {
   if (!node) { return; }
   validateNodeValue({ node, errors });
   emitRequiredForChildren({ node, errors });
+  emitAdditionalProperties({ node, errors });
   if (Array.isArray(node.children)) { node.children.forEach((c) => traverse(c, errors)); }
   // Descend into every row, even blank ones: an added row's required fields
   // must validate (fill or remove it). Blank rows still don't count toward min.

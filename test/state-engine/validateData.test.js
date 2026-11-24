@@ -301,6 +301,60 @@ describe('validateData', () => {
       });
     });
 
+    it('flags each property a shared schema does not allow, at its pointer', () => {
+      const result = validateData({
+        schema: {
+          type: 'object',
+          $defs: { Datasheet: { $ref: file.$id } },
+          properties: {
+            hero: { $ref: image.$id },
+            gallery: { type: 'array', items: { $ref: image.$id } },
+            sheet: { $ref: '#/$defs/Datasheet' },
+          },
+        },
+        data: {
+          hero: { src: './media_ab12.jpg', extra: 'x', 'a/b': 1 },
+          gallery: [{ src: './media_cd34.jpg', caption: 'One' }],
+          sheet: { src: './media_ef56.pdf', alt: 'A sheet' },
+        },
+      });
+      expect(result.valid).to.equal(false);
+      expect(result.errors).to.deep.equal({
+        '/data/hero/extra': {
+          keyword: 'additionalProperties',
+          instancePath: '/data/hero/extra',
+          params: { additionalProperty: 'extra' },
+          message: 'This property is not allowed.',
+        },
+        '/data/hero/a~1b': {
+          keyword: 'additionalProperties',
+          instancePath: '/data/hero/a~1b',
+          params: { additionalProperty: 'a/b' },
+          message: 'This property is not allowed.',
+        },
+        '/data/gallery/0/caption': {
+          keyword: 'additionalProperties',
+          instancePath: '/data/gallery/0/caption',
+          params: { additionalProperty: 'caption' },
+          message: 'This property is not allowed.',
+        },
+        '/data/sheet/alt': {
+          keyword: 'additionalProperties',
+          instancePath: '/data/sheet/alt',
+          params: { additionalProperty: 'alt' },
+          message: 'This property is not allowed.',
+        },
+      });
+    });
+
+    it('keeps allowing other properties on objects of the customer schema', () => {
+      const result = validateData({
+        schema: { type: 'object', properties: { card: { type: 'object', properties: {} } } },
+        data: { card: { extra: 'x' }, other: 'y' },
+      });
+      expect(result.errors).to.deep.equal({});
+    });
+
     it('flags a missing required file and a file without a source', () => {
       const fileSchema = {
         type: 'object',

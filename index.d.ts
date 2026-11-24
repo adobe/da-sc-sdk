@@ -99,7 +99,8 @@ export type ValidationKeyword =
   | 'minimum'
   | 'maximum'
   | 'minItems'
-  | 'maxItems';
+  | 'maxItems'
+  | 'additionalProperties';
 
 /**
  * A validation error, shaped like an ajv error with two differences. It has
@@ -174,6 +175,8 @@ export interface ModelNode {
    * although it is an object.
    */
   sharedSchemaName?: string;
+  /** Set when the shared schema allows no other properties. */
+  additionalProperties?: false;
   // Unsupported fields
   unsupported?: {
     reason: string;

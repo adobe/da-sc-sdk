@@ -91,6 +91,7 @@ Every node carries the same base fields, plus kind-specific extras.
 
   // object with a $ref to a shared schema:
   sharedSchemaName: '…',   // such as 'image', the same in every version. The editor renders one control
+  additionalProperties: false, // when the shared schema allows no other properties
 
   // unsupported:
   unsupported: { reason, feature, compositionKeyword, variants, schemaPath },

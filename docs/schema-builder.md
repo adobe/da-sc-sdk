@@ -137,6 +137,7 @@ What `compileNode` produces. This is the shape `buildModel` expects.
 
   // object with a $ref to a shared schema, its children from the shared schema:
   sharedSchemaName: '…',   // such as 'image', the same in every version
+  additionalProperties: false, // when the shared schema allows no other properties
 
   // unsupported:
   unsupported: { reason, feature, compositionKeyword, variants, schemaPath, details },
