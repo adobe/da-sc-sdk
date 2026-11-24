@@ -386,7 +386,7 @@ An empty value is absent (§7): an optional date/time field may be left blank, a
 ### Shared schemas
 
 A shared schema is a common shape, such as an image, that the SDK publishes
-(see [schemas/README.md](../schemas/README.md)). Reference it with its `$id`.
+(see [shared-schemas.md](shared-schemas.md)). Reference it with its `$id`.
 
 ```json
 {

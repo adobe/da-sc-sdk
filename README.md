@@ -169,7 +169,7 @@ lastValues = engine.getState().document; // onChange does NOT fire at init
 
 Shared schemas describe common shapes, such as an image or a file. Each version
 is published at its `$id` and never changes.
-[schemas/README.md](schemas/README.md) describes the versions.
+[docs/shared-schemas.md](docs/shared-schemas.md) describes the versions.
 
 Look a schema up by its name and version. A server that serves the schemas,
 such as da-sc, reads both from its route, such as

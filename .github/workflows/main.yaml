@@ -20,7 +20,7 @@ jobs:
         with:
           fetch-depth: 0  # history and tags, for the shared schema check
       - name: Check published shared schemas
-        run: git diff --exit-code --no-renames --diff-filter=a "$(git describe --tags --abbrev=0 --match 'v*')" HEAD -- schemas/shared
+        run: git diff --exit-code --no-renames --diff-filter=a "$(git describe --tags --abbrev=0 --match 'v*')" HEAD -- src/types/shared ':!src/types/shared/index.js'
       - name: Use Node.js 22.x
         uses: actions/setup-node@v6
         with:
