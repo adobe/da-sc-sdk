@@ -57,6 +57,30 @@ describe('shared schemas', () => {
     expect(file.required).to.deep.equal(['src']);
     expect(file.additionalProperties).to.equal(false);
   });
+
+  it('accepts only a media bus path or an http(s) URL as src', () => {
+    const valid = [
+      './media_1a2b3c.png',
+      'media_1a2b3c.jpg?width=750#top',
+      ' ./media_ab12.jpg?width=750&format=jpg ',
+      'https://publish-p1-e1.adobeaemcloud.com/content/dam/site/hero.jpg',
+      'https://delivery-p1-e1.adobeaemcloud.com/adobe/assets/urn:aaid:aem:1/as/hero.avif?width=2000',
+      'https://www.example.com/adobe/assets/urn:aaid:aem:1/as/hero.avif',
+      'http://localhost:3000/hero.jpg',
+    ];
+    // eslint-disable-next-line no-script-url
+    const scriptUrl = 'javascript:alert(1)';
+    const invalid = [
+      '', ' ', 'hero.png', './hero.png', './media_xyz.png', '/content/dam/hero.png',
+      'data:image/png;base64,AAAA', scriptUrl, 'ftp://example.com/hero.png',
+      'https://127.0.0.1/hero.png', 'https://example.com:12345/hero.png', 'https://example.com/a b.png',
+    ];
+    SHARED_SCHEMAS.forEach(({ $id, properties }) => {
+      const pattern = new RegExp(properties.src.pattern);
+      valid.forEach((src) => expect(pattern.test(src), `${$id} ${src}`).to.equal(true));
+      invalid.forEach((src) => expect(pattern.test(src), `${$id} ${src}`).to.equal(false));
+    });
+  });
 });
 
 describe('registerSharedSchemas', () => {
