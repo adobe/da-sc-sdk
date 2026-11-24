@@ -20,10 +20,10 @@ export const ORIGIN = 'https://headless.adobe.net';
 const PATH_PREFIX = '/schemas/shared';
 
 /** The form of a shared schema path. */
-const PATH_FORM = `${PATH_PREFIX}/<name>/v<major>.<minor>.<patch>.json`;
+const PATH_FORM = `${PATH_PREFIX}/<name>/versions/<major>.<minor>.<patch>`;
 
 /** A shared schema path. */
-const PATH = /^\/schemas\/shared\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\/v(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.json$/;
+const PATH = /^\/schemas\/shared\/([a-z][a-z0-9]*(?:-[a-z0-9]+)*)\/versions\/(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)$/;
 
 /** The longest name da-sc serves. */
 const MAX_NAME_LENGTH = 64;
@@ -97,7 +97,7 @@ export function findSharedSchemaByPath(path) {
  * @returns {object | undefined} The schema, or undefined.
  */
 export function findSharedSchema({ name, version }) {
-  return findSharedSchemaByPath(`${PATH_PREFIX}/${name}/v${version}.json`);
+  return findSharedSchemaByPath(`${PATH_PREFIX}/${name}/versions/${version}`);
 }
 
 /**

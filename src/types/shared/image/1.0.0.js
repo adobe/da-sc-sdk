@@ -10,10 +10,10 @@
  * governing permissions and limitations under the License.
  */
 
-/** The image schema v1.0.0. */
+/** The image schema, version 1.0.0. */
 export default {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
-  $id: 'https://headless.adobe.net/schemas/shared/image/v1.0.0.json',
+  $id: 'https://headless.adobe.net/schemas/shared/image/versions/1.0.0',
   title: 'Image',
   description: 'An image, referenced by its source, with a text alternative.',
   type: 'object',

@@ -33,14 +33,14 @@ describe('shared schemas', () => {
   });
 
   it('defines an image as src and alt, requires src and allows nothing else', () => {
-    const image = findSharedSchemaByPath('/schemas/shared/image/v1.0.0.json');
+    const image = findSharedSchemaByPath('/schemas/shared/image/versions/1.0.0');
     expect(Object.keys(image.properties)).to.deep.equal(['src', 'alt']);
     expect(image.required).to.deep.equal(['src']);
     expect(image.additionalProperties).to.equal(false);
   });
 
   it('defines a file as src only, requires it and allows nothing else', () => {
-    const file = findSharedSchemaByPath('/schemas/shared/file/v1.0.0.json');
+    const file = findSharedSchemaByPath('/schemas/shared/file/versions/1.0.0');
     expect(Object.keys(file.properties)).to.deep.equal(['src']);
     expect(file.required).to.deep.equal(['src']);
     expect(file.additionalProperties).to.equal(false);
@@ -75,14 +75,14 @@ describe('registerSharedSchemas', () => {
   const schema = ($id) => ({ $id, type: 'object' });
 
   it('maps each schema by the path of its $id and freezes it', () => {
-    const dashed = schema(`${ORIGIN}/schemas/shared/zx9-qk/v2.10.0.json`);
-    const longest = schema(`${ORIGIN}/schemas/shared/${'a'.repeat(64)}/v1.0.0.json`);
+    const dashed = schema(`${ORIGIN}/schemas/shared/zx9-qk/versions/2.10.0`);
+    const longest = schema(`${ORIGIN}/schemas/shared/${'a'.repeat(64)}/versions/1.0.0`);
     const byPath = registerSharedSchemas([dashed, longest]);
     expect([...byPath.keys()]).to.deep.equal([
-      '/schemas/shared/zx9-qk/v2.10.0.json',
-      `/schemas/shared/${'a'.repeat(64)}/v1.0.0.json`,
+      '/schemas/shared/zx9-qk/versions/2.10.0',
+      `/schemas/shared/${'a'.repeat(64)}/versions/1.0.0`,
     ]);
-    expect(byPath.get('/schemas/shared/zx9-qk/v2.10.0.json')).to.equal(dashed);
+    expect(byPath.get('/schemas/shared/zx9-qk/versions/2.10.0')).to.equal(dashed);
     expect(Object.isFrozen(dashed)).to.equal(true);
   });
 
@@ -90,26 +90,29 @@ describe('registerSharedSchemas', () => {
     [
       undefined,
       42,
-      'https://example.com/schemas/shared/image/v1.0.0.json',
-      `${ORIGIN}.example.com/schemas/shared/image/v1.0.0.json`,
-      `${ORIGIN}/schemas/image/v1.0.0.json`,
-      `${ORIGIN}/schemas/shared/Image/v1.0.0.json`,
-      `${ORIGIN}/schemas/shared/image-/v1.0.0.json`,
-      `${ORIGIN}/schemas/shared/image/v1.0.json`,
-      `${ORIGIN}/schemas/shared/image/v01.0.0.json`,
-      `${ORIGIN}/schemas/shared/image/v1.0.0.json?draft`,
+      'https://example.com/schemas/shared/image/versions/1.0.0',
+      `${ORIGIN}.example.com/schemas/shared/image/versions/1.0.0`,
+      `${ORIGIN}/schemas/image/versions/1.0.0`,
+      `${ORIGIN}/schemas/shared/Image/versions/1.0.0`,
+      `${ORIGIN}/schemas/shared/image-/versions/1.0.0`,
+      `${ORIGIN}/schemas/shared/image/versions/1.0`,
+      `${ORIGIN}/schemas/shared/image/versions/01.0.0`,
+      `${ORIGIN}/schemas/shared/image/versions/v1.0.0`,
+      `${ORIGIN}/schemas/shared/image/versions/1.0.0.json`,
+      `${ORIGIN}/schemas/shared/image/v1.0.0.json`,
+      `${ORIGIN}/schemas/shared/image/versions/1.0.0?draft`,
     ].forEach(($id) => {
       expect(() => registerSharedSchemas([schema($id)]), String($id)).to.throw('is not');
     });
   });
 
   it('throws on a name longer than 64 characters', () => {
-    const $id = `${ORIGIN}/schemas/shared/${'a'.repeat(65)}/v1.0.0.json`;
+    const $id = `${ORIGIN}/schemas/shared/${'a'.repeat(65)}/versions/1.0.0`;
     expect(() => registerSharedSchemas([schema($id)])).to.throw('longer than 64 characters');
   });
 
   it('throws on a duplicate $id', () => {
-    const $id = `${ORIGIN}/schemas/shared/image/v1.0.0.json`;
+    const $id = `${ORIGIN}/schemas/shared/image/versions/1.0.0`;
     expect(() => registerSharedSchemas([schema($id), schema($id)])).to.throw('registered twice');
   });
 });
@@ -120,10 +123,10 @@ describe('findSharedSchemaById', () => {
       expect(findSharedSchemaById(schema.$id), schema.$id).to.equal(schema);
     });
     [
-      `${ORIGIN}/schemas/shared/image/v9.0.0.json`,
-      `${ORIGIN}.example/schemas/shared/image/v1.0.0.json`,
-      'https://example.com/schemas/shared/image/v1.0.0.json',
-      '/schemas/shared/image/v1.0.0.json',
+      `${ORIGIN}/schemas/shared/image/versions/9.0.0`,
+      `${ORIGIN}.example/schemas/shared/image/versions/1.0.0`,
+      'https://example.com/schemas/shared/image/versions/1.0.0',
+      '/schemas/shared/image/versions/1.0.0',
       undefined,
     ].forEach((id) => expect(findSharedSchemaById(id), String(id)).to.equal(undefined));
   });
@@ -131,11 +134,11 @@ describe('findSharedSchemaById', () => {
 
 describe('parseSharedSchemaName', () => {
   it('parses the name of a shared schema $id, also of a version this SDK lacks', () => {
-    expect(parseSharedSchemaName(`${ORIGIN}/schemas/shared/image/v1.0.0.json`)).to.equal('image');
-    expect(parseSharedSchemaName(`${ORIGIN}/schemas/shared/video-clip/v9.0.0.json`)).to.equal('video-clip');
+    expect(parseSharedSchemaName(`${ORIGIN}/schemas/shared/image/versions/1.0.0`)).to.equal('image');
+    expect(parseSharedSchemaName(`${ORIGIN}/schemas/shared/video-clip/versions/9.0.0`)).to.equal('video-clip');
     [
-      `${ORIGIN}/schemas/image/v1.0.0.json`,
-      'https://example.com/schemas/shared/image/v1.0.0.json',
+      `${ORIGIN}/schemas/image/versions/1.0.0`,
+      'https://example.com/schemas/shared/image/versions/1.0.0',
       undefined,
     ].forEach((id) => expect(parseSharedSchemaName(id), String(id)).to.equal(undefined));
   });

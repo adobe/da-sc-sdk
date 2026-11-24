@@ -42,7 +42,7 @@ da-sc-sdk/
       semantic.js       the x-semantic-type values and the JSON type each applies to
       shared/           the shared schemas as JS modules
         index.js          the catalog, every version listed once
-        <name>/v<x>.<y>.<z>.js  one immutable module per version (see shared-schemas.md)
+        <name>/<x>.<y>.<z>.js   one immutable module per version (see shared-schemas.md)
     shared/           helpers every layer may use
       clone.js          single deepClone util
       empty.js          isDataEmpty, the one rule for empty values (validation, defaults, save)

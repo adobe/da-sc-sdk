@@ -12,7 +12,7 @@
 
 import { expect } from '@esm-bundle/chai';
 import { validateSchema } from '../../src/state-engine/index.js';
-import image from '../../src/types/shared/image/v1.0.0.js';
+import image from '../../src/types/shared/image/1.0.0.js';
 
 describe('validateSchema', () => {
   it('returns valid=true with no issues for a well-formed schema', () => {

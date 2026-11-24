@@ -12,8 +12,8 @@
 
 import { expect } from '@esm-bundle/chai';
 import { validateData } from '../../src/state-engine/index.js';
-import file from '../../src/types/shared/file/v1.0.0.js';
-import image from '../../src/types/shared/image/v1.0.0.js';
+import file from '../../src/types/shared/file/1.0.0.js';
+import image from '../../src/types/shared/image/1.0.0.js';
 
 describe('validateData', () => {
   it('returns valid=true and an empty errors map for a clean document', () => {

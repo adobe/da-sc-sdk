@@ -13,11 +13,11 @@
 import { expect } from '@esm-bundle/chai';
 import { getSharedSchema } from '../../src/index.js';
 import catalog from '../../src/types/shared/index.js';
-import image from '../../src/types/shared/image/v1.0.0.js';
+import image from '../../src/types/shared/image/1.0.0.js';
 
 // The name and version of a shared schema, read from its `$id`.
 function nameAndVersion({ $id }) {
-  const [, name, version] = $id.match(/\/([^/]+)\/v([^/]+)\.json$/);
+  const [, name, version] = $id.match(/\/([^/]+)\/versions\/([^/]+)$/);
   return { name, version };
 }
 
@@ -38,7 +38,7 @@ describe('getSharedSchema', () => {
       { ...IMAGE, version: '1.0' },
       { ...IMAGE, name: 'Image' },
       { ...IMAGE, name: 'zx9-qk' },
-      { name: `${IMAGE.name}/v${IMAGE.version}.json`, version: '' },
+      { name: `${IMAGE.name}/versions/${IMAGE.version}`, version: '' },
     ].forEach((options) => {
       expect(getSharedSchema(options), JSON.stringify(options))
         .to.deep.equal({ error: 'No shared schema has this name and version.' });

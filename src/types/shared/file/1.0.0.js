@@ -10,10 +10,10 @@
  * governing permissions and limitations under the License.
  */
 
-/** The file schema v1.0.0. */
+/** The file schema, version 1.0.0. */
 export default {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
-  $id: 'https://headless.adobe.net/schemas/shared/file/v1.0.0.json',
+  $id: 'https://headless.adobe.net/schemas/shared/file/versions/1.0.0',
   title: 'File',
   description: 'A file, such as a PDF, referenced by its source.',
   type: 'object',

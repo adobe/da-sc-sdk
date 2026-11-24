@@ -10,8 +10,8 @@
  * governing permissions and limitations under the License.
  */
 
-import fileV1 from './file/v1.0.0.js';
-import imageV1 from './image/v1.0.0.js';
+import fileV1 from './file/1.0.0.js';
+import imageV1 from './image/1.0.0.js';
 
 /** Every version of every shared schema, each a JS module with literal values only. */
 export default [imageV1, fileV1];

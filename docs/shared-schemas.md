@@ -5,11 +5,11 @@ Each version is a JS module in [src/types/shared/](../src/types/shared/), and
 its `$id` is its public URL:
 
 ```txt
-https://headless.adobe.net/schemas/shared/{name}/v{major}.{minor}.{patch}.json
+https://headless.adobe.net/schemas/shared/{name}/versions/{major}.{minor}.{patch}
 ```
 
-`src/types/shared/image/v1.0.0.js`, for example, has the `$id`
-`https://headless.adobe.net/schemas/shared/image/v1.0.0.json`.
+`src/types/shared/image/1.0.0.js`, for example, has the `$id`
+`https://headless.adobe.net/schemas/shared/image/versions/1.0.0`.
 
 ## Delivery
 
@@ -37,7 +37,7 @@ A new shape goes into a new version.
 
 ### Adding a version
 
-1. Add a module at `src/types/shared/<name>/v<major>.<minor>.<patch>.js` that
+1. Add a module at `src/types/shared/<name>/<major>.<minor>.<patch>.js` that
    imports nothing, with its URL as `$id`.
 2. Import it in `src/types/shared/index.js` and add it to the list there. The
    registry in `src/types/index.js` stays unchanged.

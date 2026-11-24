@@ -12,8 +12,8 @@
 
 import { expect } from '@esm-bundle/chai';
 import { compileSchema } from '../../src/state-engine/schema/index.js';
-import file from '../../src/types/shared/file/v1.0.0.js';
-import image from '../../src/types/shared/image/v1.0.0.js';
+import file from '../../src/types/shared/file/1.0.0.js';
+import image from '../../src/types/shared/image/1.0.0.js';
 
 describe('compileSchema', () => {
   describe('basic types', () => {
@@ -324,7 +324,7 @@ describe('compileSchema', () => {
     });
 
     it('asks to update the SDK for a shared schema version it does not have', () => {
-      const reference = image.$id.replace('v1.0.0', 'v9.0.0');
+      const reference = image.$id.replace('1.0.0', '9.0.0');
       const { issues } = compileSchema({
         type: 'object',
         properties: { hero: { $ref: reference } },

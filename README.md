@@ -173,7 +173,7 @@ is published at its `$id` and never changes.
 
 Look a schema up by its name and version. A server that serves the schemas,
 such as da-sc, reads both from its route, such as
-`/schemas/shared/image/v1.0.0.json`:
+`/schemas/shared/image/versions/1.0.0`:
 
 ```js
 import { getSharedSchema } from "@adobe/da-sc-sdk";

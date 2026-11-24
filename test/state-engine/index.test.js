@@ -19,8 +19,8 @@ import {
 import { isDataEmpty } from '../../src/shared/empty.js';
 import { compileSchema } from '../../src/state-engine/schema/index.js';
 import { convertJsonToHtml } from '../../src/html/json2html.js';
-import file from '../../src/types/shared/file/v1.0.0.js';
-import image from '../../src/types/shared/image/v1.0.0.js';
+import file from '../../src/types/shared/file/1.0.0.js';
+import image from '../../src/types/shared/image/1.0.0.js';
 
 // Build an editor whose state changes can be observed by the test. The
 // observation is deferred — call `start()` after `load()` to skip the load

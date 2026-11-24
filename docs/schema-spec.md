@@ -394,7 +394,7 @@ A shared schema is a common shape, such as an image, that the SDK publishes
   "title": "Product",
   "properties": {
     "hero": {
-      "$ref": "https://headless.adobe.net/schemas/shared/image/v1.0.0.json",
+      "$ref": "https://headless.adobe.net/schemas/shared/image/versions/1.0.0",
       "title": "Hero image",
       "required": ["alt"]
     }
