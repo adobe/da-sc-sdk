@@ -46,27 +46,60 @@ describe('shared schemas', () => {
     expect(file.additionalProperties).to.equal(false);
   });
 
-  it('accepts only a media bus path or an http(s) URL as src', () => {
+  // eslint-disable-next-line no-script-url
+  const scriptUrl = 'javascript:alert(1)';
+  const srcPatterns = () => SHARED_SCHEMAS
+    .map(({ $id, properties }) => [$id, new RegExp(properties.src.pattern)]);
+
+  it('accepts a relative ./ path or an http(s) URL as src', () => {
     const valid = [
       './media_1a2b3c.png',
-      'media_1a2b3c.jpg?width=750#top',
       ' ./media_ab12.jpg?width=750&format=jpg ',
+      './media/abc123.jpg',
       'https://publish-p1-e1.adobeaemcloud.com/content/dam/site/hero.jpg',
       'https://delivery-p1-e1.adobeaemcloud.com/adobe/assets/urn:aaid:aem:1/as/hero.avif?width=2000',
-      'https://www.example.com/adobe/assets/urn:aaid:aem:1/as/hero.avif',
+      'https://assets.customer-cdn.com/hero.jpg',
+      'https://content.da.live/org/site/hero.png',
       'http://localhost:3000/hero.jpg',
+      'http://127.0.0.1:3000/hero.jpg',
+      'https://[::1]:8443/hero.jpg',
+      'https://example.com:44300/hero.jpg',
     ];
-    // eslint-disable-next-line no-script-url
-    const scriptUrl = 'javascript:alert(1)';
     const invalid = [
-      '', ' ', 'hero.png', './hero.png', './media_xyz.png', '/content/dam/hero.png',
-      'data:image/png;base64,AAAA', scriptUrl, 'ftp://example.com/hero.png',
-      'https://127.0.0.1/hero.png', 'https://example.com:12345/hero.png', 'https://example.com/a b.png',
+      '', ' ', 'hero.png', '/content/dam/hero.png', '//evil.example/x.png', 'media_1a2b.jpg',
+      scriptUrl, scriptUrl.replace('j', 'J'), scriptUrl.replace(':', '://%0a'),
+      'data:image/png;base64,AAAA',
+      'vbscript:msgbox(1)', 'file:///etc/passwd', 'blob:https://x/y', 'ftp://example.com/x',
+      'https://example.com/a b.png', '\u0001javascript:alert(1)',
     ];
-    SHARED_SCHEMAS.forEach(({ $id, properties }) => {
-      const pattern = new RegExp(properties.src.pattern);
+    srcPatterns().forEach(([$id, pattern]) => {
       valid.forEach((src) => expect(pattern.test(src), `${$id} ${src}`).to.equal(true));
       invalid.forEach((src) => expect(pattern.test(src), `${$id} ${src}`).to.equal(false));
+    });
+  });
+
+  it('accepts no src that resolves to another protocol, or a ./ path on another host', () => {
+    const page = new URL('https://main--site--org.aem.page/folder/page');
+    const prefixes = ['', ' ', '\t', '\n', '\u0001', '\u0000', ' \u001f'];
+    const schemes = ['javascript', 'JavaScript', 'data', 'vbscript', 'file', 'blob', 'http', 'https', 'HTTPS', '', '.'];
+    const separators = [':', '://', ':/', '//', '/', ''];
+    const payloads = ['alert(1)', 'evil.example/x', '//evil.example/x', 'media_1a2b.jpg', '\\evil.example/x', '%0aalert(1)'];
+    const values = prefixes.flatMap((prefix) => schemes.flatMap((scheme) => separators
+      .flatMap((separator) => payloads.map((payload) => `${prefix}${scheme}${separator}${payload}`))));
+    expect(values.length).to.be.above(2000);
+    srcPatterns().forEach(([$id, pattern]) => {
+      values.filter((value) => pattern.test(value)).forEach((value) => {
+        let url;
+        try {
+          url = new URL(value, page);
+        } catch {
+          return;
+        }
+        expect(['http:', 'https:'], `${$id} ${JSON.stringify(value)}`).to.include(url.protocol);
+        if (value.trim().startsWith('./')) {
+          expect(url.host, `${$id} ${JSON.stringify(value)}`).to.equal(page.host);
+        }
+      });
     });
   });
 });
