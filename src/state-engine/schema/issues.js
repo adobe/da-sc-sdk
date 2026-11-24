@@ -40,16 +40,19 @@ function quotedList(values) {
 /** The `$id` of every shared schema, quoted for messages. */
 const QUOTED_SHARED_SCHEMA_IDS = quotedList(SHARED_SCHEMAS.map(({ $id }) => $id));
 
+/** The name of every shared schema. */
+const SHARED_SCHEMA_NAMES = new Set(SHARED_SCHEMAS.map(({ $id }) => parseSharedSchemaName($id)));
+
 /**
- * The message of an `external-ref` issue. A `$ref` in the form of a shared schema
- * `$id` that this SDK doesn't have is most likely a newer version, so the message
+ * The message of an `external-ref` issue. A `$ref` to a version of a known shared
+ * schema that this SDK doesn't have is most likely a newer version, so the message
  * asks to update the SDK.
  * @param {object} [details] The details of the issue.
  * @param {string} [details.ref] The `$ref`.
  * @returns {string} The message.
  */
 function externalRefMessage({ ref: reference = '' } = {}) {
-  if (parseSharedSchemaName(reference)) {
+  if (SHARED_SCHEMA_NAMES.has(parseSharedSchemaName(reference))) {
     return `Shared schema "${reference}" is not in this version of the SDK. Update @adobe/da-sc-sdk to use it.`;
   }
   return `External reference "${reference}" is not supported. Use a local "#/…" reference or a shared schema (${QUOTED_SHARED_SCHEMA_IDS}).`;

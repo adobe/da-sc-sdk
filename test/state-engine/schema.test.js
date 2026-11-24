@@ -335,6 +335,16 @@ describe('compileSchema', () => {
       }]);
     });
 
+    it('does not ask to update the SDK for a shared schema name it does not know', () => {
+      const reference = image.$id.replace('image', 'video');
+      const { issues } = compileSchema({
+        type: 'object',
+        properties: { hero: { $ref: reference } },
+      });
+      expect(issues.map(({ reason }) => reason)).to.deep.equal(['external-ref']);
+      expect(issues[0].message).to.match(/^External reference ".+" is not supported\./);
+    });
+
     it('lets enum win over x-semantic-type', () => {
       const { definition } = compileSchema({
         type: 'object',

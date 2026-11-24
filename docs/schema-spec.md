@@ -402,9 +402,9 @@ A shared schema is a common shape, such as an image, that the SDK publishes
 }
 ```
 
-The SDK holds every shared schema and never fetches one. A `$ref` to a version
-this SDK doesn't have is a schema issue (`external-ref`) whose message asks to
-update the SDK.
+The SDK holds every shared schema and never fetches one. A `$ref` to a shared
+schema this SDK doesn't have is a schema issue (`external-ref`). For a newer
+version of a shared schema it knows, the message asks to update the SDK.
 
 The field's value has the shape of the shared schema. The model node of the
 field has `sharedSchemaName`, such as `image`, so an editor can render it as one
