@@ -30,15 +30,13 @@ const NON_CONSTRAINING_KEYWORDS = new Set([
 ]);
 
 /**
- * The optional properties of a shared schema, which a schema may require next to
- * its `$ref`.
+ * The properties of a shared schema, which a schema may list in `required` next
+ * to its `$ref`.
  * @param {string} reference The `$id` of the shared schema.
  * @returns {string[]} The property names.
  */
 function requirablePropertiesOf(reference) {
-  const sharedSchema = findSharedSchemaById(reference);
-  const required = sharedSchema?.required ?? [];
-  return Object.keys(sharedSchema?.properties ?? {}).filter((key) => !required.includes(key));
+  return Object.keys(findSharedSchemaById(reference)?.properties ?? {});
 }
 
 /**
@@ -51,8 +49,8 @@ function isNonConstraining(key) {
 }
 
 /**
- * Whether `required` next to a shared schema `$ref` lists only optional
- * properties of the shared schema, each once.
+ * Whether `required` next to a shared schema `$ref` lists only properties of the
+ * shared schema, each once.
  * @param {unknown} required The `required` next to the `$ref`.
  * @param {string} reference The `$id` of the shared schema.
  * @returns {boolean} True when a schema may set it.
@@ -131,13 +129,9 @@ export function resolveSharedSchemaRef({ node, reference, schemaPath }) {
  * The keywords that may be adjacent to a shared schema `$ref`, as a schema would
  * write them.
  * @param {string} reference The `$id` of the shared schema.
- * @returns {string[]} The annotations, and `required` with the optional properties if
- *   the shared schema has any.
+ * @returns {string[]} The annotations, and `required` with the properties.
  */
 export function allowedAdjacentKeywords(reference) {
-  const requirable = requirablePropertiesOf(reference);
-  if (!requirable.length) {
-    return SHARED_SCHEMA_REF_ANNOTATIONS;
-  }
-  return [...SHARED_SCHEMA_REF_ANNOTATIONS, `required: ${JSON.stringify(requirable)}`];
+  const requirable = JSON.stringify(requirablePropertiesOf(reference));
+  return [...SHARED_SCHEMA_REF_ANNOTATIONS, `required: ${requirable}`];
 }

@@ -200,7 +200,7 @@ describe('compileSchema', () => {
       });
       expect(issues).to.deep.equal([{
         reason: 'unsupported-adjacent-keywords',
-        message: 'Only these keywords can be adjacent to the image $ref (title, description, readOnly, default, required: ["alt"]). Remove "type", "properties".',
+        message: 'Only these keywords can be adjacent to the image $ref (title, description, readOnly, default, required: ["src","alt"]). Remove "type", "properties".',
         schemaPath: '/properties/hero',
         pointer: '/data/hero',
         details: { ref: image.$id, keywords: ['type', 'properties'] },
@@ -208,8 +208,8 @@ describe('compileSchema', () => {
       expect(definition.children[0]).to.include({ kind: 'unsupported', readonly: true });
     });
 
-    it('reports a required next to an image that lists anything but alt once', () => {
-      [['src'], ['alt', 'src'], ['alt', 'alt'], 'alt'].forEach((required) => {
+    it('reports a required next to an image that lists anything but its properties once', () => {
+      [['caption'], ['alt', 'alt'], 'alt'].forEach((required) => {
         const { issues } = compileSchema({
           type: 'object',
           properties: { hero: { $ref: image.$id, required } },
@@ -220,12 +220,14 @@ describe('compileSchema', () => {
       });
     });
 
-    it('accepts an empty required next to a shared schema $ref', () => {
-      const { issues } = compileSchema({
-        type: 'object',
-        properties: { hero: { $ref: image.$id, title: 'Hero', required: [] } },
+    it('accepts a required next to a shared schema $ref that lists its properties once', () => {
+      [[], ['src'], ['alt', 'src']].forEach((required) => {
+        const { issues } = compileSchema({
+          type: 'object',
+          properties: { hero: { $ref: image.$id, title: 'Hero', required } },
+        });
+        expect(issues).to.deep.equal([]);
       });
-      expect(issues).to.deep.equal([]);
     });
 
     it('reports any keyword but annotations next to a file reference', () => {
@@ -235,7 +237,7 @@ describe('compileSchema', () => {
       });
       expect(issues).to.deep.equal([{
         reason: 'unsupported-adjacent-keywords',
-        message: 'Only these keywords can be adjacent to the file $ref (title, description, readOnly, default). Remove "required", "type".',
+        message: 'Only these keywords can be adjacent to the file $ref (title, description, readOnly, default, required: ["src"]). Remove "required", "type".',
         schemaPath: '/properties/datasheet',
         pointer: '/data/datasheet',
         details: { ref: file.$id, keywords: ['required', 'type'] },
@@ -245,7 +247,7 @@ describe('compileSchema', () => {
     it('reports keywords next to a shared schema $ref inside $defs and array items', () => {
       const { issues } = compileSchema({
         type: 'object',
-        $defs: { Logo: { $ref: image.$id, required: ['src'] } },
+        $defs: { Logo: { $ref: image.$id, required: ['caption'] } },
         properties: {
           logo: { $ref: '#/$defs/Logo' },
           gallery: { type: 'array', items: { $ref: image.$id, additionalProperties: true } },
