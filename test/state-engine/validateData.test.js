@@ -187,7 +187,7 @@ describe('validateData', () => {
     });
 
     it('flags a missing required shared schema value as a field', () => {
-      const result = validateData({ schema, data: { hero: { src: '', altText: '' } } });
+      const result = validateData({ schema, data: { hero: { src: '', alt: '' } } });
       expect(result.errors).to.deep.equal({
         '/data/hero': {
           keyword: 'required',
@@ -201,7 +201,7 @@ describe('validateData', () => {
     it('flags alt text without a source on the source', () => {
       const result = validateData({
         schema,
-        data: { hero: { src: './media_ab12.jpg' }, gallery: [{ altText: 'No image' }] },
+        data: { hero: { src: './media_ab12.jpg' }, gallery: [{ alt: 'No image' }] },
       });
       expect(result.errors).to.deep.equal({
         '/data/gallery/0/src': {
@@ -214,7 +214,7 @@ describe('validateData', () => {
     });
 
     it('flags alt text without a source on a required shared schema value once', () => {
-      const result = validateData({ schema, data: { hero: { altText: 'No image' } } });
+      const result = validateData({ schema, data: { hero: { alt: 'No image' } } });
       expect(Object.keys(result.errors)).to.deep.equal(['/data/hero/src']);
     });
 
@@ -222,7 +222,7 @@ describe('validateData', () => {
       const altSchema = {
         type: 'object',
         properties: {
-          hero: { $ref: image.$id, required: ['altText'] },
+          hero: { $ref: image.$id, required: ['alt'] },
           datasheet: { $ref: file.$id },
         },
       };
@@ -230,10 +230,10 @@ describe('validateData', () => {
       it('flags an image without alt text on the alt text', () => {
         const result = validateData({ schema: altSchema, data: { hero: { src: './media_ab12.jpg' } } });
         expect(result.errors).to.deep.equal({
-          '/data/hero/altText': {
+          '/data/hero/alt': {
             keyword: 'required',
-            instancePath: '/data/hero/altText',
-            params: { missingProperty: 'altText' },
+            instancePath: '/data/hero/alt',
+            params: { missingProperty: 'alt' },
             message: 'This field is required.',
           },
         });
@@ -241,9 +241,9 @@ describe('validateData', () => {
 
       it('accepts an image with alt text, an absent image and a file without alt text', () => {
         [
-          { hero: { src: './media_ab12.jpg', altText: 'A hero' } },
+          { hero: { src: './media_ab12.jpg', alt: 'A hero' } },
           {},
-          { hero: { src: '', altText: '' } },
+          { hero: { src: '', alt: '' } },
           { datasheet: { src: './media_ab12.pdf' } },
         ].forEach((data) => {
           expect(validateData({ schema: altSchema, data }).errors).to.deep.equal({});
@@ -251,15 +251,15 @@ describe('validateData', () => {
       });
 
       it('treats whitespace-only alt text without a source as no image', () => {
-        const result = validateData({ schema: altSchema, data: { hero: { altText: ' ' } } });
+        const result = validateData({ schema: altSchema, data: { hero: { alt: ' ' } } });
         expect(result.errors).to.deep.equal({});
       });
 
       it('flags whitespace-only alt text when the image has a source', () => {
         const result = validateData({
-          schema: altSchema, data: { hero: { src: './media_ab12.jpg', altText: '  ' } },
+          schema: altSchema, data: { hero: { src: './media_ab12.jpg', alt: '  ' } },
         });
-        expect(Object.keys(result.errors)).to.deep.equal(['/data/hero/altText']);
+        expect(Object.keys(result.errors)).to.deep.equal(['/data/hero/alt']);
       });
 
       it('requires alt text in array items and nested objects', () => {
@@ -267,31 +267,31 @@ describe('validateData', () => {
           schema: {
             type: 'object',
             properties: {
-              gallery: { type: 'array', items: { $ref: image.$id, required: ['altText'] } },
+              gallery: { type: 'array', items: { $ref: image.$id, required: ['alt'] } },
               card: {
                 type: 'object',
-                properties: { image: { $ref: image.$id, required: ['altText'] } },
+                properties: { image: { $ref: image.$id, required: ['alt'] } },
               },
             },
           },
           data: {
-            gallery: [{ src: './media_ab12.jpg', altText: 'One' }, { src: './media_cd34.jpg' }],
+            gallery: [{ src: './media_ab12.jpg', alt: 'One' }, { src: './media_cd34.jpg' }],
             card: { image: { src: './media_ab12.jpg' } },
           },
         });
         expect(Object.keys(result.errors)).to.deep.equal([
-          '/data/gallery/1/altText',
-          '/data/card/image/altText',
+          '/data/gallery/1/alt',
+          '/data/card/image/alt',
         ]);
       });
     });
 
     it('flags a source and alt text that are not strings', () => {
-      const result = validateData({ schema, data: { hero: { src: 42, altText: true } } });
+      const result = validateData({ schema, data: { hero: { src: 42, alt: true } } });
       const keywords = Object.entries(result.errors)
         .map(([pointer, error]) => [pointer, error.keyword]);
       expect(Object.fromEntries(keywords))
-        .to.deep.equal({ '/data/hero/src': 'type', '/data/hero/altText': 'type' });
+        .to.deep.equal({ '/data/hero/src': 'type', '/data/hero/alt': 'type' });
     });
 
     it('flags a shared schema value given as a string or array on its source', () => {

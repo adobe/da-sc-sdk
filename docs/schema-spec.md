@@ -396,7 +396,7 @@ A shared schema is a common shape, such as an image, that the SDK publishes
     "hero": {
       "$ref": "https://headless.adobe.net/schemas/shared/image/v1.0.0.json",
       "title": "Hero image",
-      "required": ["altText"]
+      "required": ["alt"]
     }
   }
 }
@@ -419,7 +419,7 @@ The shared schema owns its shape. Only these keywords may be adjacent to the
 | `description` | Help text, as on any field. |
 | `readOnly` | The value can't be changed. |
 | `default` | A value in the shape of the shared schema. |
-| `required` | Makes optional properties of the shared schema required, such as `["altText"]` for an image. |
+| `required` | Makes optional properties of the shared schema required, such as `["alt"]` for an image. |
 
 Any other keyword that could change the value, such as `type`, `properties` or
 `additionalProperties`, is a schema issue (`unsupported-adjacent-keywords`), and

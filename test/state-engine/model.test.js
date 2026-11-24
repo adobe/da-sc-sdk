@@ -83,9 +83,9 @@ describe('buildModel', () => {
   });
 
   it('builds a shared schema value as an object that carries the shared schema name', () => {
-    const hero = { src: './media_example.png', altText: 'A hero' };
+    const hero = { src: './media_example.png', alt: 'A hero' };
     const definition = objectDef([{
-      ...objectDef([stringDef('src'), stringDef('altText')]),
+      ...objectDef([stringDef('src'), stringDef('alt')]),
       key: 'hero',
       sharedSchemaName: 'image',
     }, {
@@ -99,7 +99,7 @@ describe('buildModel', () => {
     expect(nodeAt({ model, pointer: '/data/hero/src' })).to.not.have.property('sharedSchemaName');
     expect(nodeAt({ model, pointer: '/data/hero' })?.value).to.deep.equal(hero);
     expect(nodeAt({ model, pointer: '/data/hero/src' })?.value).to.equal(hero.src);
-    expect(nodeAt({ model, pointer: '/data/hero/altText' })?.value).to.equal(hero.altText);
+    expect(nodeAt({ model, pointer: '/data/hero/alt' })?.value).to.equal(hero.alt);
   });
 
   it('exposes itemLabel from the item definition on array nodes', () => {

@@ -96,7 +96,7 @@ describe('compileSchema', () => {
       expect(definition.children[0].semanticType).to.equal(undefined);
     });
 
-    it('compiles an image as an object with the SDK-defined src and altText fields, src required', () => {
+    it('compiles an image as an object with the SDK-defined src and alt fields, src required', () => {
       const { definition, issues } = compileSchema({
         type: 'object',
         required: ['hero'],
@@ -111,7 +111,7 @@ describe('compileSchema', () => {
         key, kind, label, required,
       }))).to.deep.equal([
         { key: 'src', kind: 'string', label: 'Source', required: true },
-        { key: 'altText', kind: 'string', label: 'Alt text', required: false },
+        { key: 'alt', kind: 'string', label: 'Alt text', required: false },
       ]);
     });
 
@@ -131,13 +131,13 @@ describe('compileSchema', () => {
     it('requires the alt text of an image when required lists it next to the $ref', () => {
       const { definition, issues } = compileSchema({
         type: 'object',
-        properties: { hero: { $ref: image.$id, required: ['altText'] } },
+        properties: { hero: { $ref: image.$id, required: ['alt'] } },
       });
       expect(issues).to.deep.equal([]);
       expect(definition.children[0].children.map(({ key, required }) => ({ key, required })))
         .to.deep.equal([
           { key: 'src', required: true },
-          { key: 'altText', required: true },
+          { key: 'alt', required: true },
         ]);
     });
 
@@ -145,17 +145,17 @@ describe('compileSchema', () => {
       const { definition, issues } = compileSchema({
         type: 'object',
         $defs: {
-          Logo: { $ref: image.$id, title: 'Logo', required: ['altText'] },
+          Logo: { $ref: image.$id, title: 'Logo', required: ['alt'] },
           Photo: { $ref: image.$id },
         },
         properties: {
           logo: { $ref: '#/$defs/Logo' },
-          photo: { $ref: '#/$defs/Photo', required: ['altText'] },
-          gallery: { type: 'array', items: { $ref: image.$id, required: ['altText'] } },
+          photo: { $ref: '#/$defs/Photo', required: ['alt'] },
+          gallery: { type: 'array', items: { $ref: image.$id, required: ['alt'] } },
         },
       });
       expect(issues).to.deep.equal([]);
-      const altRequired = (node) => node.children.find((child) => child.key === 'altText').required;
+      const altRequired = (node) => node.children.find((child) => child.key === 'alt').required;
       const [logo, photo, gallery] = definition.children;
       expect(altRequired(logo)).to.equal(true);
       expect(altRequired(photo)).to.equal(true);
@@ -183,7 +183,7 @@ describe('compileSchema', () => {
       expect(hero).to.include({
         kind: 'object', sharedSchemaName: 'image', label: 'Hero', description: 'The main image', readonly: true,
       });
-      expect(hero.children.map((child) => child.key)).to.deep.equal(['src', 'altText']);
+      expect(hero.children.map((child) => child.key)).to.deep.equal(['src', 'alt']);
     });
 
     it('reports keywords next to an image reference that would change the image', () => {
@@ -200,7 +200,7 @@ describe('compileSchema', () => {
       });
       expect(issues).to.deep.equal([{
         reason: 'unsupported-adjacent-keywords',
-        message: 'Only these keywords can be adjacent to the image $ref (title, description, readOnly, default, required: ["altText"]). Remove "type", "properties".',
+        message: 'Only these keywords can be adjacent to the image $ref (title, description, readOnly, default, required: ["alt"]). Remove "type", "properties".',
         schemaPath: '/properties/hero',
         pointer: '/data/hero',
         details: { ref: image.$id, keywords: ['type', 'properties'] },
@@ -208,8 +208,8 @@ describe('compileSchema', () => {
       expect(definition.children[0]).to.include({ kind: 'unsupported', readonly: true });
     });
 
-    it('reports a required next to an image that lists anything but altText once', () => {
-      [['src'], ['altText', 'src'], ['altText', 'altText'], 'altText'].forEach((required) => {
+    it('reports a required next to an image that lists anything but alt once', () => {
+      [['src'], ['alt', 'src'], ['alt', 'alt'], 'alt'].forEach((required) => {
         const { issues } = compileSchema({
           type: 'object',
           properties: { hero: { $ref: image.$id, required } },
@@ -231,7 +231,7 @@ describe('compileSchema', () => {
     it('reports any keyword but annotations next to a file reference', () => {
       const { issues } = compileSchema({
         type: 'object',
-        properties: { datasheet: { $ref: file.$id, required: ['altText'], type: 'object' } },
+        properties: { datasheet: { $ref: file.$id, required: ['alt'], type: 'object' } },
       });
       expect(issues).to.deep.equal([{
         reason: 'unsupported-adjacent-keywords',
@@ -267,7 +267,7 @@ describe('compileSchema', () => {
       const { issues } = compileSchema({
         type: 'object',
         $defs: { Datasheet: { $ref: file.$id, title: 'Datasheet' } },
-        properties: { sheet: { $ref: '#/$defs/Datasheet', title: 'Sheet', required: ['altText'] } },
+        properties: { sheet: { $ref: '#/$defs/Datasheet', title: 'Sheet', required: ['alt'] } },
       });
       const summary = issues.map(({ reason, schemaPath, details }) => ({
         reason, schemaPath, details,
@@ -307,7 +307,7 @@ describe('compileSchema', () => {
       });
       const [gallery, files] = definition.children;
       expect(gallery.item).to.include({ kind: 'object', sharedSchemaName: 'image' });
-      expect(gallery.item.children.map((child) => child.key)).to.deep.equal(['src', 'altText']);
+      expect(gallery.item.children.map((child) => child.key)).to.deep.equal(['src', 'alt']);
       expect(files.item).to.include({ kind: 'object', sharedSchemaName: 'file' });
       expect(files.item.children.map((child) => child.key)).to.deep.equal(['src']);
     });

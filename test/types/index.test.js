@@ -44,9 +44,9 @@ describe('shared schemas', () => {
     });
   });
 
-  it('defines an image as src and altText, requires src and allows nothing else', () => {
+  it('defines an image as src and alt, requires src and allows nothing else', () => {
     const image = findSharedSchemaByPath('/schemas/shared/image/v1.0.0.json');
-    expect(Object.keys(image.properties)).to.deep.equal(['src', 'altText']);
+    expect(Object.keys(image.properties)).to.deep.equal(['src', 'alt']);
     expect(image.required).to.deep.equal(['src']);
     expect(image.additionalProperties).to.equal(false);
   });

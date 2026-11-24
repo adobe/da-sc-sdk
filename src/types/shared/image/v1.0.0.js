@@ -24,7 +24,7 @@ export default {
       description: 'The http(s) URL or media bus path of the asset.',
       pattern: String.raw`^\s*(?:(?:\./)?media_[0-9a-fA-F]+\.[A-Za-z0-9]+(?:[?#]\S*)?|https?://(?:[A-Za-z0-9-]+\.)*[A-Za-z][A-Za-z0-9-]*(?::[0-9]{1,4})?(?:[/?#]\S*)?)\s*$`,
     },
-    altText: {
+    alt: {
       type: 'string',
       title: 'Alt text',
       description: 'A text alternative for the image.',

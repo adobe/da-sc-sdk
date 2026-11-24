@@ -197,15 +197,15 @@ describe('createEngine', () => {
         properties: { hero: { $ref: image.$id } },
       };
       const core = createEngine({ schema, document: { metadata: {}, data: {} } });
-      core.setField('/data/hero', { src: './media_ab12.jpg', altText: 'Before' });
-      core.setField('/data/hero/altText', 'After');
+      core.setField('/data/hero', { src: './media_ab12.jpg', alt: 'Before' });
+      core.setField('/data/hero/alt', 'After');
       const { document, model } = core.getState();
-      expect(document.data.hero).to.deep.equal({ src: './media_ab12.jpg', altText: 'After' });
+      expect(document.data.hero).to.deep.equal({ src: './media_ab12.jpg', alt: 'After' });
       expect(model.byPointer['/data/hero/src'].value).to.equal('./media_ab12.jpg');
     });
 
     it('fills a shared schema value from its default and keeps a read-only one read-only', () => {
-      const hero = { src: './media_ab12.jpg', altText: 'Default' };
+      const hero = { src: './media_ab12.jpg', alt: 'Default' };
       const schema = {
         type: 'object',
         properties: {
