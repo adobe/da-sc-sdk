@@ -1,0 +1,15 @@
+{
+  "metadata": {
+    "schemaName": "article",
+    "title": "sample"
+  },
+  "data": {
+    "headline": "Sample Article",
+    "hero": {
+      "src": "https://publish-p1-e1.adobeaemcloud.com/content/dam/site/images/hero.jpg"
+    },
+    "thumbnail": {
+      "src": "https://content.da.live/org/site/articles/.sample/thumbnail.png"
+    }
+  }
+}
