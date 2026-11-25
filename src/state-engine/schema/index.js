@@ -438,7 +438,6 @@ function compileNode({
     return {
       ...base,
       sharedSchemaName: parseSharedSchemaName(schema.sharedSchemaRef),
-      ...(sharedSchema.additionalProperties === false && { additionalProperties: false }),
       children: compileChildren({
         properties: sharedSchema.properties ?? {},
         required: [...(sharedSchema.required ?? []), ...(schema.required ?? [])],
