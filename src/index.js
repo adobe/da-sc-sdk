@@ -10,41 +10,33 @@
  * governing permissions and limitations under the License.
  */
 
-// Every public function takes either no argument or a single destructured
-// object argument. This is uniform across the SDK so consumers don't have to
-// remember which call is positional and which is named, and so optional
-// parameters can be added later without breaking existing callers.
+// The public API of the SDK. Every public function takes no argument or one
+// object argument, so optional parameters can be added without breaking callers.
 
-// Stateful state engine — schema-compiled document with mutations,
-// validation, and an onChange notification. `createEngine({ schema,
-// document, onChange })` returns an engine in its initial state; the engine
-// exposes `getState()` plus mutation methods (`setField`, `addItem`,
-// `insertItem`, `removeItem`, `moveItem`). To start over with a different
-// (schema, document) pair, create a new engine.
+/**
+ * Creates a stateful engine for one schema and one document. It compiles the
+ * schema, builds the model and validates the data, then applies mutations such
+ * as `setField` and reports each new state.
+ */
 export { createEngine } from './state-engine/index.js';
 
-// Schema validation — "is this schema well-formed?"
-// `validateSchema({ schema })` returns `{ valid, schemaIssues }`.
+/** Checks whether a schema can be compiled, and lists the issues when it can't. */
 export { validateSchema } from './state-engine/index.js';
 
-// Data validation — "does this data satisfy this schema?"
-// `validateData({ schema, data })` returns `{ valid, errors, schemaIssues }`.
-// `errors` is a pointer-keyed map: `{ [instancePath]: { keyword,
-// instancePath, params, message } }`. UI consumers do `errors[pointer]?.message`;
-// agents iterate via `Object.values(errors)`. `schemaIssues` is populated when
-// the schema itself has problems — callers that don't trust the schema should
-// either check `schemaIssues.length === 0` or call `validateSchema()` first.
+/**
+ * Checks data against a schema. The errors are keyed by the pointer of the
+ * value they belong to.
+ */
 export { validateData } from './state-engine/index.js';
 
-// Converts JSON to DA wire-format HTML, as the engine saves it.
-// `convertJsonToHtml({ json, model? })` returns `{ html } | { error }`.
+/** Converts a document to DA HTML, as the editor saves it. */
 export { convertJsonToHtml } from './html/json2html.js';
 
-// DA wire-format HTML → JSON. Symmetric pair with `convertJsonToHtml`.
-// `convertHtmlToJson({ html })` returns `{ json } | { error }`.
+/** Converts DA HTML to a document. */
 export { convertHtmlToJson } from './html/html2json.js';
 
-// Shared schemas, such as an image, that customer schemas reference by `$id`.
-// `getSharedSchema({ name, version })` returns `{ schema } | { error }`, such
-// as for `{ name: 'image', version: '1.0.0' }`.
+/**
+ * Finds a shared schema, such as an image, by its name and version. Schemas
+ * reference shared schemas by their `$id`.
+ */
 export { getSharedSchema } from './types/lookup.js';
