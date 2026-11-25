@@ -13,7 +13,8 @@
 import { compileSchema } from './schema/index.js';
 import { buildModel, nodeAt } from './model.js';
 import { validateDocument } from './validation.js';
-import { definitionAt, getParentPointer } from './pointer.js';
+import { getParentPointer } from '../shared/pointer.js';
+import { definitionAt } from './pointer.js';
 import { isDataEmpty } from '../shared/empty.js';
 import {
   addItem as applyAdd,
