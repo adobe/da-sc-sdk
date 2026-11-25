@@ -83,7 +83,7 @@ function primitiveHtml({
   const node = writer.byPointer?.[pointer];
   const parentNode = writer.byPointer?.[getParentPointer(pointer)];
   const codec = codecFor({ node, parentNode });
-  const html = codec.toHtml({ value, parentNode });
+  const html = codec.toHtml({ value, parentNode, config: writer.config });
   if (!codec.fromHtml) {
     return html;
   }
@@ -216,10 +216,11 @@ function dataBlock({ schemaName, data, writer }) {
   return block({ className: schemaName, innerHtml });
 }
 
-// `writer` collects the nested blocks and finds each value's model node.
-export default function json2html({ json, byPointer }) {
+// `writer` collects the nested blocks, finds each value's model node and
+// carries the config the codecs read.
+export default function json2html({ json, byPointer, config = {} }) {
   const { metadata, data } = json;
-  const writer = { blocks: [], byPointer };
+  const writer = { blocks: [], byPointer, config };
   const formBlockHtml = formBlock({ metadata, writer });
   const dataBlockHtml = dataBlock({ schemaName: metadata.schemaName, data, writer });
   const mainInner = `${formBlockHtml}${dataBlockHtml}${writer.blocks.join('')}`;
@@ -312,8 +313,27 @@ function verifyMediaSources(model) {
   return `${invalidNode.pointer} must match the pattern of its shared schema.`;
 }
 
+/**
+ * Checks the config of the writer.
+ * @param {unknown} config The config, if one is given.
+ * @returns {string | undefined} Why the config is invalid, or undefined.
+ */
+function verifyConfig(config) {
+  if (config === undefined || config === null) {
+    return undefined;
+  }
+  if (!isJsonObject(config)) {
+    return 'config must be an object.';
+  }
+  const { externalImagesAsLinks } = config;
+  if (externalImagesAsLinks !== undefined && typeof externalImagesAsLinks !== 'boolean') {
+    return 'config.externalImagesAsLinks must be a boolean.';
+  }
+  return undefined;
+}
+
 // Why the input can't be written, or undefined when it can.
-function verifyInput({ json, model }) {
+function verifyInput({ json, model, config }) {
   const jsonError = verifyJson(json);
   if (jsonError) {
     return jsonError;
@@ -322,6 +342,11 @@ function verifyInput({ json, model }) {
   const modelError = verifyModel({ model, json });
   if (modelError) {
     return modelError;
+  }
+
+  const configError = verifyConfig(config);
+  if (configError) {
+    return configError;
   }
 
   const mediaSourceError = verifyMediaSources(model);
@@ -333,12 +358,12 @@ function verifyInput({ json, model }) {
 }
 
 // See index.d.ts for the public contract.
-export function convertJsonToHtml({ json, model } = {}) {
-  const error = verifyInput({ json, model });
+export function convertJsonToHtml({ json, model, config } = {}) {
+  const error = verifyInput({ json, model, config });
   if (error) {
     return { error };
   }
 
-  const html = json2html({ json, byPointer: model?.byPointer });
+  const html = json2html({ json, byPointer: model?.byPointer, config: config ?? {} });
   return { html };
 }

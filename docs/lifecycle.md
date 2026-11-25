@@ -140,13 +140,15 @@ validateSchema({ schema })
 
 Schema-only. Skips data parsing, model building, and document validation — useful for "is this schema well-formed?" without any data on hand.
 
-### 3.3. `convertJsonToHtml({ json, model? })`
+### 3.3. `convertJsonToHtml({ json, model?, config? })`
 
 ```txt
-convertJsonToHtml({ json, model? })
+convertJsonToHtml({ json, model?, config? })
   ├─ shape-check: json is an object with metadata.schemaName (string)
   │    └─ if not: return { error: '<reason>' }
   ├─ model-check: no model, or one built from json (same schemaName and data)
+  │    └─ if not: return { error: '<reason>' }
+  ├─ config-check: no config, or an object whose externalImagesAsLinks is a boolean
   │    └─ if not: return { error: '<reason>' }
   ├─ media-check: every media source in the model matches the pattern of its shared schema
   │    └─ if not: return { error: '<pointer> must match the pattern of its shared schema.' }

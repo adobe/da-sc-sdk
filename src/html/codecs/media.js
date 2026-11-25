@@ -12,7 +12,7 @@
 
 import { isDataEmpty } from '../../shared/empty.js';
 import { httpUrl } from '../../shared/url.js';
-import { MEDIA_SCHEMA_NAMES, normalizeMediaSource } from '../../types/media.js';
+import { MEDIA_SCHEMA_NAMES, normalizeMediaSource, parseMediaBusPath } from '../../types/media.js';
 import { escapeAttr, escapeText } from '../markup.js';
 
 /** The property of an image that holds its alt text. */
@@ -59,6 +59,23 @@ function isImageFile(source) {
   return IMAGE_EXTENSIONS.has(extensionOf(pathOf(source)));
 }
 
+/** The hosts of files uploaded to DA. */
+const DA_UPLOAD_HOSTS = new Set(['content.da.live', 'stage-content.da.live']);
+
+/**
+ * Whether a page serves a source from its media bus. That holds for a media bus
+ * path and for an upload to DA, which is copied there when the page is previewed.
+ * @param {string} source A normalized source.
+ * @returns {boolean} True for a media bus path or a DA upload.
+ */
+function isServedFromMediaBus(source) {
+  if (parseMediaBusPath(source) !== null) {
+    return true;
+  }
+  const url = httpUrl(source);
+  return url?.protocol === 'https:' && DA_UPLOAD_HOSTS.has(url.hostname);
+}
+
 /**
  * The alt text of an image. Empty alt text is written as none.
  * @param {object} imageNode The model node of the image.
@@ -79,11 +96,18 @@ function altTextOf(imageNode) {
  * @param {object} options The source.
  * @param {string} options.source The normalized source.
  * @param {object} options.parentNode The model node of the value that holds it.
+ * @param {object} options.config The writer's config.
  * @returns {boolean} True when the source is written as `<img>`.
  */
-function isWrittenAsImage({ source, parentNode }) {
+function isWrittenAsImage({ source, parentNode, config }) {
   const isImageField = parentNode.sharedSchemaName === MEDIA_SCHEMA_NAMES.image;
-  return isImageField && isImageFile(source);
+  if (!isImageField || !isImageFile(source)) {
+    return false;
+  }
+  if (config.externalImagesAsLinks) {
+    return isServedFromMediaBus(source);
+  }
+  return true;
 }
 
 function imageHtml({ source, altText }) {
@@ -100,11 +124,12 @@ function linkHtml(source) {
  * @param {object} options The value.
  * @param {string} options.value The source.
  * @param {object} options.parentNode The model node of the value that holds it.
+ * @param {object} options.config The writer's config.
  * @returns {string} The markup.
  */
-function toHtml({ value, parentNode }) {
+function toHtml({ value, parentNode, config }) {
   const source = normalizeMediaSource(value);
-  if (isWrittenAsImage({ source, parentNode })) {
+  if (isWrittenAsImage({ source, parentNode, config })) {
     return imageHtml({ source, altText: altTextOf(parentNode) });
   }
   return linkHtml(source);

@@ -455,6 +455,11 @@ With the model, `convertJsonToHtml` writes a media source in this form.
 | image | another file | `<a href="…">…</a>` |
 | any other media, such as a file | any | `<a href="…">…</a>` |
 
+With `config.externalImagesAsLinks`, an image from another host, such as AEM
+Assets, is written as a link too, so the page shows it from that host. Media bus
+paths and uploads to DA (`content.da.live`) stay images, because the page
+serves them from its media bus.
+
 A media bus path is written without its rendition parameters, so
 `./media_1a2b.jpg?width=750` is stored as `./media_1a2b.jpg`. A source that
 doesn't match the pattern is an error, and nothing is written.

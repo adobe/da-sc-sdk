@@ -151,6 +151,41 @@ describe('media fields', () => {
       expect(error).to.include('/data/gallery/1/src');
     });
 
+    describe('with config.externalImagesAsLinks', () => {
+      const writeWithConfig = (data, config) => {
+        const model = modelOf(schema, doc(data));
+        return convertJsonToHtml({ json: model.document, model, config });
+      };
+
+      it('writes images from other hosts as links', () => {
+        const src = 'https://delivery-p1-e1.adobeaemcloud.com/adobe/assets/urn:aaid:aem:1/as/hero.png';
+        const { html } = writeWithConfig({ hero: { src } }, { externalImagesAsLinks: true });
+        expect(images(html)).to.deep.equal([]);
+        expect(links(html)).to.deep.equal([{ href: src, text: src }]);
+      });
+
+      it('keeps media bus images and DA uploads as images', () => {
+        const data = { gallery: [{ src: sources.mediaBus }, { src: sources.upload }] };
+        const { html } = writeWithConfig(data, { externalImagesAsLinks: true });
+        expect(images(html).map(({ src }) => src))
+          .to.deep.equal([sources.mediaBus, sources.upload]);
+      });
+
+      it('writes images from any host as images when it is false, empty or null', () => {
+        const src = 'https://example.com/content/dam/site/hero.png';
+        [{ externalImagesAsLinks: false }, {}, null].forEach((config) => {
+          const { html } = writeWithConfig({ hero: { src } }, config);
+          expect(images(html), JSON.stringify(config)).to.have.length(1);
+        });
+      });
+
+      it('fails on a config that is not an object or a flag that is not a boolean', () => {
+        expect(writeWithConfig({}, 'links')).to.deep.equal({ error: 'config must be an object.' });
+        expect(writeWithConfig({}, { externalImagesAsLinks: 'yes' }))
+          .to.deep.equal({ error: 'config.externalImagesAsLinks must be a boolean.' });
+      });
+    });
+
     it('writes media as text without a model', () => {
       // eslint-disable-next-line no-script-url
       const scriptUrl = 'javascript:alert(1)';

@@ -289,12 +289,19 @@ export function validateData(options?: {
  *   It decides how each value is written, such as a semantic type in its
  *   stored form, see schema-spec.md. Without it, every value is written as
  *   text.
+ * @param options.config How values are written.
+ * @param options.config.externalImagesAsLinks Writes images from other hosts
+ *   as links. Defaults to `false`.
  * @returns `{ html }`, or `{ error }` for invalid JSON, a model of another
- *   schema or of other data, or a media source that can't be written.
+ *   schema or of other data, an invalid config, or a media source that can't
+ *   be written.
  */
 export function convertJsonToHtml(options: {
   json: Document;
   model?: Model | null;
+  config?: {
+    externalImagesAsLinks?: boolean;
+  } | null;
 }): { html: string } | { error: string };
 
 /**
