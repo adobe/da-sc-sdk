@@ -303,23 +303,25 @@ function emitRequiredForChildren({ node, errors }) {
 /**
  * Reports each property of a shared schema value that its shared schema
  * doesn't have, at the pointer of that property. Shared schemas allow no
- * other properties.
+ * other properties. An empty property is absent, as saving removes it.
  * @param {object} options The node and the errors to add to.
  * @param {object} options.node A model node.
  * @param {object} options.errors The errors by pointer.
  */
 function emitAdditionalProperties({ node, errors }) {
-  if (!isSharedSchemaValue(node) || !isJsonObject(node.value) || isDataEmpty(node.value)) {
+  if (!isSharedSchemaValue(node) || !isJsonObject(node.value)) {
     return;
   }
   const keys = new Set(node.children.map((child) => child.key));
-  Object.keys(node.value).filter((key) => !keys.has(key)).forEach((key) => {
-    pushError(errors, appendPointer({ pointer: node.pointer, segment: key }), {
-      keyword: 'additionalProperties',
-      params: { additionalProperty: key },
-      message: 'This property is not allowed.',
+  Object.entries(node.value)
+    .filter(([key, value]) => !keys.has(key) && !isDataEmpty(value))
+    .forEach(([key]) => {
+      pushError(errors, appendPointer({ pointer: node.pointer, segment: key }), {
+        keyword: 'additionalProperties',
+        params: { additionalProperty: key },
+        message: 'This property is not allowed.',
+      });
     });
-  });
 }
 
 function validateNodeValue({ node, errors }) {

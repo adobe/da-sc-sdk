@@ -347,6 +347,13 @@ describe('validateData', () => {
       });
     });
 
+    it('lets an empty other property of a shared schema value pass, as saving removes it', () => {
+      ['', null, [], {}, { a: '' }].forEach((extra) => {
+        const result = validateData({ schema, data: { hero: { src: './media_ab12.jpg', extra } } });
+        expect(result.errors, JSON.stringify(extra)).to.deep.equal({});
+      });
+    });
+
     it('keeps allowing other properties on objects of the customer schema', () => {
       const result = validateData({
         schema: { type: 'object', properties: { card: { type: 'object', properties: {} } } },

@@ -89,10 +89,11 @@ matches the control:
 | array | `Must contain at least one item with content.` (or the `minItems` count) |
 
 A non-empty shared schema value may hold only the properties of its shared
-schema. Each other property is flagged at its own pointer with `keyword:
-'additionalProperties'` and `params.additionalProperty` set, as the shared
-schema's `additionalProperties: false` requires. Objects of the customer schema
-allow any other property.
+schema. Each other property with a value is flagged at its own pointer with
+`keyword: 'additionalProperties'` and `params.additionalProperty` set, as the
+shared schema's `additionalProperties: false` requires. An empty one passes,
+because saving removes it. Objects of the customer schema allow any other
+property.
 
 ### 2.5 Arrays: present once they have rows; counted by content
 
