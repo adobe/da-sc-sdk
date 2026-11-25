@@ -143,6 +143,17 @@ const { html } = convertJsonToHtml({ json: document, model });
 
 The model writes values with an `x-semantic-type` in the stored form of their type, which [schema-spec.md](docs/schema-spec.md#x-semantic-type) describes. Reading them back needs only the HTML.
 
+#### Images and files
+
+A field that references the `image` or `file` shared schema holds an object with a `src`, and an image also has `alt`. With the model, the `src` of an image file is written as `<img>`, with the alt text as `alt`. Any other source is written as a link. A `src` must match the `pattern` of its shared schema. Otherwise validation flags it, and `convertJsonToHtml` returns `{ error }` instead of writing it. [schema-spec.md](docs/schema-spec.md#shared-schemas) describes the rules.
+
+`convertJsonToHtml` takes an optional `config`:
+
+```js
+// Write images from other hosts, such as AEM Assets, as links.
+convertJsonToHtml({ json: document, model, config: { externalImagesAsLinks: true } });
+```
+
 ### Edit (with persistence)
 
 The engine has no transport and no save status. Wire your own persistence on top of `onChange`:
