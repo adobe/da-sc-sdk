@@ -11,7 +11,7 @@
  */
 
 import { SHARED_SCHEMAS, parseSharedSchemaName } from '../../types/index.js';
-import { allowedAdjacentKeywords } from './shared-schema.js';
+import { allowedAdjacentKeywords } from './shared.js';
 
 /** The `reason` of each schema issue, the codes consumers branch on. */
 export const ISSUE_REASONS = Object.freeze({

@@ -22,7 +22,7 @@ da-sc-sdk/
       schema/           the schema compiler
         index.js          resolveSchema + compileSchema ($ref/$defs resolution, composition handling)
         issues.js         the reasons of schema issues and their messages
-        shared-schema.js  resolves $refs to shared schemas and decides which keywords may be adjacent
+        shared.js         resolves $refs to shared schemas and decides which keywords may be adjacent
       model.js          buildModel + pointer→node Map, in one pass
       mutate.js         setField, addItem, insertItem, removeItem, moveItem
       pointer.js        RFC 6901 ops + definitionAt

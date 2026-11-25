@@ -10,9 +10,6 @@
  * governing permissions and limitations under the License.
  */
 
-// Resolves a `$ref` to a shared schema into a field, and decides which keywords
-// may be adjacent to it.
-
 import { findSharedSchemaById } from '../../types/index.js';
 
 /** Keywords next to a shared schema `$ref` that describe the field, not the shared schema. */

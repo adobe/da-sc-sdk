@@ -15,7 +15,7 @@ import { DATA_POINTER, appendPointer } from '../../shared/pointer.js';
 import { findSharedSchemaById, parseSharedSchemaName } from '../../types/index.js';
 import { isSupportedSemanticType } from '../../types/semantic.js';
 import { ISSUE_REASONS, issueMessage } from './issues.js';
-import { resolveSharedSchemaRef, unsupportedAdjacentKeywords } from './shared-schema.js';
+import { resolveSharedSchemaRef, unsupportedAdjacentKeywords } from './shared.js';
 
 function unionRequired(base = [], next = []) {
   return Array.from(new Set([...(base ?? []), ...(next ?? [])]));

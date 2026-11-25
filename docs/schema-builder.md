@@ -74,7 +74,7 @@ Walks the raw schema. At each node:
 
 1. **Deep-clones** the input (the resolved schema owns its own object graph; callers can mutate `rawSchema` later without affecting compiled output).
 2. **Resolves `$ref`.**
-   - A ref to the `$id` of a shared schema resolves in [state-engine/schema/shared-schema.js](../src/state-engine/schema/shared-schema.js) to `{ type: 'object', sharedSchemaRef }` and is never fetched. The field keeps its `title`, `description`, `readOnly`, `default` and a `required` that names properties of the shared schema.
+   - A ref to the `$id` of a shared schema resolves in [state-engine/schema/shared.js](../src/state-engine/schema/shared.js) to `{ type: 'object', sharedSchemaRef }` and is never fetched. The field keeps its `title`, `description`, `readOnly`, `default` and a `required` that names properties of the shared schema.
    - Any other keyword adjacent to a shared schema `$ref` that could change the value becomes `unsupportedRef: { reason: 'unsupported-adjacent-keywords', ref, keywords }`. A local `$ref` that resolves to a shared schema gets the same check.
    - Other external refs (anything not starting with `#/`) become `unsupportedRef: { reason: 'external-ref', ref }`.
    - Internal refs that don't resolve become `unsupportedRef: { reason: 'unresolved-ref', ref }`.
