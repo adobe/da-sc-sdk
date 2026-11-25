@@ -11,6 +11,7 @@
  */
 
 import { fromHtml } from 'hast-util-from-html';
+import { MEDIA_SOURCE_PROPERTY, normalizeMediaSource } from '../types/media.js';
 import { markupCodecFor } from './codecs/index.js';
 
 const SELF_REFERENCE_PATTERN = /^self:\/\/([a-z-]*)#(.*)$/;
@@ -60,6 +61,25 @@ function nodeText(node) {
   return (node.children ?? []).map(nodeText).join('');
 }
 
+/**
+ * The source of the first image in a cell. A media value holds one source and
+ * the writer writes one image for it. A cell edited in DA can still hold more,
+ * so the reader takes the first image that has a source.
+ * @param {object} node The cell.
+ * @returns {string | null} The normalized source, or null without an image.
+ */
+function imageSource(node) {
+  const images = [];
+  collectElements(node, 'img', images);
+  const source = images
+    .map((image) => image.properties.src)
+    .find((value) => typeof value === 'string' && value.trim() !== '');
+  if (source === undefined) {
+    return null;
+  }
+  return normalizeMediaSource(source);
+}
+
 // Find a direct list child of a value cell. The wire format uses `<ul>`,
 // but `<ol>` is accepted too — authors and external tools sometimes emit
 // ordered lists, and the SDK should read whatever shape carries the same
@@ -107,24 +127,28 @@ export default class HTMLConverter {
         return properties;
       }
 
-      properties[key] = this.readValue({ valueCell });
+      properties[key] = this.readValue({ valueCell, key });
       return properties;
     }, {});
   }
 
   // Read a value cell. A `<ul>` or `<ol>` child makes it an array. Otherwise
-  // the cell's text is the value.
-  readValue({ valueCell }) {
+  // the cell's text is the value. The reader has no schema, so it knows a
+  // media source cell, whose value may be an image, by its key.
+  readValue({ valueCell, key }) {
     const list = firstListChild(valueCell);
     if (list) {
       return this.readListValue(list);
     }
 
     const text = nodeText(valueCell).trim();
-    if (text === '') {
-      return '';
+    if (text !== '') {
+      return this.getTypedValue(text);
     }
-    return this.getTypedValue(text);
+    if (key === MEDIA_SOURCE_PROPERTY) {
+      return imageSource(valueCell) ?? '';
+    }
+    return '';
   }
 
   // Iterate only `<li>` children. Stray non-`<li>` elements inside the list
@@ -249,9 +273,12 @@ export default class HTMLConverter {
   }
 }
 
-// Convert DA wire-format HTML back to a structured JSON document. Symmetric
-// pair with `convertJsonToHtml`. Returns `{ json } | { error }` so callers
-// see a clear reason on failure instead of a silent null.
+/**
+ * Converts DA HTML to a document.
+ * @param {object} [options] The conversion input.
+ * @param {string} options.html The DA HTML.
+ * @returns {{ json: object } | { error: string }} The document, or why it can't be read.
+ */
 export function convertHtmlToJson({ html } = {}) {
   if (typeof html !== 'string' || !html.trim()) {
     return { error: 'html must be a non-empty string.' };

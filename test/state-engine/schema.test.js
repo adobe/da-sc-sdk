@@ -113,6 +113,7 @@ describe('compileSchema', () => {
         { key: 'src', kind: 'string', label: 'Source', required: true },
         { key: 'alt', kind: 'string', label: 'Alt text', required: false },
       ]);
+      expect(hero.children[0].validation.pattern).to.equal(image.properties.src.pattern);
     });
 
     it('compiles a file as an object with only the SDK-defined src field', () => {

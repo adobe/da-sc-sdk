@@ -289,8 +289,8 @@ export function validateData(options?: {
  *   It decides how each value is written, such as a semantic type in its
  *   stored form, see schema-spec.md. Without it, every value is written as
  *   text.
- * @returns `{ html }`, or `{ error }` for invalid JSON or a model of another
- *   schema or of other data.
+ * @returns `{ html }`, or `{ error }` for invalid JSON, a model of another
+ *   schema or of other data, or a media source that can't be written.
  */
 export function convertJsonToHtml(options: {
   json: Document;

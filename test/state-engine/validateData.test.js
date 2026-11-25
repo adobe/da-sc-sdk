@@ -380,6 +380,24 @@ describe('validateData', () => {
       expect(result.errors).to.deep.equal({});
     });
 
+    it('accepts exactly the sources the pattern of the shared schema accepts', () => {
+      const pattern = new RegExp(image.properties.src.pattern);
+      // eslint-disable-next-line no-script-url
+      const scriptUrl = 'javascript:alert(1)';
+      [
+        './media_ab12.jpg', ' ./media_ab12.jpg?width=750&format=jpg ', './hero.png', 'media_ab12.jpg',
+        'https://content.da.live/org/site/hero.png', 'http://127.0.0.1:3000/hero.jpg',
+        'https://example.com:44300/hero.jpg', 'HTTPS://example.com/hero.jpg', 'https://example.com/a b.jpg',
+        '/content/dam/hero.png', scriptUrl, 'data:image/png;base64,AAAA',
+      ].forEach((src) => {
+        const { valid, errors } = validateData({ schema, data: { hero: { src } } });
+        expect(valid, src).to.equal(pattern.test(src));
+        if (!valid) {
+          expect(errors['/data/hero/src'], src).to.include({ keyword: 'pattern' });
+        }
+      });
+    });
+
     it('flags a missing required file and a file without a source', () => {
       const fileSchema = {
         type: 'object',

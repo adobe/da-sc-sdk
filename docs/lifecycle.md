@@ -148,6 +148,8 @@ convertJsonToHtml({ json, model? })
   │    └─ if not: return { error: '<reason>' }
   ├─ model-check: no model, or one built from json (same schemaName and data)
   │    └─ if not: return { error: '<reason>' }
+  ├─ media-check: every media source in the model matches the pattern of its shared schema
+  │    └─ if not: return { error: '<pointer> must match the pattern of its shared schema.' }
   └─ html = json2html({ json, byPointer: model?.byPointer })
        ├─ build <body><main><div>…</div></main></body> via template literals
        ├─ walk data with each value's JSON pointer, skipping empty values

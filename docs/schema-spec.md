@@ -443,6 +443,24 @@ and its own required properties are checked only once it has a value. An item of
 an array is checked like any other item, so a blank image item reports its `src`
 as required.
 
+The `src` of an image or a file must match the `pattern` its shared schema
+gives it. The SDK enforces only that pattern, so it accepts and rejects the
+same sources as any other JSON Schema validator.
+
+With the model, `convertJsonToHtml` writes a media source in this form.
+
+| Field | Source | Written as |
+| ----- | ------ | ---------- |
+| image | an image file, such as `.png` or `.jpg` | `<img src="…" alt="…">`, with the alt text or an empty `alt` |
+| image | another file | `<a href="…">…</a>` |
+| any other media, such as a file | any | `<a href="…">…</a>` |
+
+A media bus path is written without its rendition parameters, so
+`./media_1a2b.jpg?width=750` is stored as `./media_1a2b.jpg`. A source that
+doesn't match the pattern is an error, and nothing is written.
+`convertHtmlToJson` reads a link as its text and a `src` cell without text as
+the source of its first image, in the same normalized form.
+
 ---
 
 ## 6. Scope
