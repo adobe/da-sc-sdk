@@ -96,6 +96,7 @@ export type ValidationKeyword =
   | 'minLength'
   | 'maxLength'
   | 'pattern'
+  | 'format'
   | 'minimum'
   | 'maximum'
   | 'minItems'
@@ -169,6 +170,8 @@ export interface ModelNode {
   enumValues?: unknown[];
   // Strings with `x-semantic-type`
   semanticType?: 'long-text' | 'rich-text';
+  // Strings with `format`
+  format?: 'date' | 'time' | 'date-time';
   /**
    * The name of the shared schema the field references, such as `image`, the
    * same in every version. Editors render such a field as one control,
