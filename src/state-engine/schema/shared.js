@@ -12,6 +12,13 @@
 
 import { findSharedSchemaById } from '../../types/index.js';
 
+/**
+ * Marks a resolved node as the value of a shared schema and holds its `$id`.
+ * It is a symbol, so no schema can set it, because the compiler clones its
+ * input and the clone drops symbol keys.
+ */
+export const SHARED_SCHEMA_REF = Symbol('sharedSchemaRef');
+
 /** Keywords next to a shared schema `$ref` that describe the field, not the shared schema. */
 const SHARED_SCHEMA_REF_ANNOTATIONS = ['title', 'description', 'readOnly', 'default'];
 
@@ -110,14 +117,14 @@ function pickDefined(node, keys) {
  * @param {object} options.node The schema node with the `$ref`.
  * @param {string} options.reference The `$id` of the shared schema.
  * @param {string} options.schemaPath Where the node is in the schema.
- * @returns {object} The field with `reference` as its `sharedSchemaRef`.
+ * @returns {object} The field, marked as the value of the shared schema.
  */
 export function resolveSharedSchemaRef({ node, reference, schemaPath }) {
   return {
     ...pickDefined(node, KEPT_SHARED_SCHEMA_REF_ANNOTATIONS),
     ...(node.required && { required: [...node.required] }),
     type: 'object',
-    sharedSchemaRef: reference,
+    [SHARED_SCHEMA_REF]: reference,
     schemaPath,
   };
 }

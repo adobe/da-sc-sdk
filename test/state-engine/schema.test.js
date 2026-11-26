@@ -265,6 +265,18 @@ describe('compileSchema', () => {
       ]);
     });
 
+    it('ignores a sharedSchemaRef key a schema writes itself', () => {
+      ['zx9-qk', image.$id].forEach((sharedSchemaRef) => {
+        const { definition, issues } = compileSchema({
+          type: 'object',
+          properties: { card: { type: 'object', sharedSchemaRef, properties: { title: { type: 'string' } } } },
+        });
+        expect(issues, sharedSchemaRef).to.deep.equal([]);
+        expect(definition.children[0], sharedSchemaRef).to.not.have.property('sharedSchemaName');
+        expect(definition.children[0].children.map((child) => child.key)).to.deep.equal(['title']);
+      });
+    });
+
     it('reports keywords next to a local $ref to a shared schema', () => {
       const { issues } = compileSchema({
         type: 'object',

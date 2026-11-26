@@ -15,7 +15,9 @@ import { DATA_POINTER, appendPointer } from '../../shared/pointer.js';
 import { findSharedSchemaById, parseSharedSchemaName } from '../../types/index.js';
 import { isSupportedSemanticType } from '../../types/semantic.js';
 import { ISSUE_REASONS, issueMessage } from './issues.js';
-import { resolveSharedSchemaRef, unsupportedAdjacentKeywords } from './shared.js';
+import {
+  SHARED_SCHEMA_REF, resolveSharedSchemaRef, unsupportedAdjacentKeywords,
+} from './shared.js';
 
 function unionRequired(base = [], next = []) {
   return Array.from(new Set([...(base ?? []), ...(next ?? [])]));
@@ -144,11 +146,11 @@ function resolveNode({
         node: deepClone(target), rootSchema, seenRefs, schemaPath: effectivePath,
       });
       seenRefs.delete(ref);
-      if (derefTarget?.sharedSchemaRef) {
+      if (derefTarget?.[SHARED_SCHEMA_REF]) {
         // A `#/$defs/...` entry can point to a shared schema, so check the keywords
         // adjacent to the local `$ref` as well.
         const usageIssue = adjacentKeywordsIssue({
-          node: resolved, reference: derefTarget.sharedSchemaRef, schemaPath,
+          node: resolved, reference: derefTarget[SHARED_SCHEMA_REF], schemaPath,
         });
         if (usageIssue) {
           return usageIssue;
@@ -433,11 +435,12 @@ function compileNode({
 
   // A shared schema value's properties come from the shared schema. What the
   // shared schema requires and what the schema adds next to the `$ref` are both required.
-  if (schema?.sharedSchemaRef) {
-    const sharedSchema = findSharedSchemaById(schema.sharedSchemaRef);
+  const sharedSchemaRef = schema?.[SHARED_SCHEMA_REF];
+  if (sharedSchemaRef) {
+    const sharedSchema = findSharedSchemaById(sharedSchemaRef);
     return {
       ...base,
-      sharedSchemaName: parseSharedSchemaName(schema.sharedSchemaRef),
+      sharedSchemaName: parseSharedSchemaName(sharedSchemaRef),
       children: compileChildren({
         properties: sharedSchema.properties ?? {},
         required: [...(sharedSchema.required ?? []), ...(schema.required ?? [])],
