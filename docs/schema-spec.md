@@ -417,7 +417,7 @@ The shared schema owns its shape. Only these keywords may be adjacent to the
 | ------- | ------ |
 | `title` | The label of the field (R4). The shared schema's own title is not used. |
 | `description` | Help text, as on any field. |
-| `readOnly` | The value can't be changed. |
+| `readOnly` | Disables the input, as on any field. |
 | `default` | A value in the shape of the shared schema. |
 | `required` | Makes properties of the shared schema required, such as `["alt"]` for an image. Listing one it already requires changes nothing. |
 
