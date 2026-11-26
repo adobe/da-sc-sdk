@@ -11,6 +11,7 @@
  */
 
 import { expect } from '@esm-bundle/chai';
+import { executeServerCommand } from '@web/test-runner-commands';
 import {
   ORIGIN, SHARED_SCHEMAS, findSharedSchemaById, findSharedSchemaByPath, registerSharedSchemas,
   parseSharedSchemaName,
@@ -24,6 +25,15 @@ function expectDeepFrozen(value, at) {
 }
 
 describe('shared schemas', () => {
+  it('registers every version module in src/types/shared/', async () => {
+    const paths = await executeServerCommand('list-shared-schema-modules');
+    expect(paths).to.have.lengthOf(SHARED_SCHEMAS.length);
+    const modules = await Promise.all(paths.map((path) => import(path)));
+    modules.forEach(({ default: schema }, index) => {
+      expect(SHARED_SCHEMAS, paths[index]).to.include(schema);
+    });
+  });
+
   it('declares JSON Schema 2020-12 and freezes every object', () => {
     expect(Object.isFrozen(SHARED_SCHEMAS)).to.equal(true);
     SHARED_SCHEMAS.forEach((schema) => {
