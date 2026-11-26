@@ -89,6 +89,9 @@ Every node carries the same base fields, plus kind-specific extras.
   // string with date/time format:
   format:      '…',        // 'date' | 'time' | 'date-time' — editor renders a date/time control
 
+  // object with a $ref to a shared schema:
+  sharedSchemaName: '…',   // such as 'image', the same in every version. The editor renders one control
+
   // unsupported:
   unsupported: { reason, feature, compositionKeyword, variants, schemaPath },
 }
@@ -364,7 +367,7 @@ The model is read-only from a consumer's perspective. Mutations always go throug
 
 Three places need updating, in this order:
 
-1. **`schema.js`** — extend `inferKind` so the schema's `type` resolves to your new `kind`. Add the kind to `SUPPORTED_TYPES`.
+1. **`schema/index.js`** — extend `inferKind` so the schema's `type` resolves to your new `kind`. Add the kind to `SUPPORTED_TYPES`.
 2. **`model.js`** — if the new kind needs to recurse (like `object`/`array`) or carry extra metadata, handle it in `buildNode`. For a flat primitive, no model change is needed beyond having a `kind` value flow through.
 3. **`editor.js`** — add a branch in `_renderPrimitive` (or split into a dedicated `_renderX`) for the new kind. **Never fall through to a default renderer.** An unhandled kind should be an explicit error.
 4. **`validation.js`** — add the validator branch alongside `validateString` / `validateNumber` / etc., and hook it into `validateNode`.

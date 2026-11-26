@@ -14,6 +14,8 @@ import { expect } from '@esm-bundle/chai';
 import { convertJsonToHtml } from '../../src/html/json2html.js';
 import { convertHtmlToJson } from '../../src/html/html2json.js';
 import { createEngine } from '../../src/state-engine/index.js';
+import file from '../../src/types/shared/file/1.0.0.js';
+import image from '../../src/types/shared/image/1.0.0.js';
 import { save } from './test-utils.js';
 
 const RICH = { type: 'string', 'x-semantic-type': 'rich-text' };
@@ -166,6 +168,33 @@ describe('rich-text codec', () => {
         grid: [['<p>a</p>', '<p>b</p>'], ['<p>c</p>']],
       });
       expect(roundtrip(json)).to.deep.equal(json);
+    });
+
+    it('preserves rich text next to image and file fields', () => {
+      const mixedSchema = {
+        type: 'object',
+        properties: {
+          hero: { $ref: image.$id },
+          datasheet: { $ref: file.$id },
+          body: RICH,
+          cards: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: { image: { $ref: image.$id }, text: RICH },
+            },
+          },
+        },
+      };
+      const json = doc({
+        hero: { src: './media_1a2b.png', alt: 'Hero' },
+        datasheet: { src: 'https://example.com/sheet.pdf' },
+        body: '<p>Intro <strong>bold</strong></p>',
+        cards: [
+          { image: { src: './media_3c4d.jpg', alt: 'Card' }, text: '<ul><li>one</li></ul>' },
+        ],
+      });
+      expect(roundtrip(json, mixedSchema)).to.deep.equal(json);
     });
 
     it('preserves rich text under keys with spaces', () => {

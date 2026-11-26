@@ -15,14 +15,14 @@ A conformant schema satisfies every rule below.
 
 | # | Rule |
 | - | ---- |
-| R1 | Every node must declare `type` explicitly. Inference from `properties`, `items`, or `enum` is not relied upon. |
+| R1 | Every node must declare `type` explicitly. Inference from `properties`, `items`, or `enum` is not relied upon. A node with a shared schema `$ref` leaves it out, since the shared schema declares it. |
 | R2 | `type` must be exactly one of: `"string"`, `"number"`, `"integer"`, `"boolean"`, `"object"`, `"array"`. |
 | R3 | `type` must not be an array (no `["string", "null"]`). |
-| R4 | Every node must define `title`. |
+| R4 | Every node must define `title`. For a shared schema, set it adjacent to the `$ref`. |
 | R5 | Every `object` node defines its fields via `properties`. |
 | R6 | Every `array` node defines its element schema via `items` (a single schema object, not an array). |
 | R7 | Repeated shapes are factored into `$defs` and referenced via `$ref`. |
-| R8 | `$ref` values must be same-document JSON Pointers (`#/...`). |
+| R8 | `$ref` values must be same-document JSON Pointers (`#/...`) or the `$id` of a shared schema (see [Shared schemas](#shared-schemas)). |
 | R9 | Property keys must begin with a letter (`a–z`, `A–Z`) and contain only letters, digits (`0–9`), and hyphens (`-`). |
 | R10 | The property keys `metadata` and `section-metadata` are reserved. They must not appear in `properties`. |
 | R11 | The root schema may declare `type: "object"` or `type: "array"`. |
@@ -356,7 +356,7 @@ An empty value is absent (§7): an optional date/time field may be left blank, a
 | `type`        | string | Rules R1–R3. |
 | `properties`  | object | Required on every `object`. |
 | `items`       | object | Required on every `array`. A single schema, not an array. |
-| `$ref`        | string | Same-document only (`#/...`). |
+| `$ref`        | string | Same-document (`#/...`), or the `$id` of a shared schema. |
 | `$defs`       | object | Container for reusable schemas referenced via `$ref`. |
 
 `$ref` and `$defs`:
@@ -382,6 +382,89 @@ An empty value is absent (§7): an optional date/time field may be left blank, a
   }
 }
 ```
+
+### Shared schemas
+
+A shared schema is a common shape, such as an image, that the SDK publishes
+(see [shared-schemas.md](shared-schemas.md)). Reference it with its `$id`.
+
+```txt
+https://headless.adobe.net/schemas/shared/{name}/versions/{version}
+```
+
+| Name | Use for | Current version |
+| ---- | ------- | --------------- |
+| `image` | Images, such as a photo or a logo | 1.0.0 |
+| `file` | Any other asset, such as a document (e.g. a PDF) or a video | 1.0.0 |
+
+```json
+{
+  "type": "object",
+  "title": "Product",
+  "properties": {
+    "hero": {
+      "$ref": "https://headless.adobe.net/schemas/shared/image/versions/1.0.0",
+      "title": "Hero image",
+      "required": ["alt"]
+    }
+  }
+}
+```
+
+The SDK holds every shared schema and never fetches one. A `$ref` to a shared
+schema this SDK doesn't have is a schema issue (`external-ref`). For a newer
+version of a shared schema it knows, the message asks to update the SDK.
+
+The field's value has the shape of the shared schema. The model node of the
+field has `sharedSchemaName`, such as `image`, so an editor can render it as one
+control.
+
+The shared schema owns its shape. Only these keywords may be adjacent to the
+`$ref`.
+
+| Keyword | Effect |
+| ------- | ------ |
+| `title` | The label of the field (R4). The shared schema's own title is not used. |
+| `description` | Help text, as on any field. |
+| `readOnly` | Disables the input, as on any field. |
+| `default` | A value in the shape of the shared schema. |
+| `required` | Makes properties of the shared schema required, such as `["alt"]` for an image. Listing one it already requires changes nothing. |
+
+Any other keyword that could change the value, such as `type`, `properties` or
+`additionalProperties`, is a schema issue (`unsupported-adjacent-keywords`), and
+`details.keywords` names them. So is a `required` that names other properties.
+This also applies to keywords adjacent to a local `$ref` that resolves to a
+shared schema. `$comment`, `examples`, `deprecated`,
+`writeOnly` and `x-*` keywords are ignored.
+
+A shared schema value whose properties are all empty has no value (§7). A
+required one that is empty is flagged as a field, `"This field is required."`,
+and its own required properties are checked only once it has a value. An item of
+an array is checked like any other item, so a blank image item reports its `src`
+as required.
+
+The `src` of an image or a file must match the `pattern` its shared schema
+gives it. The SDK enforces only that pattern, so it accepts and rejects the
+same sources as any other JSON Schema validator.
+
+With the model, `convertJsonToHtml` writes a media source in this form.
+
+| Field | Source | Written as |
+| ----- | ------ | ---------- |
+| image | an image file, such as `.png` or `.jpg` | `<img src="…" alt="…">`, with the alt text or an empty `alt` |
+| image | another file | `<a href="…">…</a>` |
+| any other media, such as a file | any | `<a href="…">…</a>` |
+
+With `config.externalImagesAsLinks`, an image from another host, such as AEM
+Assets, is written as a link too, so the page shows it from that host. Media bus
+paths and uploads to DA (`content.da.live`) stay images, because the page
+serves them from its media bus.
+
+A media bus path is written without its rendition parameters, so
+`./media_1a2b.jpg?width=750` is stored as `./media_1a2b.jpg`. A source that
+doesn't match the pattern is an error, and nothing is written.
+`convertHtmlToJson` reads a link as its text and a `src` cell without text as
+the source of its first image, in the same normalized form.
 
 ---
 

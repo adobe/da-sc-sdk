@@ -63,7 +63,7 @@ Runnable scripts in [examples/](./examples/).
 
 ## API
 
-Five top-level functions:
+Top-level functions:
 
 | Function            | Purpose                                              | Returns                           |
 | ------------------- | ---------------------------------------------------- | --------------------------------- |
@@ -72,6 +72,7 @@ Five top-level functions:
 | `validateData`      | Check data against a schema.                         | `{ valid, errors, schemaIssues }` |
 | `convertJsonToHtml` | Convert JSON → DA wire-format HTML.                  | `{ html } \| { error }`           |
 | `convertHtmlToJson` | Convert DA HTML → JSON.                              | `{ json } \| { error }`           |
+| `getSharedSchema`   | Get a shared schema by name and version.             | `{ schema } \| { error }`         |
 
 `createEngine` compiles a schema + initial document into a stateful, mutable handle.
 
@@ -142,6 +143,17 @@ const { html } = convertJsonToHtml({ json: document, model });
 
 The model writes values with an `x-semantic-type` in the stored form of their type, which [schema-spec.md](docs/schema-spec.md#x-semantic-type) describes. Reading them back needs only the HTML.
 
+#### Images and files
+
+A field that references the `image` or `file` shared schema holds an object with a `src`, and an image also has `alt`. With the model, the `src` of an image file is written as `<img>`, with the alt text as `alt`. Any other source is written as a link. A `src` must match the `pattern` of its shared schema. Otherwise validation flags it, and `convertJsonToHtml` returns `{ error }` instead of writing it. [schema-spec.md](docs/schema-spec.md#shared-schemas) describes the rules.
+
+`convertJsonToHtml` takes an optional `config`:
+
+```js
+// Write images from other hosts, such as AEM Assets, as links.
+convertJsonToHtml({ json: document, model, config: { externalImagesAsLinks: true } });
+```
+
 ### Edit (with persistence)
 
 The engine has no transport and no save status. Wire your own persistence on top of `onChange`:
@@ -164,12 +176,32 @@ lastValues = engine.getState().document; // onChange does NOT fire at init
 
 [docs/headless-consumer.md](docs/headless-consumer.md) has a ~40-line single-flight save pattern with status tracking.
 
+### Shared schemas
+
+Shared schemas describe common shapes, such as an image or a file. Each version
+is published at its `$id` and never changes.
+[docs/shared-schemas.md](docs/shared-schemas.md) describes the versions.
+
+Look a schema up by its name and version. A server that serves the schemas,
+such as da-sc, reads both from its route, such as
+`/schemas/shared/image/versions/1.0.0`:
+
+```js
+import { getSharedSchema } from "@adobe/da-sc-sdk";
+
+const result = getSharedSchema({ name: "image", version: "1.0.0" });
+if ("error" in result) {
+  return notFound();
+}
+return new Response(JSON.stringify(result.schema), { status: 200, headers: SCHEMA_HEADERS });
+```
+
 ## Error handling
 
 The SDK reports validation, conversion, and mutation failures through return values rather than exceptions. Truly invalid arguments (wrong types, malformed pointers) may still surface as runtime errors.
 
 - **Validators** (`validateSchema`, `validateData`) — check `result.valid`. When `false`, inspect `result.schemaIssues` for schema-level problems and `result.errors` for data-level problems (the latter is a `{ [pointer]: ValidationError }` map).
-- **Converters** (`convertJsonToHtml`, `convertHtmlToJson`) — destructure with a fallback: `const { html, error } = convertJsonToHtml(...)`. The `error` field is set on empty or malformed input; otherwise the success field (`html` or `json`) is set.
+- **Converters and lookup** (`convertJsonToHtml`, `convertHtmlToJson`, `getSharedSchema`). Destructure with a fallback: `const { html, error } = convertJsonToHtml(...)`. The `error` field is set on empty or malformed input; otherwise the success field (`html` or `json`) is set.
 - **Engine** — if the schema is malformed, `createEngine` still returns a handle but `getState().schemaIssues` will be non-empty and mutations no-op. Check `schemaIssues.length === 0` before relying on the engine.
 
 ## TypeScript
@@ -185,6 +217,7 @@ import type {
   SchemaIssue,
   ErrorsByPointer,
   ValidationError,
+  SharedSchema,
 } from "@adobe/da-sc-sdk";
 ```
 
@@ -198,7 +231,7 @@ import type {
 
 - **Headless.** No UI, no DOM, no rendering. UIs subscribe to `onChange`.
 - **No I/O.** No fetch, no file system, no DA endpoints. Callers wire their own transport.
-- **Five named exports.** The `package.json` `exports` map blocks deep imports. The five exports are the entire public API and the intended semver boundary.
+- **Named exports only.** The `package.json` `exports` map blocks deep imports. The exports in the API table are the entire public API and the intended semver boundary.
 - **Strict schema subset.** A strict subset of JSON Schema 2020-12 — see [docs/schema-spec.md](docs/schema-spec.md). Anything outside that contract surfaces in `schemaIssues`.
 - **Not** for general JSON Schema validation.
 

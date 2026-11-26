@@ -22,10 +22,11 @@
 // Text nodes and attribute values are escaped at the boundary; structural
 // markup is composed from template literals.
 
-import { DATA_POINTER, appendPointer } from '../shared/pointer.js';
+import { DATA_POINTER, appendPointer, getParentPointer } from '../shared/pointer.js';
 import { isDataEmpty } from '../shared/empty.js';
 import { isDeepEqual } from '../shared/equal.js';
 import { isJsonObject } from '../shared/object.js';
+import { isMediaSourceField } from '../types/media.js';
 import { block, row, textContent } from './markup.js';
 import { codecFor } from './codecs/index.js';
 
@@ -74,13 +75,15 @@ function addBlock({ key, innerHtml, writer }) {
 
 // A primitive as its codec writes it, or null for markup without text. Markup
 // goes into a block of its own, referenced with its semantic type, so the
-// reader decodes it without a schema.
+// reader decodes it without a schema. The parent node is the value that holds
+// the primitive, such as the image whose `src` it is.
 function primitiveHtml({
   key, value, pointer, writer,
 }) {
   const node = writer.byPointer?.[pointer];
-  const codec = codecFor({ node });
-  const html = codec.toHtml({ value });
+  const parentNode = writer.byPointer?.[getParentPointer(pointer)];
+  const codec = codecFor({ node, parentNode });
+  const html = codec.toHtml({ value, parentNode, config: writer.config });
   if (!codec.fromHtml) {
     return html;
   }
@@ -213,10 +216,11 @@ function dataBlock({ schemaName, data, writer }) {
   return block({ className: schemaName, innerHtml });
 }
 
-// `writer` collects the nested blocks and finds each value's model node.
-export default function json2html({ json, byPointer }) {
+// `writer` collects the nested blocks, finds each value's model node and
+// carries the config the codecs read.
+export default function json2html({ json, byPointer, config = {} }) {
   const { metadata, data } = json;
-  const writer = { blocks: [], byPointer };
+  const writer = { blocks: [], byPointer, config };
   const formBlockHtml = formBlock({ metadata, writer });
   const dataBlockHtml = dataBlock({ schemaName: metadata.schemaName, data, writer });
   const mainInner = `${formBlockHtml}${dataBlockHtml}${writer.blocks.join('')}`;
@@ -259,8 +263,77 @@ function verifyModel({ model, json }) {
   return undefined;
 }
 
+/**
+ * Whether a model node holds a media source that is written.
+ * @param {object} options The node.
+ * @param {object} options.node A model node.
+ * @param {object} options.byPointer The model nodes by pointer.
+ * @returns {boolean} True for a media source with a value.
+ */
+function hasMediaSource({ node, byPointer }) {
+  const parentNode = byPointer[getParentPointer(node.pointer)];
+  const isMediaSource = isMediaSourceField({
+    sharedSchemaName: parentNode?.sharedSchemaName,
+    propertyName: node.key,
+  });
+  return isMediaSource && !isDataEmpty(node.value);
+}
+
+/**
+ * Whether a media source matches the `pattern` its shared schema gives it, so the
+ * writer accepts exactly what every JSON Schema validator accepts. A source
+ * without a pattern is never written as markup.
+ * @param {object} node The model node of the source.
+ * @returns {boolean} True when the source can be written.
+ */
+function matchesSchemaPattern(node) {
+  const { pattern } = node.validation;
+  if (typeof node.value !== 'string' || pattern === undefined) {
+    return false;
+  }
+  return new RegExp(pattern).test(node.value);
+}
+
+/**
+ * Checks the media sources of a model before they are written, so a source that
+ * can't be written fails instead of being left out.
+ * @param {object} [model] The model, if one is given.
+ * @returns {string | undefined} Why a source can't be written, or undefined.
+ */
+function verifyMediaSources(model) {
+  if (!model) {
+    return undefined;
+  }
+  const { byPointer } = model;
+  const invalidNode = Object.values(byPointer)
+    .find((node) => hasMediaSource({ node, byPointer }) && !matchesSchemaPattern(node));
+  if (!invalidNode) {
+    return undefined;
+  }
+  return `${invalidNode.pointer} must match the pattern of its shared schema.`;
+}
+
+/**
+ * Checks the config of the writer.
+ * @param {unknown} config The config, if one is given.
+ * @returns {string | undefined} Why the config is invalid, or undefined.
+ */
+function verifyConfig(config) {
+  if (config === undefined || config === null) {
+    return undefined;
+  }
+  if (!isJsonObject(config)) {
+    return 'config must be an object.';
+  }
+  const { externalImagesAsLinks } = config;
+  if (externalImagesAsLinks !== undefined && typeof externalImagesAsLinks !== 'boolean') {
+    return 'config.externalImagesAsLinks must be a boolean.';
+  }
+  return undefined;
+}
+
 // Why the input can't be written, or undefined when it can.
-function verifyInput({ json, model }) {
+function verifyInput({ json, model, config }) {
   const jsonError = verifyJson(json);
   if (jsonError) {
     return jsonError;
@@ -271,16 +344,26 @@ function verifyInput({ json, model }) {
     return modelError;
   }
 
+  const configError = verifyConfig(config);
+  if (configError) {
+    return configError;
+  }
+
+  const mediaSourceError = verifyMediaSources(model);
+  if (mediaSourceError) {
+    return mediaSourceError;
+  }
+
   return undefined;
 }
 
 // See index.d.ts for the public contract.
-export function convertJsonToHtml({ json, model } = {}) {
-  const error = verifyInput({ json, model });
+export function convertJsonToHtml({ json, model, config } = {}) {
+  const error = verifyInput({ json, model, config });
   if (error) {
     return { error };
   }
 
-  const html = json2html({ json, byPointer: model?.byPointer });
+  const html = json2html({ json, byPointer: model?.byPointer, config: config ?? {} });
   return { html };
 }

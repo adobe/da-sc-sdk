@@ -140,14 +140,18 @@ validateSchema({ schema })
 
 Schema-only. Skips data parsing, model building, and document validation — useful for "is this schema well-formed?" without any data on hand.
 
-### 3.3. `convertJsonToHtml({ json, model? })`
+### 3.3. `convertJsonToHtml({ json, model?, config? })`
 
 ```txt
-convertJsonToHtml({ json, model? })
+convertJsonToHtml({ json, model?, config? })
   ├─ shape-check: json is an object with metadata.schemaName (string)
   │    └─ if not: return { error: '<reason>' }
   ├─ model-check: no model, or one built from json (same schemaName and data)
   │    └─ if not: return { error: '<reason>' }
+  ├─ config-check: no config, or an object whose externalImagesAsLinks is a boolean
+  │    └─ if not: return { error: '<reason>' }
+  ├─ media-check: every media source in the model matches the pattern of its shared schema
+  │    └─ if not: return { error: '<pointer> must match the pattern of its shared schema.' }
   └─ html = json2html({ json, byPointer: model?.byPointer })
        ├─ build <body><main><div>…</div></main></body> via template literals
        ├─ walk data with each value's JSON pointer, skipping empty values
@@ -242,7 +246,7 @@ For depth on any single phase, follow the link:
 
 | Phase | Lives in | Deep-dive doc |
 |---|---|---|
-| `compileSchema` | `src/state-engine/schema.js` | [schema-builder.md](./schema-builder.md) |
+| `compileSchema` | `src/state-engine/schema/index.js` | [schema-builder.md](./schema-builder.md) |
 | `parseDocument` / `coerceData` / `isDataEmpty` / `materializeDefaults` | `src/state-engine/index.js` | [architecture.md §9 + §10](./architecture.md) |
 | `buildModel` | `src/state-engine/model.js` | [model-builder.md](./model-builder.md) |
 | `validateDocument` | `src/state-engine/validation.js` | [architecture.md §8](./architecture.md) |
