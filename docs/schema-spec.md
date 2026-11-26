@@ -388,6 +388,15 @@ An empty value is absent (§7): an optional date/time field may be left blank, a
 A shared schema is a common shape, such as an image, that the SDK publishes
 (see [shared-schemas.md](shared-schemas.md)). Reference it with its `$id`.
 
+```txt
+https://headless.adobe.net/schemas/shared/{name}/versions/{version}
+```
+
+| Name | Use for | Current version |
+| ---- | ------- | --------------- |
+| `image` | Images, such as a photo or a logo | 1.0.0 |
+| `file` | Any other asset, such as a document (e.g. a PDF) or a video | 1.0.0 |
+
 ```json
 {
   "type": "object",
