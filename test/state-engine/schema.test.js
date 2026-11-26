@@ -193,19 +193,28 @@ describe('compileSchema', () => {
           hero: {
             $ref: image.$id,
             title: 'Hero',
-            type: 'object',
+            type: 'string',
             properties: { caption: { type: 'string' } },
           },
         },
       });
       expect(issues).to.deep.equal([{
         reason: 'unsupported-adjacent-keywords',
-        message: 'Only these keywords can be adjacent to the image $ref (title, description, readOnly, default, required: ["src","alt"]). Remove "type", "properties".',
+        message: 'Only these keywords can be adjacent to the image $ref (title, description, readOnly, default, type: "object", required: ["src","alt"]). Remove "type", "properties".',
         schemaPath: '/properties/hero',
         pointer: '/data/hero',
         details: { ref: image.$id, keywords: ['type', 'properties'] },
       }]);
       expect(definition.children[0]).to.include({ kind: 'unsupported', readonly: true });
+    });
+
+    it('accepts type object next to a shared schema $ref, as the shared schema declares it', () => {
+      const { definition, issues } = compileSchema({
+        type: 'object',
+        properties: { hero: { $ref: image.$id, title: 'Hero', type: 'object' } },
+      });
+      expect(issues).to.deep.equal([]);
+      expect(definition.children[0]).to.include({ kind: 'object', sharedSchemaName: 'image' });
     });
 
     it('reports a required next to an image that lists anything but its properties once', () => {
@@ -233,11 +242,11 @@ describe('compileSchema', () => {
     it('reports any keyword but annotations next to a file reference', () => {
       const { issues } = compileSchema({
         type: 'object',
-        properties: { datasheet: { $ref: file.$id, required: ['alt'], type: 'object' } },
+        properties: { datasheet: { $ref: file.$id, required: ['alt'], type: 'array' } },
       });
       expect(issues).to.deep.equal([{
         reason: 'unsupported-adjacent-keywords',
-        message: 'Only these keywords can be adjacent to the file $ref (title, description, readOnly, default, required: ["src"]). Remove "required", "type".',
+        message: 'Only these keywords can be adjacent to the file $ref (title, description, readOnly, default, type: "object", required: ["src"]). Remove "required", "type".',
         schemaPath: '/properties/datasheet',
         pointer: '/data/datasheet',
         details: { ref: file.$id, keywords: ['required', 'type'] },

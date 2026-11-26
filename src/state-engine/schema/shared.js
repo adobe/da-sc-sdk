@@ -81,6 +81,9 @@ function changesSharedSchema({ node, key, reference }) {
   if (key === 'required') {
     return !isAllowedSharedSchemaRequired(node.required, reference);
   }
+  if (key === 'type') {
+    return node.type !== 'object';
+  }
   return true;
 }
 
@@ -133,9 +136,9 @@ export function resolveSharedSchemaRef({ node, reference, schemaPath }) {
  * The keywords that may be adjacent to a shared schema `$ref`, as a schema would
  * write them.
  * @param {string} reference The `$id` of the shared schema.
- * @returns {string[]} The annotations, and `required` with the properties.
+ * @returns {string[]} The annotations, `type` as an object, and `required` with the properties.
  */
 export function allowedAdjacentKeywords(reference) {
   const requirable = JSON.stringify(requirablePropertiesOf(reference));
-  return [...SHARED_SCHEMA_REF_ANNOTATIONS, `required: ${requirable}`];
+  return [...SHARED_SCHEMA_REF_ANNOTATIONS, 'type: "object"', `required: ${requirable}`];
 }
