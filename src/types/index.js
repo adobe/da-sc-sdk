@@ -134,6 +134,23 @@ export function compareSharedSchemaVersions(a, b) {
 }
 
 /**
+ * The newest version of each shared schema among some versions.
+ * @param {object[]} versions Shared schemas.
+ * @returns {object[]} One shared schema per name, in the order the names first appear.
+ */
+export function getNewestVersions(versions) {
+  const newestByName = new Map();
+  versions.forEach((schema) => {
+    const name = parseSharedSchemaName(schema.$id);
+    const current = newestByName.get(name);
+    if (!current || compareSharedSchemaVersions(schema, current) > 0) {
+      newestByName.set(name, schema);
+    }
+  });
+  return [...newestByName.values()];
+}
+
+/**
  * The shared schemas, in the order of the registry.
  * @param {object} [options] Which shared schemas to return.
  * @param {string} [options.name] Only the versions of this shared schema, such as `image`.
@@ -143,15 +160,5 @@ export function compareSharedSchemaVersions(a, b) {
 export function findSharedSchemas({ name, newest = false } = {}) {
   const nameOf = ({ $id }) => parseSharedSchemaName($id);
   const named = SHARED_SCHEMAS.filter((schema) => name === undefined || nameOf(schema) === name);
-  if (!newest) {
-    return named;
-  }
-  const newestByName = new Map();
-  named.forEach((schema) => {
-    const current = newestByName.get(nameOf(schema));
-    if (!current || compareSharedSchemaVersions(schema, current) > 0) {
-      newestByName.set(nameOf(schema), schema);
-    }
-  });
-  return [...newestByName.values()];
+  return newest ? getNewestVersions(named) : named;
 }

@@ -14,7 +14,7 @@ import { expect } from '@esm-bundle/chai';
 import { executeServerCommand } from '@web/test-runner-commands';
 import {
   ORIGIN, SHARED_SCHEMAS, findSharedSchemaById, findSharedSchemaByPath, registerSharedSchemas,
-  compareSharedSchemaVersions, findSharedSchemas, parseSharedSchemaName,
+  compareSharedSchemaVersions, findSharedSchemas, getNewestVersions, parseSharedSchemaName,
 } from '../../src/types/index.js';
 
 function expectDeepFrozen(value, at) {
@@ -125,6 +125,17 @@ describe('findSharedSchemas', () => {
   it('returns the newest version of each shared schema', () => {
     expect(findSharedSchemas({ newest: true }).map(({ $id }) => parseSharedSchemaName($id)))
       .to.deep.equal(['image', 'file']);
+  });
+});
+
+describe('getNewestVersions', () => {
+  const schema = (name, version) => ({ $id: `${ORIGIN}/schemas/shared/${name}/versions/${version}` });
+
+  it('keeps the newest version of each shared schema, in the order the names first appear', () => {
+    const versions = [
+      schema('image', '1.9.0'), schema('file', '1.0.0'), schema('image', '1.10.0'), schema('image', '1.2.0'),
+    ];
+    expect(getNewestVersions(versions)).to.deep.equal([versions[2], versions[1]]);
   });
 });
 
