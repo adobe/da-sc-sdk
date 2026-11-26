@@ -20,13 +20,15 @@
 //
 //   - `keyword`     — the JSON Schema keyword that failed (`minLength`,
 //                     `pattern`, `enum`, `required`, `type`, `minimum`,
-//                     `maximum`, `minItems`, `maxItems`). Stable vocabulary;
+//                     `maximum`, `minItems`, `maxItems`,
+//                     `additionalProperties`). Stable vocabulary;
 //                     matches what ajv would emit.
 //   - `instancePath` — RFC 6901 pointer into the data, rooted at `/data`.
 //                     Duplicated here so iteration (`Object.values(errors)`)
 //                     yields entries that carry their own pointer.
 //   - `params`      — keyword-specific structured info (`limit`, `pattern`,
-//                     `allowedValues`, `missingProperty`, `type`).
+//                     `allowedValues`, `missingProperty`, `additionalProperty`,
+//                     `type`).
 //   - `message`     — human-readable sentence. Capitalized, period-terminated,
 //                     no shouty caps. UI consumers render `.message` directly.
 //
@@ -47,7 +49,8 @@
 // surfaces on `schemaIssues`, not here.
 
 import { isDataEmpty } from '../shared/empty.js';
-import { DATA_POINTER } from '../shared/pointer.js';
+import { isJsonObject } from '../shared/object.js';
+import { DATA_POINTER, appendPointer } from '../shared/pointer.js';
 
 // First error per pointer wins. Helper makes that rule explicit at every
 // call site instead of buried in the walk.
@@ -252,10 +255,25 @@ function validateArray({ node, errors }) {
   }
 }
 
+/**
+ * Whether a node holds the value of a shared schema. Such a value is one field
+ * even though it is an object.
+ * @param {object} node A model node.
+ * @returns {boolean} True when the node has a `sharedSchemaName`.
+ */
+function isSharedSchemaValue(node) {
+  return node.sharedSchemaName !== undefined;
+}
+
 // Word the required message to the control kind: object = section, array =
 // item count (surfaced here since an empty array short-circuits as absent).
 function requiredMessage(child) {
-  if (child.kind === 'object') { return 'This section is required.'; }
+  if (isSharedSchemaValue(child)) {
+    return 'This field is required.';
+  }
+  if (child.kind === 'object') {
+    return 'This section is required.';
+  }
   if (child.kind === 'array') {
     // Share validateArray's wording so both paths read the same.
     return arrayMinMessage(Math.max(child.minItems ?? 0, 1));
@@ -263,11 +281,16 @@ function requiredMessage(child) {
   return 'This field is required.';
 }
 
+/**
+ * Reports each required property of an object that has no value. A container
+ * that holds only empty values counts as missing, because saving removes it.
+ * @param {object} options The node and the errors to add to.
+ * @param {object} options.node A model node.
+ * @param {object} options.errors The errors by pointer.
+ */
 function emitRequiredForChildren({ node, errors }) {
   if (node.kind !== 'object' || !Array.isArray(node.children)) { return; }
   for (const child of node.children) {
-    // Presence is recursive: a required container of only-empty leaves (e.g.
-    // `{ title: '' }`) prunes to nothing on save, so flag it as missing.
     if (child.required && isDataEmpty(child.value)) {
       pushError(errors, child.pointer, {
         keyword: 'required',
@@ -276,6 +299,30 @@ function emitRequiredForChildren({ node, errors }) {
       });
     }
   }
+}
+
+/**
+ * Reports each property of a shared schema value that its shared schema
+ * doesn't have, at the pointer of that property. Shared schemas allow no
+ * other properties. An empty property is absent, as saving removes it.
+ * @param {object} options The node and the errors to add to.
+ * @param {object} options.node A model node.
+ * @param {object} options.errors The errors by pointer.
+ */
+function emitAdditionalProperties({ node, errors }) {
+  if (!isSharedSchemaValue(node) || !isJsonObject(node.value)) {
+    return;
+  }
+  const keys = new Set(node.children.map((child) => child.key));
+  Object.entries(node.value)
+    .filter(([key, value]) => !keys.has(key) && !isDataEmpty(value))
+    .forEach(([key]) => {
+      pushError(errors, appendPointer({ pointer: node.pointer, segment: key }), {
+        keyword: 'additionalProperties',
+        params: { additionalProperty: key },
+        message: 'This property is not allowed.',
+      });
+    });
 }
 
 function validateNodeValue({ node, errors }) {
@@ -306,14 +353,35 @@ function validateNodeValue({ node, errors }) {
   }
 }
 
+/**
+ * The properties and items of a node that are present. An empty shared schema
+ * property is absent, so its properties are not required yet. Every array
+ * item is present, even a blank one, so the author fills or removes it.
+ * @param {object} node A model node.
+ * @returns {object[]} The present child nodes.
+ */
+function presentChildren(node) {
+  const children = Array.isArray(node.children) ? node.children : [];
+  const items = Array.isArray(node.items) ? node.items : [];
+  return [
+    ...children.filter((child) => !isSharedSchemaValue(child) || !isDataEmpty(child.value)),
+    ...items,
+  ];
+}
+
+/**
+ * Validates a node and everything below it, depth first.
+ * @param {object} node A model node.
+ * @param {object} errors The errors by pointer.
+ */
 function traverse(node, errors) {
-  if (!node) { return; }
+  if (!node) {
+    return;
+  }
   validateNodeValue({ node, errors });
   emitRequiredForChildren({ node, errors });
-  if (Array.isArray(node.children)) { node.children.forEach((c) => traverse(c, errors)); }
-  // Descend into every row, even blank ones: an added row's required fields
-  // must validate (fill or remove it). Blank rows still don't count toward min.
-  if (Array.isArray(node.items)) { node.items.forEach((c) => traverse(c, errors)); }
+  emitAdditionalProperties({ node, errors });
+  presentChildren(node).forEach((child) => traverse(child, errors));
 }
 
 export function validateDocument({ document, model }) {

@@ -6,8 +6,30 @@
 // in roundtrip tests, `@esm-bundle/chai` for assertions). Coverage is
 // scoped to `src/`; thresholds enforce the SDK's quality bar.
 
+import { readdirSync } from 'node:fs';
+
+/**
+ * Server command `list-shared-schema-modules`. Returns the path of every
+ * version module in `src/types/shared/`, such as
+ * `/src/types/shared/image/1.0.0.js`, because tests in the browser can't list
+ * a folder.
+ */
+const listSharedSchemaModules = {
+  name: 'list-shared-schema-modules',
+  executeCommand({ command }) {
+    if (command !== 'list-shared-schema-modules') {
+      return undefined;
+    }
+    return readdirSync('src/types/shared', { recursive: true })
+      .map((file) => file.replaceAll('\\', '/'))
+      .filter((file) => file.includes('/') && file.endsWith('.js'))
+      .map((file) => `/src/types/shared/${file}`);
+  },
+};
+
 export default {
   files: 'test/**/*.test.js',
+  plugins: [listSharedSchemaModules],
   nodeResolve: true,
   coverage: true,
   coverageConfig: {

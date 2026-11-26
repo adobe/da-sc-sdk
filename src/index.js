@@ -10,10 +10,10 @@
  * governing permissions and limitations under the License.
  */
 
-// All 5 public functions take a single destructured object argument. This
-// is uniform across the SDK so consumers don't have to remember which call
-// is positional and which is named — and so optional parameters can be
-// added later without breaking existing callers.
+// Every public function takes either no argument or a single destructured
+// object argument. This is uniform across the SDK so consumers don't have to
+// remember which call is positional and which is named, and so optional
+// parameters can be added later without breaking existing callers.
 
 // Stateful state engine — schema-compiled document with mutations,
 // validation, and an onChange notification. `createEngine({ schema,
@@ -43,3 +43,8 @@ export { convertJsonToHtml } from './html/json2html.js';
 // DA wire-format HTML → JSON. Symmetric pair with `convertJsonToHtml`.
 // `convertHtmlToJson({ html })` returns `{ json } | { error }`.
 export { convertHtmlToJson } from './html/html2json.js';
+
+// Shared schemas, such as an image, that customer schemas reference by `$id`.
+// `getSharedSchema({ name, version })` returns `{ schema } | { error }`, such
+// as for `{ name: 'image', version: '1.0.0' }`.
+export { getSharedSchema } from './types/lookup.js';

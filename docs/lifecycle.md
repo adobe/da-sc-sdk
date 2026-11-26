@@ -242,7 +242,7 @@ For depth on any single phase, follow the link:
 
 | Phase | Lives in | Deep-dive doc |
 |---|---|---|
-| `compileSchema` | `src/state-engine/schema.js` | [schema-builder.md](./schema-builder.md) |
+| `compileSchema` | `src/state-engine/schema/index.js` | [schema-builder.md](./schema-builder.md) |
 | `parseDocument` / `coerceData` / `isDataEmpty` / `materializeDefaults` | `src/state-engine/index.js` | [architecture.md §9 + §10](./architecture.md) |
 | `buildModel` | `src/state-engine/model.js` | [model-builder.md](./model-builder.md) |
 | `validateDocument` | `src/state-engine/validation.js` | [architecture.md §8](./architecture.md) |

@@ -34,7 +34,7 @@ them, keyword by keyword, with a worked example of every combination.
 
 - `keyword` — the JSON Schema keyword that failed.
 - `instancePath` — RFC 6901 pointer into the data, rooted at `/data`.
-- `params` — keyword-specific detail (`limit`, `pattern`, `allowedValues`, `missingProperty`, `type`).
+- `params` — keyword-specific detail (`limit`, `pattern`, `allowedValues`, `missingProperty`, `additionalProperty`, `type`).
 - `message` — a complete, capitalized, period-terminated sentence, meant to be shown directly.
 
 **One error per pointer** — the first failing check on a node wins. UI consumers
@@ -85,7 +85,15 @@ matches the control:
 | ------------- | ------- |
 | scalar | `This field is required.` |
 | object | `This section is required.` |
+| shared schema value | `This field is required.` |
 | array | `Must contain at least one item with content.` (or the `minItems` count) |
+
+A non-empty shared schema value may hold only the properties of its shared
+schema. Each other property with a value is flagged at its own pointer with
+`keyword: 'additionalProperties'` and `params.additionalProperty` set, as the
+shared schema's `additionalProperties: false` requires. An empty one passes,
+because saving removes it. Objects of the customer schema allow any other
+property.
 
 ### 2.5 Arrays: present once they have rows; counted by content
 
@@ -423,6 +431,7 @@ validity against a full JSON Schema validator for that keyword.
 | `required` (object) | `This section is required.` |
 | `required` / `minItems` (array) | `Must contain at least N items with content.` · singular `…at least one item with content.` |
 | `maxItems` | `Must contain at most N items.` |
+| `additionalProperties` | `This property is not allowed.` |
 | `minLength` | `Must be at least N characters.` |
 | `maxLength` | `Must be at most N characters.` |
 | `pattern` | `Must match the pattern "…".` |

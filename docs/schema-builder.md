@@ -32,7 +32,7 @@ The compiler also exposes the *resolved* schema (`schema` in the return value) f
 
 ## 2. Public surface
 
-`compileSchema(rawSchema)` from [state-engine/schema.js](../src/state-engine/schema.js).
+`compileSchema(rawSchema)` from [state-engine/schema/index.js](../src/state-engine/schema/index.js).
 
 | Input | Type |
 |---|---|
@@ -74,7 +74,9 @@ Walks the raw schema. At each node:
 
 1. **Deep-clones** the input (the resolved schema owns its own object graph; callers can mutate `rawSchema` later without affecting compiled output).
 2. **Resolves `$ref`.**
-   - External refs (anything not starting with `#/`) become `unsupportedRef: { reason: 'external-ref', ref }`.
+   - A ref to the `$id` of a shared schema resolves in [state-engine/schema/shared.js](../src/state-engine/schema/shared.js) to `{ type: 'object' }`, marked with the `SHARED_SCHEMA_REF` symbol so no schema can set the marker, and is never fetched. The field keeps its `title`, `description`, `readOnly`, `default` and a `required` that names properties of the shared schema.
+   - Any other keyword adjacent to a shared schema `$ref` that could change the value becomes `unsupportedRef: { reason: 'unsupported-adjacent-keywords', ref, keywords }`. A local `$ref` that resolves to a shared schema gets the same check.
+   - Other external refs (anything not starting with `#/`) become `unsupportedRef: { reason: 'external-ref', ref }`.
    - Internal refs that don't resolve become `unsupportedRef: { reason: 'unresolved-ref', ref }`.
    - Cycles are broken by tracking refs in `seenRefs`; the cycle root keeps whatever local fields it already had.
    - Successful refs are merged with the local node via `mergeSchemas` — local fields take precedence over the referent's fields. `properties` and `$defs` are merged shallowly; `required` is union-merged.
@@ -132,6 +134,9 @@ What `compileNode` produces. This is the shape `buildModel` expects.
 
   // string with date/time format:
   format:      '…',        // 'date' | 'time' | 'date-time'
+
+  // object with a $ref to a shared schema, its children from the shared schema:
+  sharedSchemaName: '…',   // such as 'image', the same in every version
 
   // unsupported:
   unsupported: { reason, feature, compositionKeyword, variants, schemaPath, details },
@@ -388,7 +393,7 @@ The object compiles and the editable subset (`name`) renders. The `allOf` is dro
 }
 ```
 
-Same shape for `unresolved-ref` (an internal `#/` pointer that doesn't resolve). Both flow through the unsupported pathway.
+Same shape for `unresolved-ref` (an internal `#/` pointer that doesn't resolve) and `unsupported-adjacent-keywords`, whose `details` also list the keywords to remove as `keywords`. All flow through the unsupported pathway.
 
 ---
 
@@ -403,7 +408,8 @@ Issues populate `compileSchema(...).issues` and drive both:
 {
   reason,      // machine code: 'unsupported-composition' | 'unsupported-type' |
                //   'type-as-array' | 'missing-type' | 'external-ref' |
-               //   'unresolved-ref' | 'invalid-pattern' — branch on this
+               //   'unresolved-ref' | 'unsupported-adjacent-keywords' |
+               //   'invalid-pattern' — branch on this
   message,     // human-readable summary, derived from reason/details
   schemaPath,  // '/properties/weird' — where to fix it in the *schema* ($refs
                //   re-rooted at their $def); '/' at the root
@@ -412,6 +418,7 @@ Issues populate `compileSchema(...).issues` and drive both:
                //   { type }            — unsupported-type / type-as-array
                //   { keyword, variants }— unsupported-composition
                //   { ref }             — external-ref / unresolved-ref
+               //   { ref, keywords }   — unsupported-adjacent-keywords
                //   { pattern }         — invalid-pattern
 }
 ```
@@ -449,7 +456,7 @@ Compilation is one-shot per engine — it is *not* on the keystroke hot path. Co
 
 When the spec gains a new type, three places in the compiler need to update:
 
-1. **`SUPPORTED_TYPES`** at [state-engine/schema.js](../src/state-engine/schema.js) — add the new type string.
+1. **`SUPPORTED_TYPES`** at [state-engine/schema/index.js](../src/state-engine/schema/index.js) — add the new type string.
 2. **`inferKind`** — return `{ kind: '<new>' }` for the new type. The default `SUPPORTED_TYPES.has(...)` branch already handles primitive kinds; only add a special case if your new kind needs structural recursion (like `object`/`array`).
 3. **`compileNode`** — if the new kind has recursive children or extra metadata (similar to `properties`/`items`/`minItems`), add a branch that builds the node accordingly.
 
