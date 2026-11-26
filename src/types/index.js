@@ -120,3 +120,38 @@ export function parseSharedSchemaName(id) {
   const path = pathOfId(id);
   return path === undefined ? undefined : PATH.exec(path)?.[1];
 }
+
+/**
+ * Compares two shared schemas by version, numerically, so 1.10.0 is newer
+ * than 1.9.0.
+ * @param {{ $id: string }} a A shared schema.
+ * @param {{ $id: string }} b Another shared schema.
+ * @returns {number} Negative when the first is older, 0 when equal, positive when newer.
+ */
+export function compareSharedSchemaVersions(a, b) {
+  const versionOf = ({ $id }) => $id.slice($id.lastIndexOf('/') + 1);
+  return versionOf(a).localeCompare(versionOf(b), 'en', { numeric: true });
+}
+
+/**
+ * The shared schemas, in the order of the registry.
+ * @param {object} [options] Which shared schemas to return.
+ * @param {string} [options.name] Only the versions of this shared schema, such as `image`.
+ * @param {boolean} [options.newest] Only the newest version of each shared schema.
+ * @returns {object[]} The shared schemas.
+ */
+export function findSharedSchemas({ name, newest = false } = {}) {
+  const nameOf = ({ $id }) => parseSharedSchemaName($id);
+  const named = SHARED_SCHEMAS.filter((schema) => name === undefined || nameOf(schema) === name);
+  if (!newest) {
+    return named;
+  }
+  const newestByName = new Map();
+  named.forEach((schema) => {
+    const current = newestByName.get(nameOf(schema));
+    if (!current || compareSharedSchemaVersions(schema, current) > 0) {
+      newestByName.set(nameOf(schema), schema);
+    }
+  });
+  return [...newestByName.values()];
+}

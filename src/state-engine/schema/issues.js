@@ -10,7 +10,7 @@
  * governing permissions and limitations under the License.
  */
 
-import { SHARED_SCHEMAS, parseSharedSchemaName } from '../../types/index.js';
+import { SHARED_SCHEMAS, findSharedSchemas, parseSharedSchemaName } from '../../types/index.js';
 import { allowedAdjacentKeywords } from './shared.js';
 
 /** The `reason` of each schema issue, the codes consumers branch on. */
@@ -37,8 +37,10 @@ function quotedList(values) {
   return values.map((value) => `"${value}"`).join(', ');
 }
 
-/** The `$id` of every shared schema, quoted for messages. */
-const QUOTED_SHARED_SCHEMA_IDS = quotedList(SHARED_SCHEMAS.map(({ $id }) => $id));
+/** The `$id` of the newest version of each shared schema, quoted for messages. */
+const QUOTED_SHARED_SCHEMA_IDS = quotedList(
+  findSharedSchemas({ newest: true }).map(({ $id }) => $id),
+);
 
 /** The name of every shared schema. */
 const SHARED_SCHEMA_NAMES = new Set(SHARED_SCHEMAS.map(({ $id }) => parseSharedSchemaName($id)));
