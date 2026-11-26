@@ -21,8 +21,8 @@ export default {
     src: {
       type: 'string',
       title: 'Source',
-      description: 'The http(s) URL or media bus path of the asset.',
-      pattern: String.raw`^\s*(?:\./|https?://)\S+\s*$`,
+      description: 'A media bus path or an http(s) URL.',
+      pattern: String.raw`^(?:\./media\S+|https?://[^\s/?#]\S*)$`,
     },
   },
   required: ['src'],

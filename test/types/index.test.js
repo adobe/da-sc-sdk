@@ -61,11 +61,12 @@ describe('shared schemas', () => {
   const srcPatterns = () => SHARED_SCHEMAS
     .map(({ $id, properties }) => [$id, new RegExp(properties.src.pattern)]);
 
-  it('accepts a relative ./ path or an http(s) URL as src', () => {
+  it('accepts a media bus path or an http(s) URL with a host as src', () => {
     const valid = [
       './media_1a2b3c.png',
-      ' ./media_ab12.jpg?width=750&format=jpg ',
+      './media_ab12.jpg?width=750&format=jpg',
       './media/abc123.jpg',
+      'https://main--site--org.aem.page/media_1a2b.png',
       'https://publish-p1-e1.adobeaemcloud.com/content/dam/site/hero.jpg',
       'https://delivery-p1-e1.adobeaemcloud.com/adobe/assets/urn:aaid:aem:1/as/hero.avif?width=2000',
       'https://assets.customer-cdn.com/hero.jpg',
@@ -81,6 +82,8 @@ describe('shared schemas', () => {
       'data:image/png;base64,AAAA',
       'vbscript:msgbox(1)', 'file:///etc/passwd', 'blob:https://x/y', 'ftp://example.com/x',
       'https://example.com/a b.png', '\u0001javascript:alert(1)',
+      './hero.png', './', './media', './/media_1a2b.jpg', ' ./media_ab12.jpg', './media_ab12.jpg ',
+      'https://', 'https:///hero.png', 'https://?x', ' https://example.com/hero.jpg',
     ];
     srcPatterns().forEach(([$id, pattern]) => {
       valid.forEach((src) => expect(pattern.test(src), `${$id} ${src}`).to.equal(true));
@@ -88,12 +91,15 @@ describe('shared schemas', () => {
     });
   });
 
-  it('accepts no src that resolves to another protocol, or a ./ path on another host', () => {
+  it('accepts no src that resolves to another protocol, or a media bus path on another host', () => {
     const page = new URL('https://main--site--org.aem.page/folder/page');
     const prefixes = ['', ' ', '\t', '\n', '\u0001', '\u0000', ' \u001f'];
     const schemes = ['javascript', 'JavaScript', 'data', 'vbscript', 'file', 'blob', 'http', 'https', 'HTTPS', '', '.'];
     const separators = [':', '://', ':/', '//', '/', ''];
-    const payloads = ['alert(1)', 'evil.example/x', '//evil.example/x', 'media_1a2b.jpg', '\\evil.example/x', '%0aalert(1)'];
+    const payloads = [
+      'alert(1)', 'evil.example/x', '//evil.example/x', 'media_1a2b.jpg', '\\evil.example/x', '%0aalert(1)',
+      'media//evil.example/x', 'media/../../x', 'media\\evil.example/x',
+    ];
     const values = prefixes.flatMap((prefix) => schemes.flatMap((scheme) => separators
       .flatMap((separator) => payloads.map((payload) => `${prefix}${scheme}${separator}${payload}`))));
     expect(values.length).to.be.above(2000);
@@ -106,7 +112,7 @@ describe('shared schemas', () => {
           return;
         }
         expect(['http:', 'https:'], `${$id} ${JSON.stringify(value)}`).to.include(url.protocol);
-        if (value.trim().startsWith('./')) {
+        if (value.startsWith('./')) {
           expect(url.host, `${$id} ${JSON.stringify(value)}`).to.equal(page.host);
         }
       });
