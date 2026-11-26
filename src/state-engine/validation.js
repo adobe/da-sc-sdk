@@ -281,15 +281,16 @@ function requiredMessage(child) {
   return 'This field is required.';
 }
 
+/**
+ * Reports each required property of an object that has no value. A container
+ * that holds only empty values counts as missing, because saving removes it.
+ * @param {object} options The node and the errors to add to.
+ * @param {object} options.node A model node.
+ * @param {object} options.errors The errors by pointer.
+ */
 function emitRequiredForChildren({ node, errors }) {
   if (node.kind !== 'object' || !Array.isArray(node.children)) { return; }
-  // An empty shared schema value is absent, so its properties are not required yet.
-  if (isSharedSchemaValue(node) && isDataEmpty(node.value)) {
-    return;
-  }
   for (const child of node.children) {
-    // Presence is recursive: a required container of only-empty leaves (e.g.
-    // `{ title: '' }`) prunes to nothing on save, so flag it as missing.
     if (child.required && isDataEmpty(child.value)) {
       pushError(errors, child.pointer, {
         keyword: 'required',
@@ -352,15 +353,35 @@ function validateNodeValue({ node, errors }) {
   }
 }
 
+/**
+ * The properties and items of a node that are present. An empty shared schema
+ * property is absent, so its properties are not required yet. Every array
+ * item is present, even a blank one, so the author fills or removes it.
+ * @param {object} node A model node.
+ * @returns {object[]} The present child nodes.
+ */
+function presentChildren(node) {
+  const children = Array.isArray(node.children) ? node.children : [];
+  const items = Array.isArray(node.items) ? node.items : [];
+  return [
+    ...children.filter((child) => !isSharedSchemaValue(child) || !isDataEmpty(child.value)),
+    ...items,
+  ];
+}
+
+/**
+ * Validates a node and everything below it, depth first.
+ * @param {object} node A model node.
+ * @param {object} errors The errors by pointer.
+ */
 function traverse(node, errors) {
-  if (!node) { return; }
+  if (!node) {
+    return;
+  }
   validateNodeValue({ node, errors });
   emitRequiredForChildren({ node, errors });
   emitAdditionalProperties({ node, errors });
-  if (Array.isArray(node.children)) { node.children.forEach((c) => traverse(c, errors)); }
-  // Descend into every row, even blank ones: an added row's required fields
-  // must validate (fill or remove it). Blank rows still don't count toward min.
-  if (Array.isArray(node.items)) { node.items.forEach((c) => traverse(c, errors)); }
+  presentChildren(node).forEach((child) => traverse(child, errors));
 }
 
 export function validateDocument({ document, model }) {

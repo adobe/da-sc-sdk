@@ -430,7 +430,9 @@ shared schema. `$comment`, `examples`, `deprecated`,
 
 A shared schema value whose properties are all empty has no value (§7). A
 required one that is empty is flagged as a field, `"This field is required."`,
-and its own required properties are checked only once it has a value.
+and its own required properties are checked only once it has a value. An item of
+an array is checked like any other item, so a blank image item reports its `src`
+as required.
 
 ---
 

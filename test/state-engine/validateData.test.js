@@ -198,6 +198,24 @@ describe('validateData', () => {
       });
     });
 
+    it('flags the required properties of a blank shared schema item like an object item', () => {
+      const result = validateData({
+        schema: {
+          type: 'object',
+          properties: {
+            images: { type: 'array', items: { $ref: image.$id } },
+            objects: {
+              type: 'array',
+              items: { type: 'object', properties: { src: { type: 'string' } }, required: ['src'] },
+            },
+          },
+        },
+        data: { images: [{}], objects: [{}] },
+      });
+      expect(Object.keys(result.errors)).to.deep.equal(['/data/images/0/src', '/data/objects/0/src']);
+      expect(result.errors['/data/images/0/src']).to.deep.include({ keyword: 'required' });
+    });
+
     it('flags alt text without a source on the source', () => {
       const result = validateData({
         schema,
